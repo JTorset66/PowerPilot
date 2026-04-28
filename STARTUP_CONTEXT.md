@@ -1,6 +1,6 @@
 ﻿# PowerPilot Startup Context
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 ## Verified build state
 
@@ -12,12 +12,12 @@ Latest verified artifact details:
 
 - build\PowerPilot_V1.0.exe
   - Size: 753,152 bytes
-  - Last write time: 2026-04-28 23:28:27
-  - SHA-256: 454599B02FE0825F3A6565D52B4A1CED82047C2C82992F3D87087A8E402AA69D
+  - Last write time: 2026-04-29 00:00:02
+  - SHA-256: DBAB635EA89FC44E1821B11CE7A66D38142442E00502760400AE5A4191234A1E
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,416,050 bytes
-  - Last write time: 2026-04-28 23:28:35
-  - SHA-256: D318257330F434CA8B0FE7C8AECE3CDE55F5026DDC2A46B0C3598056EF319BBC
+  - Size: 2,416,467 bytes
+  - Last write time: 2026-04-29 00:00:11
+  - SHA-256: 3A55E4BAB3E8B1D2F5240CE5DA4131F70AFA66026CB0BEC94FB253A949B14982
 
 ## Current feature notes
 

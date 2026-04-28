@@ -24,20 +24,20 @@
 #PlanVisible$     = "PowerPilot"
 #PlanBattery$     = "PowerPilot Battery Saver"
 #PlanPlugged$     = "PowerPilot Plugged In"
-#PlanGame12$      = "PowerPilot Cool 12W"
-#PlanGame15$      = "PowerPilot Cool 15W"
-#PlanGame18$      = "PowerPilot Cool 18W"
-#PlanGame21$      = "PowerPilot Cool 21W"
-#PlanGame24$      = "PowerPilot Cool 24W"
+#PlanCool12$      = "PowerPilot Cool 12W"
+#PlanCool15$      = "PowerPilot Cool 15W"
+#PlanCool18$      = "PowerPilot Cool 18W"
+#PlanCool21$      = "PowerPilot Cool 21W"
+#PlanCool24$      = "PowerPilot Cool 24W"
 #PlanFull$        = "PowerPilot Full Power"
 
 #LegacyPlanBattery$ = "Codex Battery Saver"
 #LegacyPlanPlugged$ = "Codex Plugged In"
-#LegacyPlanGame12$  = "Codex GameCool 12W"
-#LegacyPlanGame15$  = "Codex GameCool 15W"
-#LegacyPlanGame18$  = "Codex GameCool 18W"
-#LegacyPlanGame21$  = "Codex GameCool 21W"
-#LegacyPlanGame24$  = "Codex GameCool 24W"
+#LegacyPlanCool12$  = "Codex GameCool 12W"
+#LegacyPlanCool15$  = "Codex GameCool 15W"
+#LegacyPlanCool18$  = "Codex GameCool 18W"
+#LegacyPlanCool21$  = "Codex GameCool 21W"
+#LegacyPlanCool24$  = "Codex GameCool 24W"
 #LegacyPlanFull$    = "Codex Full Power"
 
 #FILE_MAP_READ    = $0004
@@ -85,7 +85,7 @@
 #TimerUiRefresh   = 1
 #UiRefreshMs      = 500
 #UiLogLineCount   = 8
-#DefaultGameCoolAverageSeconds = 10 ; Auto Cool control and the main telemetry display use this average window by default.
+#DefaultAutoCoolAverageSeconds = 10 ; Auto Cool control and the main telemetry display use this average window by default.
 #TelemetryHistorySize = 24
 #TelemetryLatchGracePolls = 3
 #TelemetryLatchMinimumMs = 15000
@@ -150,7 +150,7 @@ Enumeration 200
   #GadgetPollSpin
   #GadgetHysteresisSpin
   #GadgetPowerHysteresisSpin
-  #GadgetGameCoolAverage
+  #GadgetAutoCoolAverage
   #GadgetThresholdFull24
   #GadgetThreshold2421
   #GadgetThreshold2118
@@ -235,7 +235,7 @@ Structure AppSettings
   Hysteresis.i
   PowerHysteresis.i
   CpuPowerTarget.i
-  GameCoolAverageSeconds.i
+  AutoCoolAverageSeconds.i
   ThresholdFull24.i
   Threshold2421.i
   Threshold2118.i
@@ -411,7 +411,7 @@ Declare.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading, *
 Declare.s FindBundledWindowsPerfHelper()
 Declare.i ReadWindowsPerfStreamTelemetry(*reading.TempReading)
 Declare.i ShouldUseWindowsPerfHelper()
-Declare.i IsGameCoolPlanName(planName$)
+Declare.i IsAutoCoolPlanName(planName$)
 Declare.s ResolveIdleRememberedPluggedPlan(*settings.AppSettings)
 Declare StopWindowsPerfHelper()
 Declare ResetTelemetrySmoothing()
@@ -579,11 +579,11 @@ Procedure ResetBuiltInPlanDefinitions()
   ClearList(gPlanDefs())
   AddPlanDefinition(#PlanBattery$, #True, #True, "Battery plan: lowest drain on battery. Boost is off and CPU demand is capped.", 65, 0, 90, 2800, 0, 95, 0, 65, 1800, 0)
   AddPlanDefinition(#PlanPlugged$, #True, #True, "Plugged-in daily plan: balanced speed, heat, and fan noise.", 15, 1, 100, 0, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame12$, #True, #True, "Cool 12W: strongest CPU limit for high power draw or high temperature.", 85, 0, 45, 1800, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame15$, #True, #True, "Cool 15W: strong cooling with a little more speed than 12W.", 75, 0, 55, 2200, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame18$, #True, #True, "Cool 18W: middle cooling level for normal Auto Cool use.", 65, 0, 65, 2600, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame21$, #True, #True, "Cool 21W: light cooling when only a small reduction is needed.", 55, 0, 75, 3000, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame24$, #True, #True, "Cool 24W: mild cooling, closest to Full Power.", 45, 0, 85, 3400, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanCool12$, #True, #True, "Cool 12W: strongest CPU limit for high power draw or high temperature.", 85, 0, 45, 1800, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanCool15$, #True, #True, "Cool 15W: strong cooling with a little more speed than 12W.", 75, 0, 55, 2200, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanCool18$, #True, #True, "Cool 18W: middle cooling level for normal Auto Cool use.", 65, 0, 65, 2600, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanCool21$, #True, #True, "Cool 21W: light cooling when only a small reduction is needed.", 55, 0, 75, 3000, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanCool24$, #True, #True, "Cool 24W: mild cooling, closest to Full Power.", 45, 0, 85, 3400, 1, 80, 0, 85, 2500, 0)
   AddPlanDefinition(#PlanFull$, #True, #True, "Full Power: maximum plugged-in performance and boost.", 5, 2, 100, 0, 1, 80, 0, 85, 2500, 0)
 EndProcedure
 
@@ -1191,7 +1191,7 @@ Procedure.i IsRememberedPluggedPlanName(planName$)
   Protected builtInAllowed.i
 
   Select planName$
-    Case #PlanPlugged$, #PlanGame12$, #PlanGame15$, #PlanGame18$, #PlanGame21$, #PlanGame24$, #PlanFull$
+    Case #PlanPlugged$, #PlanCool12$, #PlanCool15$, #PlanCool18$, #PlanCool21$, #PlanCool24$, #PlanFull$
       builtInAllowed = #True
   EndSelect
 
@@ -1228,9 +1228,9 @@ Procedure.s NormalizeRememberedPluggedPlan(planName$)
   ProcedureReturn #PlanPlugged$
 EndProcedure
 
-Procedure.i IsGameCoolPlanName(planName$)
+Procedure.i IsAutoCoolPlanName(planName$)
   Select planName$
-    Case #PlanGame12$, #PlanGame15$, #PlanGame18$, #PlanGame21$, #PlanGame24$
+    Case #PlanCool12$, #PlanCool15$, #PlanCool18$, #PlanCool21$, #PlanCool24$
       ProcedureReturn #True
   EndSelect
 
@@ -1240,7 +1240,7 @@ EndProcedure
 Procedure.s ResolveIdleRememberedPluggedPlan(*settings.AppSettings)
   Protected plan$ = NormalizeRememberedPluggedPlan(*settings\LastPluggedPlan)
 
-  If *settings\AutoEnabled And IsGameCoolPlanName(plan$)
+  If *settings\AutoEnabled And IsAutoCoolPlanName(plan$)
     ProcedureReturn #PlanFull$
   EndIf
 
@@ -1257,11 +1257,11 @@ EndProcedure
 
 Procedure.i PlanLevelFromName(planName$)
   Select planName$
-    Case #PlanGame12$ : ProcedureReturn 0
-    Case #PlanGame15$ : ProcedureReturn 1
-    Case #PlanGame18$ : ProcedureReturn 2
-    Case #PlanGame21$ : ProcedureReturn 3
-    Case #PlanGame24$ : ProcedureReturn 4
+    Case #PlanCool12$ : ProcedureReturn 0
+    Case #PlanCool15$ : ProcedureReturn 1
+    Case #PlanCool18$ : ProcedureReturn 2
+    Case #PlanCool21$ : ProcedureReturn 3
+    Case #PlanCool24$ : ProcedureReturn 4
     Case #PlanFull$   : ProcedureReturn 5
     Case #PlanPlugged$
       ProcedureReturn 5
@@ -1272,11 +1272,11 @@ EndProcedure
 
 Procedure.s PlanNameFromLevel(level.i)
   Select ClampInt(level, 0, 5)
-    Case 0 : ProcedureReturn #PlanGame12$
-    Case 1 : ProcedureReturn #PlanGame15$
-    Case 2 : ProcedureReturn #PlanGame18$
-    Case 3 : ProcedureReturn #PlanGame21$
-    Case 4 : ProcedureReturn #PlanGame24$
+    Case 0 : ProcedureReturn #PlanCool12$
+    Case 1 : ProcedureReturn #PlanCool15$
+    Case 2 : ProcedureReturn #PlanCool18$
+    Case 3 : ProcedureReturn #PlanCool21$
+    Case 4 : ProcedureReturn #PlanCool24$
   EndSelect
 
   ProcedureReturn #PlanFull$
@@ -1372,7 +1372,7 @@ Procedure ApplyMainWindowToolTips()
   GadgetToolTip(#GadgetPollSpin, "How often PowerPilot refreshes temperature and CPU-power readings.")
   GadgetToolTip(#GadgetHysteresisSpin, "Temperature drop required before Auto Cool steps back to a faster plan.")
   GadgetToolTip(#GadgetPowerHysteresisSpin, "CPU-power drop required before Auto Cool steps back to a faster Cool plan.")
-  GadgetToolTip(#GadgetGameCoolAverage, "Seconds of readings to average for Auto Cool and the dashboard.")
+  GadgetToolTip(#GadgetAutoCoolAverage, "Seconds of readings to average for Auto Cool and the dashboard.")
   GadgetToolTip(#GadgetThresholdFull24, "Temperature where Full Power can enter Cool 24W.")
   GadgetToolTip(#GadgetThreshold2421, "Temperature where Cool 24W can step down to Cool 21W.")
   GadgetToolTip(#GadgetThreshold2118, "Temperature where Cool 21W can step down to Cool 18W.")
@@ -1419,7 +1419,7 @@ Procedure ApplyDefaultSettings()
   gSettings\Hysteresis       = 5
   gSettings\PowerHysteresis  = 8
   gSettings\CpuPowerTarget   = #DefaultCpuPowerTarget
-  gSettings\GameCoolAverageSeconds = #DefaultGameCoolAverageSeconds
+  gSettings\AutoCoolAverageSeconds = #DefaultAutoCoolAverageSeconds
   gSettings\ThresholdFull24  = 65
   gSettings\Threshold2421    = 72
   gSettings\Threshold2118    = 78
@@ -1434,7 +1434,7 @@ Procedure NormalizeSettings()
   gSettings\Hysteresis       = ClampInt(gSettings\Hysteresis, 1, 20)
   gSettings\PowerHysteresis  = ClampInt(gSettings\PowerHysteresis, 1, 30)
   gSettings\CpuPowerTarget   = ClampInt(gSettings\CpuPowerTarget, 5, 120)
-  gSettings\GameCoolAverageSeconds = ClampInt(gSettings\GameCoolAverageSeconds, 1, 60)
+  gSettings\AutoCoolAverageSeconds = ClampInt(gSettings\AutoCoolAverageSeconds, 1, 60)
   gSettings\ThresholdFull24  = ClampInt(gSettings\ThresholdFull24, 45, 100)
   gSettings\Threshold2421    = ClampInt(gSettings\Threshold2421, gSettings\ThresholdFull24 + 1, 105)
   gSettings\Threshold2118    = ClampInt(gSettings\Threshold2118, gSettings\Threshold2421 + 1, 110)
@@ -1458,7 +1458,7 @@ Procedure LoadSettings()
     gSettings\Hysteresis       = ReadPreferenceInteger("Hysteresis", gSettings\Hysteresis)
     gSettings\PowerHysteresis  = ReadPreferenceInteger("PowerHysteresis", gSettings\PowerHysteresis)
     gSettings\CpuPowerTarget   = ReadPreferenceInteger("CpuPowerTarget", gSettings\CpuPowerTarget)
-    gSettings\GameCoolAverageSeconds = ReadPreferenceInteger("GameCoolAverageSeconds", gSettings\GameCoolAverageSeconds)
+    gSettings\AutoCoolAverageSeconds = ReadPreferenceInteger("AutoCoolAverageSeconds", ReadPreferenceInteger("GameCoolAverageSeconds", gSettings\AutoCoolAverageSeconds))
     gSettings\ThresholdFull24  = ReadPreferenceInteger("ThresholdFull24", gSettings\ThresholdFull24)
     gSettings\Threshold2421    = ReadPreferenceInteger("Threshold2421", gSettings\Threshold2421)
     gSettings\Threshold2118    = ReadPreferenceInteger("Threshold2118", gSettings\Threshold2118)
@@ -1486,7 +1486,7 @@ Procedure SaveSettings()
     WritePreferenceInteger("Hysteresis", gSettings\Hysteresis)
     WritePreferenceInteger("PowerHysteresis", gSettings\PowerHysteresis)
     WritePreferenceInteger("CpuPowerTarget", gSettings\CpuPowerTarget)
-    WritePreferenceInteger("GameCoolAverageSeconds", gSettings\GameCoolAverageSeconds)
+    WritePreferenceInteger("AutoCoolAverageSeconds", gSettings\AutoCoolAverageSeconds)
     WritePreferenceInteger("ThresholdFull24", gSettings\ThresholdFull24)
     WritePreferenceInteger("Threshold2421", gSettings\Threshold2421)
     WritePreferenceInteger("Threshold2118", gSettings\Threshold2118)
@@ -1507,7 +1507,7 @@ Procedure PullSettingsFromGui()
   If IsGadget(#GadgetPollSpin) : gSettings\PollSeconds = GetGadgetState(#GadgetPollSpin) : EndIf
   If IsGadget(#GadgetHysteresisSpin) : gSettings\Hysteresis = GetGadgetState(#GadgetHysteresisSpin) : EndIf
   If IsGadget(#GadgetPowerHysteresisSpin) : gSettings\PowerHysteresis = GetGadgetState(#GadgetPowerHysteresisSpin) : EndIf
-  If IsGadget(#GadgetGameCoolAverage) : gSettings\GameCoolAverageSeconds = GetGadgetState(#GadgetGameCoolAverage) : EndIf
+  If IsGadget(#GadgetAutoCoolAverage) : gSettings\AutoCoolAverageSeconds = GetGadgetState(#GadgetAutoCoolAverage) : EndIf
   If IsGadget(#GadgetThresholdFull24) : gSettings\ThresholdFull24 = GetGadgetState(#GadgetThresholdFull24) : EndIf
   If IsGadget(#GadgetThreshold2421) : gSettings\Threshold2421 = GetGadgetState(#GadgetThreshold2421) : EndIf
   If IsGadget(#GadgetThreshold2118) : gSettings\Threshold2118 = GetGadgetState(#GadgetThreshold2118) : EndIf
@@ -1528,7 +1528,7 @@ Procedure PushSettingsToGui()
   UpdateGadgetStateIfNeeded(#GadgetPollSpin, gSettings\PollSeconds)
   UpdateGadgetStateIfNeeded(#GadgetHysteresisSpin, gSettings\Hysteresis)
   UpdateGadgetStateIfNeeded(#GadgetPowerHysteresisSpin, gSettings\PowerHysteresis)
-  UpdateGadgetStateIfNeeded(#GadgetGameCoolAverage, gSettings\GameCoolAverageSeconds)
+  UpdateGadgetStateIfNeeded(#GadgetAutoCoolAverage, gSettings\AutoCoolAverageSeconds)
   UpdateGadgetStateIfNeeded(#GadgetThresholdFull24, gSettings\ThresholdFull24)
   UpdateGadgetStateIfNeeded(#GadgetThreshold2421, gSettings\Threshold2421)
   UpdateGadgetStateIfNeeded(#GadgetThreshold2118, gSettings\Threshold2118)
@@ -2260,11 +2260,11 @@ Procedure PopulatePlanPresetCombo()
   ClearGadgetItems(#GadgetPlanEditorPreset)
   AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanBattery$)
   AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanPlugged$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanGame12$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanGame15$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanGame18$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanGame21$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanGame24$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool12$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool15$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool18$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool21$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool24$)
   AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanFull$)
   UpdateGadgetStateIfNeeded(#GadgetPlanEditorPreset, 0)
 EndProcedure
@@ -3521,7 +3521,7 @@ Procedure CopySettings(*settings.AppSettings)
   *settings\Hysteresis = gSettings\Hysteresis
   *settings\PowerHysteresis = gSettings\PowerHysteresis
   *settings\CpuPowerTarget = gSettings\CpuPowerTarget
-  *settings\GameCoolAverageSeconds = gSettings\GameCoolAverageSeconds
+  *settings\AutoCoolAverageSeconds = gSettings\AutoCoolAverageSeconds
   *settings\ThresholdFull24 = gSettings\ThresholdFull24
   *settings\Threshold2421 = gSettings\Threshold2421
   *settings\Threshold2118 = gSettings\Threshold2118
@@ -3598,11 +3598,11 @@ Procedure.i ManagedPlansExist()
   If GetSchemeGuidByName(#PlanVisible$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanBattery$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanPlugged$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanGame12$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanGame15$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanGame18$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanGame21$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanGame24$) = "" : ProcedureReturn #False : EndIf
+  If GetSchemeGuidByName(#PlanCool12$) = "" : ProcedureReturn #False : EndIf
+  If GetSchemeGuidByName(#PlanCool15$) = "" : ProcedureReturn #False : EndIf
+  If GetSchemeGuidByName(#PlanCool18$) = "" : ProcedureReturn #False : EndIf
+  If GetSchemeGuidByName(#PlanCool21$) = "" : ProcedureReturn #False : EndIf
+  If GetSchemeGuidByName(#PlanCool24$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanFull$) = "" : ProcedureReturn #False : EndIf
   ProcedureReturn #True
 EndProcedure
@@ -3666,40 +3666,40 @@ Procedure.s DecideTempDrivenPlan(tempC.d, currentPlan$, *settings.AppSettings)
 
   Select currentPlan$
     Case ""
-      If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanGame12$ : EndIf
-      If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanGame15$ : EndIf
-      If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanGame18$ : EndIf
-      If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanGame21$ : EndIf
-      If tempC >= *settings\ThresholdFull24 : ProcedureReturn #PlanGame24$ : EndIf
+      If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanCool12$ : EndIf
+      If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanCool15$ : EndIf
+      If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanCool18$ : EndIf
+      If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanCool21$ : EndIf
+      If tempC >= *settings\ThresholdFull24 : ProcedureReturn #PlanCool24$ : EndIf
       ProcedureReturn #PlanFull$
 
     Case #PlanFull$
-      If tempC >= *settings\ThresholdFull24 : ProcedureReturn #PlanGame24$ : EndIf
+      If tempC >= *settings\ThresholdFull24 : ProcedureReturn #PlanCool24$ : EndIf
       ProcedureReturn #PlanFull$
 
-    Case #PlanGame24$
-      If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanGame21$ : EndIf
+    Case #PlanCool24$
+      If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanCool21$ : EndIf
       If tempC <= *settings\ThresholdFull24 - h : ProcedureReturn #PlanFull$ : EndIf
-      ProcedureReturn #PlanGame24$
+      ProcedureReturn #PlanCool24$
 
-    Case #PlanGame21$
-      If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanGame18$ : EndIf
-      If tempC <= *settings\Threshold2421 - h : ProcedureReturn #PlanGame24$ : EndIf
-      ProcedureReturn #PlanGame21$
+    Case #PlanCool21$
+      If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanCool18$ : EndIf
+      If tempC <= *settings\Threshold2421 - h : ProcedureReturn #PlanCool24$ : EndIf
+      ProcedureReturn #PlanCool21$
 
-    Case #PlanGame18$
-      If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanGame15$ : EndIf
-      If tempC <= *settings\Threshold2118 - h : ProcedureReturn #PlanGame21$ : EndIf
-      ProcedureReturn #PlanGame18$
+    Case #PlanCool18$
+      If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanCool15$ : EndIf
+      If tempC <= *settings\Threshold2118 - h : ProcedureReturn #PlanCool21$ : EndIf
+      ProcedureReturn #PlanCool18$
 
-    Case #PlanGame15$
-      If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanGame12$ : EndIf
-      If tempC <= *settings\Threshold1815 - h : ProcedureReturn #PlanGame18$ : EndIf
-      ProcedureReturn #PlanGame15$
+    Case #PlanCool15$
+      If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanCool12$ : EndIf
+      If tempC <= *settings\Threshold1815 - h : ProcedureReturn #PlanCool18$ : EndIf
+      ProcedureReturn #PlanCool15$
 
-    Case #PlanGame12$
-      If tempC <= *settings\Threshold1512 - h : ProcedureReturn #PlanGame15$ : EndIf
-      ProcedureReturn #PlanGame12$
+    Case #PlanCool12$
+      If tempC <= *settings\Threshold1512 - h : ProcedureReturn #PlanCool15$ : EndIf
+      ProcedureReturn #PlanCool12$
   EndSelect
 
   ProcedureReturn #PlanFull$
@@ -3719,7 +3719,7 @@ Procedure.s DecideAutoPlanSnapshot(*reading.TempReading, currentPlan$, *settings
     desiredLevel = 5
   EndIf
 
-  If IsGameCoolPlanName(currentPlan$) And *reading\cpuPackageValid
+  If IsAutoCoolPlanName(currentPlan$) And *reading\cpuPackageValid
     thresholdW = *settings\PowerHysteresis
     If thresholdW < 1.0
       thresholdW = 1.0
@@ -3780,7 +3780,7 @@ Procedure UpdateRuntimeSourceSnapshots(*windows.TempReading, *fallback.TempReadi
   UnlockMutex(gStateMutex)
 EndProcedure
 
-Procedure.i AutoGameCoolStep(announceKeep.i = #False)
+Procedure.i AutoCoolStep(announceKeep.i = #False)
   Protected settings.AppSettings
   Protected reading.TempReading
   Protected controlReading.TempReading
@@ -3807,7 +3807,7 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
 
   CaptureTelemetrySnapshot(@reading, @windows, @fallback)
   CopyTempReading(@controlReading, @reading)
-  ApplyTelemetryAveraging(@controlReading, settings\GameCoolAverageSeconds * 1000)
+  ApplyTelemetryAveraging(@controlReading, settings\AutoCoolAverageSeconds * 1000)
   BuildDependencyStatusFromSnapshots(@dependency, @reading, @windows, @fallback, @settings)
   CacheDependencyStatus(@dependency)
   currentPlan$ = GetActiveSchemeName()
@@ -3927,7 +3927,7 @@ Procedure WorkerThread(*unused)
   UnlockMutex(gStateMutex)
 
   Repeat
-    AutoGameCoolStep()
+    AutoCoolStep()
 
     LockMutex(gStateMutex)
     pollSeconds = gSettings\PollSeconds
@@ -5125,7 +5125,7 @@ Procedure RefreshStatusDisplay()
   powerSource = gState\PowerSource
   activePlan$ = gState\ActivePlan
   autoEnabled = gState\AutoEnabled
-  averageSeconds = gSettings\GameCoolAverageSeconds
+  averageSeconds = gSettings\AutoCoolAverageSeconds
   logText$ = BuildUiLogText()
   UnlockMutex(gStateMutex)
   CopyCachedDependencyStatus(@status)
@@ -5599,7 +5599,7 @@ Procedure.i CreateMainWindow(showWindow.i)
   TextGadget(#PB_Any, 34, 146, 170, 20, "Power step-back gap (W):")
   SpinGadget(#GadgetPowerHysteresisSpin, 248, 142, 72, 25, 1, 30, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 34, 176, 170, 20, "Average window (sec):")
-  SpinGadget(#GadgetGameCoolAverage, 248, 172, 72, 25, 1, 60, #PB_Spin_Numeric)
+  SpinGadget(#GadgetAutoCoolAverage, 248, 172, 72, 25, 1, 60, #PB_Spin_Numeric)
 
   FrameGadget(#PB_Any, 392, 54, 406, 174, "Decision Rule")
   TextGadget(#PB_Any, 410, 86, 360, 92, "From Full Power: temperature chooses when to enter Cool 24W." + #CRLF$ + "Inside Cool plans: CPU package power chooses the level." + #CRLF$ + "High temperature can still force a lower-power Cool plan.")
@@ -5789,7 +5789,7 @@ Procedure HandleManualAction(action.i)
         If ActivatePlanByName(planName$, #True) And IsRememberedPluggedPlanName(planName$)
           RememberPluggedPlan(planName$, #True)
           gManualOverrideUntil = 0
-          If planName$ = #PlanFull$ Or IsGameCoolPlanName(planName$)
+          If planName$ = #PlanFull$ Or IsAutoCoolPlanName(planName$)
             LockMutex(gStateMutex)
             gSettings\AutoEnabled = #True
             gState\AutoEnabled = #True
@@ -5804,7 +5804,7 @@ Procedure HandleManualAction(action.i)
           PushSettingsToGui()
           If planName$ = #PlanFull$
             LogAction("Full Power activated. Auto Cool stays on and will use temperature.")
-          ElseIf IsGameCoolPlanName(planName$)
+          ElseIf IsAutoCoolPlanName(planName$)
             LogAction("Cool plan activated. Auto Cool stays on and will use CPU package power first.")
           Else
             LogAction("Manual plan activated. Auto Cool is off so this plan stays active.")
@@ -5815,7 +5815,7 @@ Procedure HandleManualAction(action.i)
       EndIf
 
     Case #GadgetAutoOnce
-      AutoGameCoolStep(#True)
+      AutoCoolStep(#True)
 
     Case #GadgetResetDisplay
       TriggerDisplayReset()
@@ -5871,7 +5871,7 @@ Procedure HandleTrayMenu(menuID.i)
       LogAction("Auto Cool toggled to " + Str(gSettings\AutoEnabled))
 
     Case #MenuAutoOnce
-      AutoGameCoolStep(#True)
+      AutoCoolStep(#True)
 
     Case #MenuBattery
       ActivatePlanByName(#PlanBattery$, #True)
@@ -5979,7 +5979,7 @@ Procedure RunGui(showWindow.i)
             workerRunning = gState\WorkerRunning
             UnlockMutex(gStateMutex)
             If workerRunning = #False
-              AutoGameCoolStep()
+              AutoCoolStep()
               RefreshRuntimeSnapshot()
             EndIf
             RefreshStatusDisplay()
@@ -6040,7 +6040,7 @@ If CountProgramParameters() > 0
       EndIf
 
     Case "/auto-gamecool-once", "/auto-cool-once"
-      AutoGameCoolStep(#True)
+      AutoCoolStep(#True)
       End 0
 
     Case "/startup-on"
