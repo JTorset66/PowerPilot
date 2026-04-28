@@ -3,6 +3,8 @@ param(
     [string]$ChatText = "",
     [switch]$SaveChatFromClipboard,
     [switch]$SkipSnapshot,
+    [string]$CertificateThumbprint,
+    [string]$TimestampUrl,
     [int]$SnapshotRetention = 8,
     [int]$ChatRetention = 30
 )
@@ -254,6 +256,63 @@ function Get-ArtifactInfo {
     }
 }
 
+function Get-CodeSigningCertificate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Thumbprint
+    )
+
+    $normalizedThumbprint = ($Thumbprint -replace "\s", "").ToUpperInvariant()
+    $stores = @("Cert:\CurrentUser\My", "Cert:\LocalMachine\My")
+
+    foreach ($store in $stores) {
+        $match = Get-ChildItem -Path $store -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Thumbprint -eq $normalizedThumbprint -and
+                $_.HasPrivateKey -and
+                (
+                    $_.EnhancedKeyUsageList.ObjectId -contains "1.3.6.1.5.5.7.3.3" -or
+                    $_.EnhancedKeyUsageList.FriendlyName -contains "Code Signing"
+                )
+            } |
+            Select-Object -First 1
+
+        if ($match) {
+            return $match
+        }
+    }
+
+    throw "Code-signing certificate not found for thumbprint $normalizedThumbprint in Cert:\CurrentUser\My or Cert:\LocalMachine\My."
+}
+
+function Sign-ProjectArtifact {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [object]$Certificate,
+        [string]$TimestampServer
+    )
+
+    $signingParams = @{
+        FilePath = $Path
+        Certificate = $Certificate
+        HashAlgorithm = "SHA256"
+    }
+
+    if ($TimestampServer) {
+        $signingParams.TimestampServer = $TimestampServer
+    }
+
+    $signature = Set-AuthenticodeSignature @signingParams
+
+    if ($signature.Status -ne "Valid") {
+        throw "Signing failed for $Path`: $($signature.Status) - $($signature.StatusMessage)"
+    }
+
+    Write-Host "Signed:" $Path
+}
+
 function Write-StartupContext {
     param(
         [Parameter(Mandatory = $true)]
@@ -316,10 +375,11 @@ Latest verified artifact details:
 
 ## Current feature notes
 
-- Control now includes a saved `Cool avg (sec)` setting for the Auto Cool averaging window.
+- Control documents Auto Cool as CPU-package-power control for active Cool plans and temperature-only entry from Full Power.
+- Battery guidance now reminds users to set Windows Power mode to Balanced or Best performance so Auto Cool is not capped by Best power efficiency.
 - Manual Override includes a `Reset Display` action that sends the Windows graphics reset hotkey.
-- Automatic Cool plans now arm from sustained GPU load instead of game-specific wording.
-- Power switching now returns to Battery Saver or Full Power when the GPU load trigger is inactive.
+- Graphics power and graphics workload readings are no longer used for Auto Cool decisions.
+- The GPU helper is retained only for GPU names and VRAM display.
 
 ## Installer status
 
@@ -427,9 +487,10 @@ $snapshotSummary
 
 ## Feature reminders
 
-- Control includes a saved `Cool avg (sec)` setting for Auto Cool averaging.
+- Auto Cool uses CPU package power while a Cool plan is active, and temperature only when entering Cool plans from Full Power.
+- Windows battery Power mode should be Balanced or Best performance so Best power efficiency does not cap the available Auto Cool range.
 - Manual Override includes `Reset Display` for graphics-path recovery.
-- Auto Cool now uses sustained GPU load as its trigger before applying the Cool tiers.
+- Graphics power and graphics workload readings are not used for Auto Cool decisions.
 "@
 
     Set-Content -LiteralPath $path -Value $content -Encoding UTF8
@@ -523,7 +584,7 @@ try {
         Write-Host "Pre-build snapshot created:" $snapshotInfo.RelativePath
     }
 
-    .\build-purebasic.ps1
+    .\build-purebasic.ps1 -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
 
     $isccPath = Resolve-IsccPath
     & $isccPath ".\powerpilot.iss"
@@ -532,8 +593,17 @@ try {
         throw "Inno Setup compilation failed."
     }
 
-    $exeInfo = Get-ArtifactInfo -Path (Join-Path $repoRoot "build\PowerPilot_V1.0.exe")
-    $setupInfo = Get-ArtifactInfo -Path (Join-Path $repoRoot "build\PowerPilot_V1.0_Setup.exe")
+    $exePath = Join-Path $repoRoot "build\PowerPilot_V1.0.exe"
+    $setupPath = Join-Path $repoRoot "build\PowerPilot_V1.0_Setup.exe"
+
+    if ($CertificateThumbprint) {
+        $certificate = Get-CodeSigningCertificate -Thumbprint $CertificateThumbprint
+        Sign-ProjectArtifact -Path $setupPath -Certificate $certificate -TimestampServer $TimestampUrl
+        Write-Host "Installer signer:" $certificate.Subject
+    }
+
+    $exeInfo = Get-ArtifactInfo -Path $exePath
+    $setupInfo = Get-ArtifactInfo -Path $setupPath
 
     Write-StartupContext -ExeInfo $exeInfo -SetupInfo $setupInfo -SnapshotInfo $snapshotInfo -SnapshotRetention $SnapshotRetention -ChatRetention $ChatRetention
     Write-LatestBuildContext -ExeInfo $exeInfo -SetupInfo $setupInfo -SnapshotInfo $snapshotInfo -SnapshotRetention $SnapshotRetention -ChatRetention $ChatRetention

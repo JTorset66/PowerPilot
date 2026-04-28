@@ -40,8 +40,17 @@ jobs:
 
       - name: Build executable and installer
         shell: powershell
+        env:
+          WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
+          RFC3161_TIMESTAMP_URL: ${{ secrets.RFC3161_TIMESTAMP_URL }}
         run: |
-          .\build-installer.ps1
+          if ($env:WINDOWS_CERT_THUMBPRINT) {
+            .\build-installer.ps1 `
+              -CertificateThumbprint $env:WINDOWS_CERT_THUMBPRINT `
+              -TimestampUrl $env:RFC3161_TIMESTAMP_URL
+          } else {
+            .\build-installer.ps1
+          }
 
       - name: Create SHA256 checksums
         shell: powershell

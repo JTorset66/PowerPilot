@@ -11,20 +11,21 @@ Last updated: 2026-04-28
 Latest verified artifact details:
 
 - build\PowerPilot_V1.0.exe
-  - Size: 776,192 bytes
-  - Last write time: 2026-04-28 17:47:29
-  - SHA-256: AE8D4D878E44932F12996E83D2A8370F7E62020082A6779F38E02DFA933B8CDF
+  - Size: 753,152 bytes
+  - Last write time: 2026-04-28 23:28:27
+  - SHA-256: 454599B02FE0825F3A6565D52B4A1CED82047C2C82992F3D87087A8E402AA69D
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,419,590 bytes
-  - Last write time: 2026-04-28 17:47:35
-  - SHA-256: A34546179750CD538F31423C405A9A6735BB23EB21D87E082FE3B865EAA039DB
+  - Size: 2,416,050 bytes
+  - Last write time: 2026-04-28 23:28:35
+  - SHA-256: D318257330F434CA8B0FE7C8AECE3CDE55F5026DDC2A46B0C3598056EF319BBC
 
 ## Current feature notes
 
-- Control now includes a saved Cool avg (sec) setting for the Auto Cool averaging window.
+- Control documents Auto Cool as CPU-package-power control for active Cool plans and temperature-only entry from Full Power.
+- Battery guidance now reminds users to set Windows Power mode to Balanced or Best performance so Auto Cool is not capped by Best power efficiency.
 - Manual Override includes a Reset Display action that sends the Windows graphics reset hotkey.
-- Automatic Cool plans now arm from sustained GPU load instead of game-specific wording.
-- Power switching now returns to Battery Saver or Full Power when the GPU load trigger is inactive.
+- Graphics power and graphics workload readings are no longer used for Auto Cool decisions.
+- The GPU helper is retained only for GPU names and VRAM display.
 
 ## Installer status
 
@@ -39,9 +40,7 @@ Latest verified artifact details:
 
 ## Latest snapshot
 
-- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-28_17-47-15.zip
-- Created: 2026-04-28 17:47:15
-- Source files captured: 728
+- Snapshot was skipped for this run.
 
 ## Where to look first on a new startup
 

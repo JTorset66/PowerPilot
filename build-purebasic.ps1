@@ -95,7 +95,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "Built:" $outputPath
 
-& (Join-Path $repoRoot "build-helpers.ps1")
+& (Join-Path $repoRoot "build-helpers.ps1") -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
 
 if ($LASTEXITCODE -ne 0) {
     throw "Helper build failed."

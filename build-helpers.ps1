@@ -1,5 +1,7 @@
 param(
-    [string]$OutputDir = ".\build"
+    [string]$OutputDir = ".\build",
+    [string]$CertificateThumbprint,
+    [string]$TimestampUrl
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,6 +60,63 @@ function Resolve-ClCompiler {
     }
 
     throw "cl.exe was not found."
+}
+
+function Get-CodeSigningCertificate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Thumbprint
+    )
+
+    $normalizedThumbprint = ($Thumbprint -replace "\s", "").ToUpperInvariant()
+    $stores = @("Cert:\CurrentUser\My", "Cert:\LocalMachine\My")
+
+    foreach ($store in $stores) {
+        $match = Get-ChildItem -Path $store -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Thumbprint -eq $normalizedThumbprint -and
+                $_.HasPrivateKey -and
+                (
+                    $_.EnhancedKeyUsageList.ObjectId -contains "1.3.6.1.5.5.7.3.3" -or
+                    $_.EnhancedKeyUsageList.FriendlyName -contains "Code Signing"
+                )
+            } |
+            Select-Object -First 1
+
+        if ($match) {
+            return $match
+        }
+    }
+
+    throw "Code-signing certificate not found for thumbprint $normalizedThumbprint in Cert:\CurrentUser\My or Cert:\LocalMachine\My."
+}
+
+function Sign-ProjectArtifact {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [object]$Certificate,
+        [string]$TimestampServer
+    )
+
+    $signingParams = @{
+        FilePath = $Path
+        Certificate = $Certificate
+        HashAlgorithm = "SHA256"
+    }
+
+    if ($TimestampServer) {
+        $signingParams.TimestampServer = $TimestampServer
+    }
+
+    $signature = Set-AuthenticodeSignature @signingParams
+
+    if ($signature.Status -ne "Valid") {
+        throw "Signing failed for $Path`: $($signature.Status) - $($signature.StatusMessage)"
+    }
+
+    Write-Host "Signed:" $Path
 }
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -166,3 +225,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 Move-Item -LiteralPath $windowsEmiHelperTempOutputPath -Destination $windowsEmiHelperOutputPath -Force
 Write-Host "Built Windows EMI helper:" $windowsEmiHelperOutputPath
+
+if ($CertificateThumbprint) {
+    $certificate = Get-CodeSigningCertificate -Thumbprint $CertificateThumbprint
+
+    foreach ($helperPath in @(
+        $windowsPmiHelperOutputPath,
+        $windowsPerfHelperOutputPath,
+        $windowsEmiHelperOutputPath
+    )) {
+        Sign-ProjectArtifact -Path $helperPath -Certificate $certificate -TimestampServer $TimestampUrl
+    }
+
+    Write-Host "Helper signer:" $certificate.Subject
+}

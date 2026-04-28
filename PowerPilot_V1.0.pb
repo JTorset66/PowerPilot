@@ -1,7 +1,7 @@
 ﻿EnableExplicit
 
 ; PowerPilot v1.0
-; Windows tray utility for custom power plans and temperature-aware cool-plan control.
+; Windows tray utility for custom power plans and CPU-power-first Auto Cool control.
 
 #AppName$            = "PowerPilot"
 #AppVersion$         = "1.0"
@@ -12,8 +12,8 @@
 #CustomPlansFileName$ = "custom_plans.tsv"
 #TrayTooltip$        = #AppFullName$
 
-#DefaultUseGpuPerfHelper = #False
-#DefaultGpuPerfHelperIntervalSeconds = 15
+#SlowGpuPerfHelperIntervalSeconds = 60
+#DefaultCpuPowerTarget = 28
 
 #PowerSourceUnknown = 0
 #PowerSourceBattery = 1
@@ -85,21 +85,17 @@
 #TimerUiRefresh   = 1
 #UiRefreshMs      = 500
 #UiLogLineCount   = 8
-#DefaultGameCoolAverageSeconds = 10 ; Auto Cool control uses this average window by default. Overview and Live Telemetry stay on current snapshots.
+#DefaultGameCoolAverageSeconds = 10 ; Auto Cool control and the main telemetry display use this average window by default.
 #TelemetryHistorySize = 24
 #TelemetryLatchGracePolls = 3
 #TelemetryLatchMinimumMs = 15000
 #TelemetryLatchMaximumMs = 120000
 #MinimumMeaningfulPowerW = 0.05
-#SimulatedGpuLoadMaxWatts = 28.0
-
 #PDH_MORE_DATA    = $800007D2
 #PDH_CSTATUS_VALID_DATA = 0
 #PDH_CSTATUS_NEW_DATA = 1
 #PDH_FMT_DOUBLE   = $00000200
 #WinCounterCpu    = 1
-#WinCounterGpu    = 2
-#WinCounterMem    = 3
 #WinCounterTempHp = 4
 #WinCounterTemp   = 5
 
@@ -121,10 +117,7 @@ Enumeration 200
   #GadgetOverviewSourceValue
   #GadgetOverviewTempSensorValue
   #GadgetOverviewTempValue
-  #GadgetOverviewGpuLoadValue
-  #GadgetOverviewApuPowerValue
   #GadgetOverviewGpuMemoryValue
-  #GadgetOverviewGpuPowerValue
   #GadgetOverviewCpuPowerValue
   #GadgetOverviewPowerValue
   #GadgetOverviewPlanValue
@@ -133,8 +126,6 @@ Enumeration 200
   #GadgetSensorValue
   #GadgetTempValue
   #GadgetCpuPowerValue
-  #GadgetGpuPowerValue
-  #GadgetGpuLoadValue
   #GadgetGpuMemoryValue
   #GadgetPowerValue
   #GadgetGameStateValue
@@ -143,9 +134,6 @@ Enumeration 200
   #GadgetLiveBlendTempSensor
   #GadgetLiveBlendTemp
   #GadgetLiveBlendCpu
-  #GadgetLiveBlendApu
-  #GadgetLiveBlendGpuPower
-  #GadgetLiveBlendGpuLoad
   #GadgetLiveBlendGpuMemory
   #GadgetLiveBlendPowerSource
   #GadgetLiveBlendActivePlan
@@ -154,24 +142,15 @@ Enumeration 200
   #GadgetActionValue
   #GadgetOverviewHardwareDetails
   #GadgetAutoEnabled
-  #GadgetAutoDetectGame
   #GadgetUseWindows
-  #GadgetUseGpuPerfHelper
-  #GadgetGpuPerfHelperInterval
   #GadgetWindowsInfo
-  #GadgetUsePowerControl
   #GadgetAutoStart
   #GadgetKeepSettings
   #GadgetAutoBatteryPlan
   #GadgetPollSpin
   #GadgetHysteresisSpin
   #GadgetPowerHysteresisSpin
-  #GadgetCpuPowerTarget
-  #GadgetGpuPowerTarget
-  #GadgetGpuLoadThreshold
   #GadgetGameCoolAverage
-  #GadgetGameStartDelay
-  #GadgetGameStopDelay
   #GadgetThresholdFull24
   #GadgetThreshold2421
   #GadgetThreshold2118
@@ -225,15 +204,6 @@ Structure TempReading
   cpuPackageValid.i
   cpuPackageSensor.s
   cpuPackageWatts.d
-  apuPowerValid.i
-  apuPowerSensor.s
-  apuPowerWatts.d
-  gpuPowerValid.i
-  gpuPowerSensor.s
-  gpuPowerWatts.d
-  gpuLoadValid.i
-  gpuLoadSensor.s
-  gpuLoadPct.d
   gpuMemoryValid.i
   gpuMemorySensor.s
   gpuMemoryMb.d
@@ -241,8 +211,6 @@ Structure TempReading
   gpuSharedMemorySensor.s
   gpuSharedMemoryMb.d
   gpuDeviceNames.s
-  gameDetected.i
-  gameReason.s
 EndStructure
 
 Structure TelemetryLatchState
@@ -253,23 +221,13 @@ Structure TelemetryLatchState
   PreviousWindowsTempTick.q
   CpuPowerTick.q
   PreviousCpuPowerTick.q
-  ApuPowerTick.q
-  PreviousApuPowerTick.q
-  GpuPowerTick.q
-  PreviousGpuPowerTick.q
-  GpuLoadTick.q
-  PreviousGpuLoadTick.q
   GpuMemoryTick.q
   PreviousGpuMemoryTick.q
 EndStructure
 
 Structure AppSettings
   AutoEnabled.i
-  AutoDetectGame.i
   UseWindows.i
-  UseGpuPerfHelper.i
-  GpuPerfHelperIntervalSeconds.i
-  UsePowerControl.i
   AutoStartWithApp.i
   KeepSettingsOnReinstall.i
   AutoBatteryPlan.i
@@ -277,18 +235,13 @@ Structure AppSettings
   Hysteresis.i
   PowerHysteresis.i
   CpuPowerTarget.i
-  GpuPowerTarget.i
-  GpuLoadThreshold.i
   GameCoolAverageSeconds.i
-  GameStartDelay.i
-  GameStopDelay.i
   ThresholdFull24.i
   Threshold2421.i
   Threshold2118.i
   Threshold1815.i
   Threshold1512.i
   LastPluggedPlan.s
-  LastDgpuPluggedPlan.s
   CurrentManagedPlan.s
 EndStructure
 
@@ -301,7 +254,6 @@ Structure RuntimeState
   LastAction.s
   PowerSource.i
   AutoEnabled.i
-  AutoDetectGame.i
   StopWorker.i
   WorkerRunning.i
   ImmediateRefresh.i
@@ -379,6 +331,10 @@ Global gLastOverviewHardwareText$
 Global gLastDependencyInfoText$
 Global gLastPlanListSignature$
 Global gLastPlanComboSignature$
+Global gManagedPlansCacheValid.i
+Global gManagedPlansCacheValue.i
+Global gManagedPlansExistCacheValid.i
+Global gManagedPlansExistCacheValue.i
 Global gManualOverrideUntil.i
 Global gSelectedPlanName$
 Global gEditingNewPlan.i
@@ -401,14 +357,6 @@ Global Dim gCpuPowerSampleTick.q(#TelemetryHistorySize - 1)
 Global Dim gCpuPowerSampleValue.d(#TelemetryHistorySize - 1)
 Global gCpuPowerSampleIndex.i
 Global gCpuPowerLastSensor$
-Global Dim gGpuPowerSampleTick.q(#TelemetryHistorySize - 1)
-Global Dim gGpuPowerSampleValue.d(#TelemetryHistorySize - 1)
-Global gGpuPowerSampleIndex.i
-Global gGpuPowerLastSensor$
-Global Dim gGpuLoadSampleTick.q(#TelemetryHistorySize - 1)
-Global Dim gGpuLoadSampleValue.d(#TelemetryHistorySize - 1)
-Global gGpuLoadSampleIndex.i
-Global gGpuLoadLastSensor$
 Global Dim gGpuMemorySampleTick.q(#TelemetryHistorySize - 1)
 Global Dim gGpuMemorySampleValue.d(#TelemetryHistorySize - 1)
 Global gGpuMemorySampleIndex.i
@@ -424,13 +372,15 @@ Global gWindowsPerfHelperInBlock.i
 Global gWindowsPerfHelperCurrentBlock$
 Global gWindowsPerfHelperLatestBlock$
 Global gWindowsPerfHelperLatestTick.q
+Global gWindowsPerfStartupSnapshotRead.i
+Global gWindowsPerfStartupSnapshotBlock$
+Global gWindowsPerfStartupSnapshotTick.q
 Global gLastHelpAlertState.i = -1
 
 Declare ReadDependencyStatus(*status.DependencyStatus)
 Declare.s GetCurrentManagedPlan()
 Declare.s EnsureScheme(planName$)
 Declare.s GetSchemeGuidByName(planName$)
-Declare.s GetRememberedDgpuPluggedPlan()
 Declare.i ReadWindowsPmiTelemetry(*reading.TempReading)
 Declare.i ReadWindowsEmiTelemetry(*reading.TempReading)
 Declare RefreshDependencyWindow()
@@ -438,6 +388,9 @@ Declare RememberPluggedPlan(planName$, persist.i = #False)
 Declare RememberCurrentManagedPlan(planName$, persist.i = #False)
 Declare InitializePlanDefinitions()
 Declare.i ManagedPlansPresent()
+Declare.i CachedManagedPlansPresent()
+Declare.i CachedManagedPlansExist()
+Declare InvalidateManagedPlansCache()
 Declare RefreshPlanEditor()
 Declare RefreshPlanList()
 Declare EnsureSettingsDirectory()
@@ -449,22 +402,17 @@ Declare.s CurrentGpuHardwareDisplay(*reading.TempReading)
 Declare.s BuildGpuDeviceSummary(*reading.TempReading, *windows.TempReading)
 Declare.s CachedCpuName()
 Declare.s FormatGpuTelemetryValue(valid.i, valueText$, sensorText$, deviceList$)
-Declare.i ActiveDiscreteGpuConnected(*reading.TempReading)
-Declare.i IsEstimatedGpuPowerSensor(sensor$)
+Declare.i IsStartupGpuHelperSnapshotSensor(sensorText$)
 Declare.s SecondaryFallbackSummary(*reading.TempReading, *windows.TempReading, *fallback.TempReading, *settings.AppSettings)
 Declare ResetTempReading(*reading.TempReading)
 Declare.i HasUsableTelemetry(*reading.TempReading)
 Declare.i HasVisibleTelemetry(*reading.TempReading)
 Declare.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading, *fallback.TempReading)
-Declare ApplySimulatedGpuLoadFromPower(*reading.TempReading)
 Declare.s FindBundledWindowsPerfHelper()
-Declare.i ShouldUseWindowsGpuPerfTelemetry()
 Declare.i ReadWindowsPerfStreamTelemetry(*reading.TempReading)
-Declare RememberDgpuPluggedPlan(planName$, persist.i = #False)
-Declare RememberRuntimeDgpuPlanIfActive(planName$, persist.i = #False)
+Declare.i ShouldUseWindowsPerfHelper()
 Declare.i IsGameCoolPlanName(planName$)
 Declare.s ResolveIdleRememberedPluggedPlan(*settings.AppSettings)
-Declare.s ResolveIdleRememberedDgpuPlan(*settings.AppSettings)
 Declare StopWindowsPerfHelper()
 Declare ResetTelemetrySmoothing()
 Declare ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
@@ -507,16 +455,6 @@ Procedure ResetTelemetrySmoothing()
   gCpuPowerSampleIndex = 0
   gCpuPowerLastSensor$ = ""
 
-  FillMemory(@gGpuPowerSampleTick(), SizeOf(Quad) * #TelemetryHistorySize, 0)
-  FillMemory(@gGpuPowerSampleValue(), SizeOf(Double) * #TelemetryHistorySize, 0)
-  gGpuPowerSampleIndex = 0
-  gGpuPowerLastSensor$ = ""
-
-  FillMemory(@gGpuLoadSampleTick(), SizeOf(Quad) * #TelemetryHistorySize, 0)
-  FillMemory(@gGpuLoadSampleValue(), SizeOf(Double) * #TelemetryHistorySize, 0)
-  gGpuLoadSampleIndex = 0
-  gGpuLoadLastSensor$ = ""
-
   FillMemory(@gGpuMemorySampleTick(), SizeOf(Quad) * #TelemetryHistorySize, 0)
   FillMemory(@gGpuMemorySampleValue(), SizeOf(Double) * #TelemetryHistorySize, 0)
   gGpuMemorySampleIndex = 0
@@ -552,21 +490,7 @@ Procedure ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
     gCpuPowerSampleIndex = (gCpuPowerSampleIndex + 1) % #TelemetryHistorySize
   EndIf
 
-  If *reading\gpuPowerValid
-    gGpuPowerSampleTick(gGpuPowerSampleIndex) = nowTick
-    gGpuPowerSampleValue(gGpuPowerSampleIndex) = *reading\gpuPowerWatts
-    gGpuPowerLastSensor$ = *reading\gpuPowerSensor
-    gGpuPowerSampleIndex = (gGpuPowerSampleIndex + 1) % #TelemetryHistorySize
-  EndIf
-
-  If *reading\gpuLoadValid
-    gGpuLoadSampleTick(gGpuLoadSampleIndex) = nowTick
-    gGpuLoadSampleValue(gGpuLoadSampleIndex) = *reading\gpuLoadPct
-    gGpuLoadLastSensor$ = *reading\gpuLoadSensor
-    gGpuLoadSampleIndex = (gGpuLoadSampleIndex + 1) % #TelemetryHistorySize
-  EndIf
-
-  If *reading\gpuMemoryValid
+  If *reading\gpuMemoryValid And IsStartupGpuHelperSnapshotSensor(*reading\gpuMemorySensor) = #False
     gGpuMemorySampleTick(gGpuMemorySampleIndex) = nowTick
     gGpuMemorySampleValue(gGpuMemorySampleIndex) = *reading\gpuMemoryMb
     gGpuMemoryLastSensor$ = *reading\gpuMemorySensor
@@ -617,42 +541,6 @@ Procedure ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
   averageTotal = 0.0
   averageCount = 0
   For averageIndex = 0 To #TelemetryHistorySize - 1
-    If gGpuPowerSampleTick(averageIndex) > 0 And nowTick - gGpuPowerSampleTick(averageIndex) <= averageWindowMs
-      averageTotal + gGpuPowerSampleValue(averageIndex)
-      averageCount + 1
-    EndIf
-  Next
-  If averageCount > 0
-    *reading\gpuPowerValid = #True
-    *reading\gpuPowerWatts = averageTotal / averageCount
-    *reading\gpuPowerSensor = gGpuPowerLastSensor$
-  Else
-    *reading\gpuPowerValid = #False
-    *reading\gpuPowerWatts = 0.0
-    *reading\gpuPowerSensor = ""
-  EndIf
-
-  averageTotal = 0.0
-  averageCount = 0
-  For averageIndex = 0 To #TelemetryHistorySize - 1
-    If gGpuLoadSampleTick(averageIndex) > 0 And nowTick - gGpuLoadSampleTick(averageIndex) <= averageWindowMs
-      averageTotal + gGpuLoadSampleValue(averageIndex)
-      averageCount + 1
-    EndIf
-  Next
-  If averageCount > 0
-    *reading\gpuLoadValid = #True
-    *reading\gpuLoadPct = averageTotal / averageCount
-    *reading\gpuLoadSensor = gGpuLoadLastSensor$
-  Else
-    *reading\gpuLoadValid = #False
-    *reading\gpuLoadPct = 0.0
-    *reading\gpuLoadSensor = ""
-  EndIf
-
-  averageTotal = 0.0
-  averageCount = 0
-  For averageIndex = 0 To #TelemetryHistorySize - 1
     If gGpuMemorySampleTick(averageIndex) > 0 And nowTick - gGpuMemorySampleTick(averageIndex) <= averageWindowMs
       averageTotal + gGpuMemorySampleValue(averageIndex)
       averageCount + 1
@@ -667,27 +555,6 @@ Procedure ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
     *reading\gpuMemoryMb = 0.0
     *reading\gpuMemorySensor = ""
   EndIf
-EndProcedure
-
-Procedure.s BoostModeText(value.i)
-  Select value
-    Case 0
-      ProcedureReturn "Disabled"
-    Case 1
-      ProcedureReturn "Efficient"
-    Case 2
-      ProcedureReturn "Aggressive"
-  EndSelect
-
-  ProcedureReturn "Custom"
-EndProcedure
-
-Procedure.s CoolingPolicyText(value.i)
-  If value
-    ProcedureReturn "Active"
-  EndIf
-
-  ProcedureReturn "Passive"
 EndProcedure
 
 Procedure AddPlanDefinition(planName$, builtIn.i, defaultInstalled.i, description$, acEpp.i, acBoost.i, acState.i, acFreq.i, acCooling.i, dcEpp.i, dcBoost.i, dcState.i, dcFreq.i, dcCooling.i)
@@ -710,14 +577,14 @@ EndProcedure
 
 Procedure ResetBuiltInPlanDefinitions()
   ClearList(gPlanDefs())
-  AddPlanDefinition(#PlanBattery$, #True, #True, "Most aggressive unplugged plan. Keeps boost off, raises efficiency preference, lowers CPU demand further, and allows deeper parking for better battery life.", 65, 0, 90, 2800, 0, 90, 0, 80, 2200, 0)
-  AddPlanDefinition(#PlanPlugged$, #True, #True, "Balanced plugged-in plan for normal desktop work. Good responsiveness without pushing full performance all the time.", 15, 1, 100, 0, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame12$, #True, #True, "Lowest Cool level. Strong CPU cap for quiet operation, heavy GPU use, or very warm rooms.", 85, 0, 45, 1800, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame15$, #True, #True, "Light Cool level. Good for lighter GPU-heavy work and heat reduction.", 75, 0, 55, 2200, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame18$, #True, #True, "Moderate Cool level. Useful middle point between cooling and performance.", 65, 0, 65, 2600, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame21$, #True, #True, "Performance-oriented Cool level with a mild cap for better temperatures.", 55, 0, 75, 3000, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanGame24$, #True, #True, "Highest Cool level before full power. Suits demanding GPU workloads while still keeping some thermal restraint.", 45, 0, 85, 3400, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanFull$, #True, #True, "Maximum plugged-in performance. Leaves frequency open and allows aggressive boosting.", 5, 2, 100, 0, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanBattery$, #True, #True, "Battery plan: lowest drain on battery. Boost is off and CPU demand is capped.", 65, 0, 90, 2800, 0, 95, 0, 65, 1800, 0)
+  AddPlanDefinition(#PlanPlugged$, #True, #True, "Plugged-in daily plan: balanced speed, heat, and fan noise.", 15, 1, 100, 0, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanGame12$, #True, #True, "Cool 12W: strongest CPU limit for high power draw or high temperature.", 85, 0, 45, 1800, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanGame15$, #True, #True, "Cool 15W: strong cooling with a little more speed than 12W.", 75, 0, 55, 2200, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanGame18$, #True, #True, "Cool 18W: middle cooling level for normal Auto Cool use.", 65, 0, 65, 2600, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanGame21$, #True, #True, "Cool 21W: light cooling when only a small reduction is needed.", 55, 0, 75, 3000, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanGame24$, #True, #True, "Cool 24W: mild cooling, closest to Full Power.", 45, 0, 85, 3400, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanFull$, #True, #True, "Full Power: maximum plugged-in performance and boost.", 5, 2, 100, 0, 1, 80, 0, 85, 2500, 0)
 EndProcedure
 
 Procedure.i FindPlanDefinition(planName$)
@@ -976,15 +843,6 @@ Procedure CopyTempReading(*target.TempReading, *source.TempReading)
   *target\cpuPackageValid = *source\cpuPackageValid
   *target\cpuPackageSensor = *source\cpuPackageSensor
   *target\cpuPackageWatts = *source\cpuPackageWatts
-  *target\apuPowerValid = *source\apuPowerValid
-  *target\apuPowerSensor = *source\apuPowerSensor
-  *target\apuPowerWatts = *source\apuPowerWatts
-  *target\gpuPowerValid = *source\gpuPowerValid
-  *target\gpuPowerSensor = *source\gpuPowerSensor
-  *target\gpuPowerWatts = *source\gpuPowerWatts
-  *target\gpuLoadValid = *source\gpuLoadValid
-  *target\gpuLoadSensor = *source\gpuLoadSensor
-  *target\gpuLoadPct = *source\gpuLoadPct
   *target\gpuMemoryValid = *source\gpuMemoryValid
   *target\gpuMemorySensor = *source\gpuMemorySensor
   *target\gpuMemoryMb = *source\gpuMemoryMb
@@ -992,44 +850,14 @@ Procedure CopyTempReading(*target.TempReading, *source.TempReading)
   *target\gpuSharedMemorySensor = *source\gpuSharedMemorySensor
   *target\gpuSharedMemoryMb = *source\gpuSharedMemoryMb
   *target\gpuDeviceNames = *source\gpuDeviceNames
-  *target\gameDetected = *source\gameDetected
-  *target\gameReason = *source\gameReason
 EndProcedure
 
 Procedure.i HasMeaningfulPowerWatts(watts.d)
   ProcedureReturn Bool(watts > #MinimumMeaningfulPowerW)
 EndProcedure
 
-Procedure ApplySimulatedGpuLoadFromPower(*reading.TempReading)
-  Protected watts.d
-  Protected source$
-
-  If *reading\gpuLoadValid
-    ProcedureReturn
-  EndIf
-
-  If *reading\gpuPowerValid And HasMeaningfulPowerWatts(*reading\gpuPowerWatts)
-    watts = *reading\gpuPowerWatts
-    source$ = *reading\gpuPowerSensor
-  ElseIf *reading\apuPowerValid And HasMeaningfulPowerWatts(*reading\apuPowerWatts)
-    watts = *reading\apuPowerWatts
-    source$ = *reading\apuPowerSensor
-  Else
-    ProcedureReturn
-  EndIf
-
-  *reading\gpuLoadValid = #True
-  *reading\gpuLoadPct = (watts / #SimulatedGpuLoadMaxWatts) * 100.0
-  If *reading\gpuLoadPct < 0.0
-    *reading\gpuLoadPct = 0.0
-  ElseIf *reading\gpuLoadPct > 100.0
-    *reading\gpuLoadPct = 100.0
-  EndIf
-  If source$ <> ""
-    *reading\gpuLoadSensor = "Simulated from " + StrD(#SimulatedGpuLoadMaxWatts, 0) + " W max / " + source$
-  Else
-    *reading\gpuLoadSensor = "Simulated from " + StrD(#SimulatedGpuLoadMaxWatts, 0) + " W max"
-  EndIf
+Procedure.i IsStartupGpuHelperSnapshotSensor(sensorText$)
+  ProcedureReturn Bool(FindString(LCase(sensorText$), "startup snapshot", 1) > 0)
 EndProcedure
 
 Procedure ResetTempReading(*reading.TempReading)
@@ -1043,15 +871,6 @@ Procedure ResetTempReading(*reading.TempReading)
   *reading\cpuPackageValid = #False
   *reading\cpuPackageSensor = ""
   *reading\cpuPackageWatts = 0.0
-  *reading\apuPowerValid = #False
-  *reading\apuPowerSensor = ""
-  *reading\apuPowerWatts = 0.0
-  *reading\gpuPowerValid = #False
-  *reading\gpuPowerSensor = ""
-  *reading\gpuPowerWatts = 0.0
-  *reading\gpuLoadValid = #False
-  *reading\gpuLoadSensor = ""
-  *reading\gpuLoadPct = 0.0
   *reading\gpuMemoryValid = #False
   *reading\gpuMemorySensor = ""
   *reading\gpuMemoryMb = 0.0
@@ -1059,8 +878,6 @@ Procedure ResetTempReading(*reading.TempReading)
   *reading\gpuSharedMemorySensor = ""
   *reading\gpuSharedMemoryMb = 0.0
   *reading\gpuDeviceNames = ""
-  *reading\gameDetected = #False
-  *reading\gameReason = ""
 EndProcedure
 
 Procedure ResetTelemetryLatchState(*state.TelemetryLatchState)
@@ -1071,12 +888,6 @@ Procedure ResetTelemetryLatchState(*state.TelemetryLatchState)
   *state\PreviousWindowsTempTick = 0
   *state\CpuPowerTick = 0
   *state\PreviousCpuPowerTick = 0
-  *state\ApuPowerTick = 0
-  *state\PreviousApuPowerTick = 0
-  *state\GpuPowerTick = 0
-  *state\PreviousGpuPowerTick = 0
-  *state\GpuLoadTick = 0
-  *state\PreviousGpuLoadTick = 0
   *state\GpuMemoryTick = 0
   *state\PreviousGpuMemoryTick = 0
 EndProcedure
@@ -1190,42 +1001,6 @@ Procedure ApplyTelemetryLatch(*reading.TempReading, *state.TelemetryLatchState)
     *reading\cpuPackageWatts = *state\Last\cpuPackageWatts
   EndIf
 
-  If *reading\apuPowerValid
-    *state\Last\apuPowerValid = #True
-    *state\Last\apuPowerSensor = *reading\apuPowerSensor
-    *state\Last\apuPowerWatts = *reading\apuPowerWatts
-    *state\PreviousApuPowerTick = *state\ApuPowerTick
-    *state\ApuPowerTick = nowTick
-  ElseIf *state\Last\apuPowerValid And TelemetryLatchFresh(*state\ApuPowerTick, nowTick, TelemetryFieldTimeoutMs(*state\ApuPowerTick, *state\PreviousApuPowerTick, baseTimeoutMs))
-    *reading\apuPowerValid = #True
-    *reading\apuPowerSensor = *state\Last\apuPowerSensor
-    *reading\apuPowerWatts = *state\Last\apuPowerWatts
-  EndIf
-
-  If *reading\gpuPowerValid
-    *state\Last\gpuPowerValid = #True
-    *state\Last\gpuPowerSensor = *reading\gpuPowerSensor
-    *state\Last\gpuPowerWatts = *reading\gpuPowerWatts
-    *state\PreviousGpuPowerTick = *state\GpuPowerTick
-    *state\GpuPowerTick = nowTick
-  ElseIf *state\Last\gpuPowerValid And TelemetryLatchFresh(*state\GpuPowerTick, nowTick, TelemetryFieldTimeoutMs(*state\GpuPowerTick, *state\PreviousGpuPowerTick, baseTimeoutMs))
-    *reading\gpuPowerValid = #True
-    *reading\gpuPowerSensor = *state\Last\gpuPowerSensor
-    *reading\gpuPowerWatts = *state\Last\gpuPowerWatts
-  EndIf
-
-  If *reading\gpuLoadValid
-    *state\Last\gpuLoadValid = #True
-    *state\Last\gpuLoadSensor = *reading\gpuLoadSensor
-    *state\Last\gpuLoadPct = *reading\gpuLoadPct
-    *state\PreviousGpuLoadTick = *state\GpuLoadTick
-    *state\GpuLoadTick = nowTick
-  ElseIf *state\Last\gpuLoadValid And TelemetryLatchFresh(*state\GpuLoadTick, nowTick, TelemetryFieldTimeoutMs(*state\GpuLoadTick, *state\PreviousGpuLoadTick, baseTimeoutMs))
-    *reading\gpuLoadValid = #True
-    *reading\gpuLoadSensor = *state\Last\gpuLoadSensor
-    *reading\gpuLoadPct = *state\Last\gpuLoadPct
-  EndIf
-
   If *reading\gpuMemoryValid
     *state\Last\gpuMemoryValid = #True
     *state\Last\gpuMemorySensor = *reading\gpuMemorySensor
@@ -1282,25 +1057,6 @@ Procedure.s BuildUiLogText()
   ProcedureReturn text$
 EndProcedure
 
-Procedure UpdateCachedDependencyStatus()
-  Protected status.DependencyStatus
-
-  ReadDependencyStatus(@status)
-
-  LockMutex(gStateMutex)
-  gCachedDependency\WindowsEnabled = status\WindowsEnabled
-  gCachedDependency\WindowsTelemetryReady = status\WindowsTelemetryReady
-  gCachedDependency\WindowsTempReady = status\WindowsTempReady
-  gCachedDependency\WindowsPowerReady = status\WindowsPowerReady
-  gCachedDependency\WindowsGpuReady = status\WindowsGpuReady
-  gCachedDependency\FallbackAvailable = status\FallbackAvailable
-  gCachedDependency\ManagedPlansReady = status\ManagedPlansReady
-  gCachedDependency\SensorReady = status\SensorReady
-  gCachedDependency\SensorSource = status\SensorSource
-  gCachedDependency\SensorName = status\SensorName
-  UnlockMutex(gStateMutex)
-EndProcedure
-
 Procedure CacheDependencyStatus(*status.DependencyStatus)
 
   LockMutex(gStateMutex)
@@ -1336,15 +1092,15 @@ Procedure BuildDependencyStatusFromSnapshots(*status.DependencyStatus, *reading.
   *status\WindowsEnabled = *settings\UseWindows
   *status\WindowsTelemetryReady = HasUsableTelemetry(*windows)
   *status\WindowsTempReady = *windows\windowsTempValid
-  *status\WindowsPowerReady = Bool(*windows\cpuPackageValid Or *windows\apuPowerValid Or *windows\gpuPowerValid)
-  *status\WindowsGpuReady = Bool(*windows\gpuLoadValid Or *windows\gpuMemoryValid Or *windows\gpuPowerValid)
-  *status\FallbackAvailable = Bool(*status\WindowsTelemetryReady = #False And HasUsableTelemetry(*fallback))
-  *status\ManagedPlansReady = ManagedPlansPresent()
+  *status\WindowsPowerReady = *windows\cpuPackageValid
+  *status\WindowsGpuReady = Bool(*windows\gpuMemoryValid Or *windows\gpuSharedMemoryValid Or *windows\gpuDeviceNames <> "")
+  *status\FallbackAvailable = Bool(*status\WindowsTempReady = #False And *fallback\valid)
+  *status\ManagedPlansReady = CachedManagedPlansPresent()
   *status\SensorReady = #False
   *status\SensorSource = "Unavailable"
   *status\SensorName = "No sensor data"
 
-  If *windows\valid Or *windows\cpuPackageValid Or *windows\apuPowerValid Or *windows\gpuLoadValid Or *windows\gpuMemoryValid
+  If *windows\valid Or *windows\cpuPackageValid Or *windows\gpuMemoryValid Or *windows\gpuSharedMemoryValid Or *windows\gpuDeviceNames <> ""
     *status\SensorReady = #True
     If *windows\valid
       *status\SensorSource = *windows\source
@@ -1352,17 +1108,17 @@ Procedure BuildDependencyStatusFromSnapshots(*status.DependencyStatus, *reading.
     ElseIf *windows\cpuPackageValid
       *status\SensorSource = "Power telemetry"
       *status\SensorName = *windows\cpuPackageSensor
-    ElseIf *windows\apuPowerValid
-      *status\SensorSource = "Power telemetry"
-      *status\SensorName = *windows\apuPowerSensor
-    ElseIf *windows\gpuLoadValid
-      *status\SensorSource = "Performance telemetry"
-      *status\SensorName = *windows\gpuLoadSensor
     ElseIf *windows\gpuMemoryValid
-      *status\SensorSource = "Performance telemetry"
+      *status\SensorSource = "VRAM telemetry"
       *status\SensorName = *windows\gpuMemorySensor
+    ElseIf *windows\gpuSharedMemoryValid
+      *status\SensorSource = "VRAM telemetry"
+      *status\SensorName = *windows\gpuSharedMemorySensor
+    ElseIf *windows\gpuDeviceNames <> ""
+      *status\SensorSource = "GPU device telemetry"
+      *status\SensorName = StringField(*windows\gpuDeviceNames, 1, #LF$)
     EndIf
-  ElseIf *reading\valid Or *reading\cpuPackageValid Or *reading\apuPowerValid Or *reading\gpuPowerValid Or *reading\gpuLoadValid Or *reading\gpuMemoryValid
+  ElseIf *reading\valid Or *reading\cpuPackageValid Or *reading\gpuMemoryValid Or *reading\gpuSharedMemoryValid Or *reading\gpuDeviceNames <> ""
     *status\SensorReady = #True
     If *reading\valid
       *status\SensorSource = *reading\source
@@ -1370,18 +1126,15 @@ Procedure BuildDependencyStatusFromSnapshots(*status.DependencyStatus, *reading.
     ElseIf *reading\cpuPackageValid
       *status\SensorSource = "Power telemetry"
       *status\SensorName = *reading\cpuPackageSensor
-    ElseIf *reading\apuPowerValid
-      *status\SensorSource = "Power telemetry"
-      *status\SensorName = *reading\apuPowerSensor
-    ElseIf *reading\gpuPowerValid
-      *status\SensorSource = "Power telemetry"
-      *status\SensorName = *reading\gpuPowerSensor
-    ElseIf *reading\gpuLoadValid
-      *status\SensorSource = "Performance telemetry"
-      *status\SensorName = *reading\gpuLoadSensor
     ElseIf *reading\gpuMemoryValid
-      *status\SensorSource = "Performance telemetry"
+      *status\SensorSource = "VRAM telemetry"
       *status\SensorName = *reading\gpuMemorySensor
+    ElseIf *reading\gpuSharedMemoryValid
+      *status\SensorSource = "VRAM telemetry"
+      *status\SensorName = *reading\gpuSharedMemorySensor
+    ElseIf *reading\gpuDeviceNames <> ""
+      *status\SensorSource = "GPU device telemetry"
+      *status\SensorName = StringField(*reading\gpuDeviceNames, 1, #LF$)
     EndIf
   ElseIf *status\FallbackAvailable
     *status\SensorReady = #True
@@ -1475,14 +1228,6 @@ Procedure.s NormalizeRememberedPluggedPlan(planName$)
   ProcedureReturn #PlanPlugged$
 EndProcedure
 
-Procedure.s NormalizeDgpuPluggedPlan(planName$)
-  If IsRememberedPluggedPlanName(planName$)
-    ProcedureReturn planName$
-  EndIf
-
-  ProcedureReturn #PlanFull$
-EndProcedure
-
 Procedure.i IsGameCoolPlanName(planName$)
   Select planName$
     Case #PlanGame12$, #PlanGame15$, #PlanGame18$, #PlanGame21$, #PlanGame24$
@@ -1495,21 +1240,8 @@ EndProcedure
 Procedure.s ResolveIdleRememberedPluggedPlan(*settings.AppSettings)
   Protected plan$ = NormalizeRememberedPluggedPlan(*settings\LastPluggedPlan)
 
-  If Bool(*settings\AutoEnabled Or *settings\AutoDetectGame) And IsGameCoolPlanName(plan$)
+  If *settings\AutoEnabled And IsGameCoolPlanName(plan$)
     ProcedureReturn #PlanFull$
-  EndIf
-
-  ProcedureReturn plan$
-EndProcedure
-
-Procedure.s ResolveIdleRememberedDgpuPlan(*settings.AppSettings)
-  Protected plan$ = NormalizeDgpuPluggedPlan(*settings\LastDgpuPluggedPlan)
-
-  If Bool(*settings\AutoEnabled Or *settings\AutoDetectGame) And IsGameCoolPlanName(plan$)
-    plan$ = ResolveIdleRememberedPluggedPlan(*settings)
-    If plan$ = ""
-      plan$ = #PlanFull$
-    EndIf
   EndIf
 
   ProcedureReturn plan$
@@ -1551,7 +1283,7 @@ Procedure.s PlanNameFromLevel(level.i)
 EndProcedure
 
 Procedure.i HasPowerTelemetry(*reading.TempReading)
-  If *reading\cpuPackageValid Or *reading\gpuPowerValid
+  If *reading\cpuPackageValid
     ProcedureReturn #True
   EndIf
 
@@ -1559,7 +1291,7 @@ Procedure.i HasPowerTelemetry(*reading.TempReading)
 EndProcedure
 
 Procedure.i HasUsableTelemetry(*reading.TempReading)
-  If *reading\valid Or *reading\cpuPackageValid Or *reading\apuPowerValid Or *reading\gpuPowerValid Or *reading\gpuLoadValid Or *reading\gpuMemoryValid
+  If *reading\valid Or *reading\cpuPackageValid Or *reading\gpuMemoryValid Or *reading\gpuSharedMemoryValid Or *reading\gpuDeviceNames <> ""
     ProcedureReturn #True
   EndIf
 
@@ -1575,7 +1307,7 @@ Procedure.i NeedsMoreTelemetry(*reading.TempReading)
     ProcedureReturn #True
   EndIf
 
-  If *reading\cpuPackageValid = #False Or *reading\apuPowerValid = #False Or *reading\gpuPowerValid = #False Or *reading\gpuLoadValid = #False Or *reading\gpuMemoryValid = #False
+  If *reading\cpuPackageValid = #False Or *reading\gpuMemoryValid = #False
     ProcedureReturn #True
   EndIf
 
@@ -1587,7 +1319,7 @@ Procedure.i HasControlTelemetry(*reading.TempReading, *settings.AppSettings)
     ProcedureReturn #True
   EndIf
 
-  If *settings\UsePowerControl And HasPowerTelemetry(*reading)
+  If HasPowerTelemetry(*reading)
     ProcedureReturn #True
   EndIf
 
@@ -1595,163 +1327,120 @@ Procedure.i HasControlTelemetry(*reading.TempReading, *settings.AppSettings)
 EndProcedure
 
 Procedure.s BuildGameStateText(*reading.TempReading, *settings.AppSettings)
-  If *settings\AutoBatteryPlan And *reading\gameDetected = #False
+  If *settings\AutoBatteryPlan
     If gState\PowerSource = #PowerSourceBattery
-      ProcedureReturn "Battery/plugged auto is holding Battery Saver."
-    EndIf
-    If gState\PowerSource = #PowerSourcePlugged
-      ProcedureReturn "Battery/plugged auto is holding Full Power."
+      ProcedureReturn "On battery: keeping Battery Saver active."
     EndIf
   EndIf
 
   If *settings\AutoEnabled
-    If *settings\AutoDetectGame And *reading\gameReason <> ""
-      If *reading\gameDetected
-        ProcedureReturn "Cool mode active. " + *reading\gameReason
-      EndIf
-      ProcedureReturn "Armed for GPU load. " + *reading\gameReason
+    If *reading\cpuPackageValid
+      ProcedureReturn "Auto Cool is using CPU package power on Cool plans."
     EndIf
-
-    ProcedureReturn "Automatic Cool control enabled."
-  EndIf
-
-  If *settings\AutoDetectGame = #False
-    ProcedureReturn "GPU load trigger off."
-  EndIf
-
-  If *reading\gameDetected
-    If *reading\gameReason <> ""
-      ProcedureReturn "GPU load detected. " + *reading\gameReason
+    If *reading\valid
+      ProcedureReturn "Auto Cool is using temperature until CPU power is available."
     EndIf
-    ProcedureReturn "GPU load detected."
+    ProcedureReturn "Auto Cool is waiting for CPU power or temperature."
   EndIf
 
-  If *reading\gameReason <> ""
-    ProcedureReturn "Waiting for GPU load. " + *reading\gameReason
-  EndIf
-
-  ProcedureReturn "Waiting for GPU load."
+  ProcedureReturn "Auto Cool is off."
 EndProcedure
 
 Procedure.s BuildWindowsInfoText()
   Protected text$
 
-  text$ + "PowerPilot reads live telemetry from Windows first." + #LF$ + #LF$
-  text$ + "Leave Windows telemetry enabled for temperature, CPU power, GPU power, and the lower-cost Windows readings PowerPilot can use." + #LF$
-  text$ + "If Windows cannot provide a usable temperature, PowerPilot can still fall back to a generic thermal-zone reading." + #LF$ + #LF$
-  text$ + "PowerPilot prefers the documented Windows PMI provider first, then the Windows EMI energy-meter interface, and only uses older Windows power counters when neither modern interface is available." + #LF$
-  text$ + "GPU load and GPU memory require the optional GPU perf helper. That helper uses Windows WMI/performance GPU engine counters and can be expensive, so keep it disabled unless GPU-load triggering is worth the overhead." + #LF$
-  text$ + "When the helper is disabled or unavailable, PowerPilot can simulate GPU load from GPU/APU power by treating 28 W as 100% load." + #LF$
-  text$ + "Brief telemetry gaps hold the last good value until a new reading arrives or the gap grows much longer than the normal polling pattern." + #LF$
-  text$ + "On APU systems, Windows APU or GPU power can still be useful even when a dedicated GPU watt reading is not available." + #LF$
-  text$ + "GPU power appears only when Windows exposes a usable watt reading for the current GPU."
+  text$ + "Windows telemetry is the normal data source." + #LF$ + #LF$
+  text$ + "PowerPilot reads temperature and CPU package power from Windows." + #LF$
+  text$ + "If Windows temperature is missing, PowerPilot can use a basic ACPI fallback temperature sensor." + #LF$ + #LF$
+  text$ + "How Auto Cool decides:" + #LF$
+  text$ + "- Full Power uses temperature to enter a Cool plan." + #LF$
+  text$ + "- Cool 12W through 24W use CPU package power first." + #LF$
+  text$ + "- Temperature can still force a cooler plan as a safety limit." + #LF$ + #LF$
+  text$ + "The GPU helper is only for GPU names and VRAM display." + #LF$ + #LF$
+  text$ + "Battery note: set Windows Power mode to Balanced or Best performance. Best power efficiency can cap the system before PowerPilot gets the full Auto Cool range."
 
   ProcedureReturn text$
 EndProcedure
 
 Procedure ApplyMainWindowToolTips()
-  GadgetToolTip(#GadgetAutoEnabled, "Lets PowerPilot manage Cool plans automatically when usable telemetry is available.")
-  GadgetToolTip(#GadgetAutoDetectGame, "When enabled, PowerPilot only enters Cool plans after sustained real or simulated GPU load is detected.")
-  GadgetToolTip(#GadgetUsePowerControl, "Uses CPU and GPU power targets as control input instead of relying on temperature steps alone.")
-  GadgetToolTip(#GadgetUseWindows, "Use the native Windows telemetry stack for temperature, CPU power, GPU power, and optional GPU performance data.")
-  GadgetToolTip(#GadgetUseGpuPerfHelper, "Enables the expensive Windows GPU load/memory helper. Leave off to avoid WMI GPU engine polling spikes.")
-  GadgetToolTip(#GadgetGpuPerfHelperInterval, "How often the GPU load/memory helper polls when enabled. Longer intervals reduce package-power spikes.")
-  GadgetToolTip(#GadgetWindowsInfo, "Show a short explanation of the telemetry path PowerPilot uses.")
-  GadgetToolTip(#GadgetAutoStart, "Starts PowerPilot with Windows and opens only in the tray.")
-  GadgetToolTip(#GadgetKeepSettings, "Keeps your settings on reinstall. Leave off if you want reinstall to reset to defaults.")
-  GadgetToolTip(#GadgetAutoBatteryPlan, "On battery it holds Battery Saver. On AC it holds Full Power unless sustained GPU load activates the Cool logic.")
-  GadgetToolTip(#GadgetPollSpin, "Background polling interval in seconds when the window is hidden.")
-  GadgetToolTip(#GadgetHysteresisSpin, "Temperature margin used to avoid fast up/down switching between plans.")
-  GadgetToolTip(#GadgetPowerHysteresisSpin, "Power margin used before the CPU/GPU power controller changes plans.")
-  GadgetToolTip(#GadgetCpuPowerTarget, "Target CPU power level in watts for power-based control.")
-  GadgetToolTip(#GadgetGpuPowerTarget, "Target GPU power level in watts when GPU power telemetry is available.")
-  GadgetToolTip(#GadgetGpuLoadThreshold, "GPU load level used to decide when a sustained GPU-heavy workload is active.")
-  GadgetToolTip(#GadgetGameCoolAverage, "Averaging window in seconds for Auto Cool decisions. Overview and Live Telemetry stay on current readings.")
-  GadgetToolTip(#GadgetGameStartDelay, "How long GPU load must stay above the trigger before Cool mode is considered active.")
-  GadgetToolTip(#GadgetGameStopDelay, "How long GPU load must stay below the trigger before Cool mode is considered inactive.")
-  GadgetToolTip(#GadgetThresholdFull24, "Temperature threshold for stepping down from Full Power to 24W.")
-  GadgetToolTip(#GadgetThreshold2421, "Temperature threshold for stepping down from 24W to 21W.")
-  GadgetToolTip(#GadgetThreshold2118, "Temperature threshold for stepping down from 21W to 18W.")
-  GadgetToolTip(#GadgetThreshold1815, "Temperature threshold for stepping down from 18W to 15W.")
-  GadgetToolTip(#GadgetThreshold1512, "Temperature threshold for stepping down from 15W to 12W.")
-  GadgetToolTip(#GadgetPlanList, "Tick a plan to keep it installed. Untick it to remove that plan only. Select a row to edit its settings.")
-  GadgetToolTip(#GadgetPlanEditorName, "Custom plan name. Built-in plan names stay fixed so automation logic remains clear.")
-  GadgetToolTip(#GadgetPlanEditorSummary, "Short description shown in the plan list so you can quickly remember what a plan is for.")
-  GadgetToolTip(#GadgetPlanEditorPreset, "Choose a built-in preset to use as the starting point for a new custom plan or to reload default-style values.")
-  GadgetToolTip(#GadgetPlanEditorLoadPreset, "Loads the selected preset values into the editor without changing the installed plans yet.")
-  GadgetToolTip(#GadgetPlanAcEpp, "Energy Performance Preference for plugged-in use. Lower values push performance harder; higher values save more power.")
-  GadgetToolTip(#GadgetPlanDcEpp, "Energy Performance Preference for battery use. Higher values favor longer battery life.")
-  GadgetToolTip(#GadgetPlanAcBoost, "CPU boost mode for plugged-in use. Disabled keeps clocks steadier, Efficient is moderate, Aggressive allows strongest boosting.")
-  GadgetToolTip(#GadgetPlanDcBoost, "CPU boost mode for battery use. Disabling boost usually lowers heat and battery drain.")
-  GadgetToolTip(#GadgetPlanAcState, "Maximum processor state for plugged-in use. Lower values cap CPU demand and reduce heat.")
-  GadgetToolTip(#GadgetPlanDcState, "Maximum processor state for battery use. Lower values trade speed for cooler and longer-running battery behavior.")
-  GadgetToolTip(#GadgetPlanAcFreq, "Maximum CPU frequency in MHz for plugged-in use. Set 0 for unlimited.")
-  GadgetToolTip(#GadgetPlanDcFreq, "Maximum CPU frequency in MHz for battery use. Set 0 for unlimited.")
-  GadgetToolTip(#GadgetPlanAcCooling, "Active uses fans first. Passive lowers CPU demand first.")
-  GadgetToolTip(#GadgetPlanDcCooling, "Battery-side cooling policy. Passive is quieter and often better for battery life.")
-  GadgetToolTip(#GadgetPlanEditorSave, "Save the selected plan definition. If the plan is installed, its Windows power plan is refreshed immediately.")
-  GadgetToolTip(#GadgetPlanEditorNew, "Start a new custom plan from the chosen preset.")
-  GadgetToolTip(#GadgetPlanEditorDelete, "Delete the selected custom plan definition and remove its installed Windows plan.")
-  GadgetToolTip(#GadgetPlanRefreshAll, "Create or refresh the default built-in PowerPilot plans and any saved custom plans.")
+  GadgetToolTip(#GadgetAutoEnabled, "Turn Auto Cool on or off. Auto Cool changes PowerPilot plans from live readings.")
+  GadgetToolTip(#GadgetUseWindows, "Use Windows temperature, CPU package power, GPU names, and VRAM readings.")
+  GadgetToolTip(#GadgetWindowsInfo, "Show where readings come from and how Auto Cool uses them.")
+  GadgetToolTip(#GadgetAutoStart, "Start PowerPilot with Windows and keep it hidden in the tray.")
+  GadgetToolTip(#GadgetKeepSettings, "Keep your saved settings when installing a newer version.")
+  GadgetToolTip(#GadgetAutoBatteryPlan, "On battery, keep Battery Saver active. Plugged in, let Auto Cool choose plans.")
+  GadgetToolTip(#GadgetPollSpin, "How often PowerPilot refreshes temperature and CPU-power readings.")
+  GadgetToolTip(#GadgetHysteresisSpin, "Temperature drop required before Auto Cool steps back to a faster plan.")
+  GadgetToolTip(#GadgetPowerHysteresisSpin, "CPU-power drop required before Auto Cool steps back to a faster Cool plan.")
+  GadgetToolTip(#GadgetGameCoolAverage, "Seconds of readings to average for Auto Cool and the dashboard.")
+  GadgetToolTip(#GadgetThresholdFull24, "Temperature where Full Power can enter Cool 24W.")
+  GadgetToolTip(#GadgetThreshold2421, "Temperature where Cool 24W can step down to Cool 21W.")
+  GadgetToolTip(#GadgetThreshold2118, "Temperature where Cool 21W can step down to Cool 18W.")
+  GadgetToolTip(#GadgetThreshold1815, "Temperature where Cool 18W can step down to Cool 15W.")
+  GadgetToolTip(#GadgetThreshold1512, "Temperature where Cool 15W can step down to Cool 12W.")
+  GadgetToolTip(#GadgetPlanList, "Checked plans stay installed in Windows. Select a row to edit it.")
+  GadgetToolTip(#GadgetPlanEditorName, "Name for a custom plan. Built-in plan names cannot be changed.")
+  GadgetToolTip(#GadgetPlanEditorSummary, "Short purpose text shown in the Installed Plans table.")
+  GadgetToolTip(#GadgetPlanEditorPreset, "Load a built-in plan as a starting point for this editor.")
+  GadgetToolTip(#GadgetPlanEditorLoadPreset, "Copy the selected preset into the editor. This does not save yet.")
+  GadgetToolTip(#GadgetPlanAcEpp, "Plugged-in CPU efficiency preference. Lower is faster; higher is cooler.")
+  GadgetToolTip(#GadgetPlanDcEpp, "Battery CPU efficiency preference. Higher usually saves more battery.")
+  GadgetToolTip(#GadgetPlanAcBoost, "Plugged-in CPU boost mode. Disabled is cooler; Aggressive is fastest.")
+  GadgetToolTip(#GadgetPlanDcBoost, "Battery CPU boost mode. Disabled usually saves battery and heat.")
+  GadgetToolTip(#GadgetPlanAcState, "Plugged-in maximum CPU percentage.")
+  GadgetToolTip(#GadgetPlanDcState, "Battery maximum CPU percentage.")
+  GadgetToolTip(#GadgetPlanAcFreq, "Plugged-in CPU MHz cap. Use 0 for no MHz cap.")
+  GadgetToolTip(#GadgetPlanDcFreq, "Battery CPU MHz cap. Use 0 for no MHz cap.")
+  GadgetToolTip(#GadgetPlanAcCooling, "Plugged-in cooling policy. Active favors fans; Passive limits CPU first.")
+  GadgetToolTip(#GadgetPlanDcCooling, "Battery cooling policy. Passive is usually quieter and cooler.")
+  GadgetToolTip(#GadgetPlanEditorSave, "Save this plan. If installed, its Windows plan is updated too.")
+  GadgetToolTip(#GadgetPlanEditorNew, "Start a new custom plan from the selected preset.")
+  GadgetToolTip(#GadgetPlanEditorDelete, "Delete this custom plan and remove it from Windows.")
+  GadgetToolTip(#GadgetPlanRefreshAll, "Create or refresh the PowerPilot plans in Windows.")
   GadgetToolTip(#GadgetPlanRemoveAll, "Remove all PowerPilot-managed plans from Windows.")
-  GadgetToolTip(#GadgetPlanCombo, "Choose the plan to force manually right now.")
-  GadgetToolTip(#GadgetActivatePlan, "Turns automation off and keeps the selected plan active until you re-enable automatic control.")
-  GadgetToolTip(#GadgetAutoOnce, "Runs one automatic decision using the current rules without changing your checkboxes.")
-  GadgetToolTip(#GadgetResetDisplay, "Sends the Windows graphics reset hotkey (Win+Ctrl+Shift+B) so Windows can refresh the display path without a full reboot.")
-  GadgetToolTip(#GadgetDependencies, "Open detailed help and telemetry-status explanations.")
-  GadgetToolTip(#GadgetSaveSettings, "Writes the current controls to settings.ini.")
-  GadgetToolTip(#GadgetHideToTray, "Hide the window and keep PowerPilot running in the tray.")
-  GadgetToolTip(#GadgetExit, "Fully close PowerPilot.")
-  GadgetToolTip(#GadgetStatusLine, "Short live explanation of what PowerPilot is doing right now.")
+  GadgetToolTip(#GadgetPlanCombo, "Pick a plan to activate manually.")
+  GadgetToolTip(#GadgetActivatePlan, "Activate the selected plan now.")
+  GadgetToolTip(#GadgetAutoOnce, "Make one Auto Cool decision now without changing settings.")
+  GadgetToolTip(#GadgetResetDisplay, "Ask Windows to reset the display path using Win+Ctrl+Shift+B.")
+  GadgetToolTip(#GadgetDependencies, "Open reading-source and plan-status help.")
+  GadgetToolTip(#GadgetSaveSettings, "Save the current settings.")
+  GadgetToolTip(#GadgetHideToTray, "Hide this window and keep PowerPilot running.")
+  GadgetToolTip(#GadgetExit, "Close PowerPilot completely.")
+  GadgetToolTip(#GadgetStatusLine, "Current PowerPilot status.")
 EndProcedure
 
 Procedure ApplyDefaultSettings()
   gSettings\AutoEnabled      = #True
-  gSettings\AutoDetectGame   = #True
   gSettings\UseWindows       = #True
-  gSettings\UseGpuPerfHelper = #DefaultUseGpuPerfHelper
-  gSettings\GpuPerfHelperIntervalSeconds = #DefaultGpuPerfHelperIntervalSeconds
-  gSettings\UsePowerControl  = #True
   gSettings\AutoStartWithApp = #True
   gSettings\KeepSettingsOnReinstall = #False
   gSettings\AutoBatteryPlan  = #True
   gSettings\PollSeconds      = 5
   gSettings\Hysteresis       = 5
   gSettings\PowerHysteresis  = 8
-  gSettings\CpuPowerTarget   = 28
-  gSettings\GpuPowerTarget   = 65
-  gSettings\GpuLoadThreshold = 40
+  gSettings\CpuPowerTarget   = #DefaultCpuPowerTarget
   gSettings\GameCoolAverageSeconds = #DefaultGameCoolAverageSeconds
-  gSettings\GameStartDelay   = 10
-  gSettings\GameStopDelay    = 20
   gSettings\ThresholdFull24  = 65
   gSettings\Threshold2421    = 72
   gSettings\Threshold2118    = 78
   gSettings\Threshold1815    = 84
   gSettings\Threshold1512    = 90
   gSettings\LastPluggedPlan  = #PlanPlugged$
-  gSettings\LastDgpuPluggedPlan = #PlanFull$
   gSettings\CurrentManagedPlan = #PlanPlugged$
 EndProcedure
 
 Procedure NormalizeSettings()
   gSettings\PollSeconds      = ClampInt(gSettings\PollSeconds, 1, 60)
-  gSettings\GpuPerfHelperIntervalSeconds = ClampInt(gSettings\GpuPerfHelperIntervalSeconds, 5, 120)
   gSettings\Hysteresis       = ClampInt(gSettings\Hysteresis, 1, 20)
   gSettings\PowerHysteresis  = ClampInt(gSettings\PowerHysteresis, 1, 30)
   gSettings\CpuPowerTarget   = ClampInt(gSettings\CpuPowerTarget, 5, 120)
-  gSettings\GpuPowerTarget   = ClampInt(gSettings\GpuPowerTarget, 5, 250)
-  gSettings\GpuLoadThreshold = ClampInt(gSettings\GpuLoadThreshold, 1, 100)
   gSettings\GameCoolAverageSeconds = ClampInt(gSettings\GameCoolAverageSeconds, 1, 60)
-  gSettings\GameStartDelay   = ClampInt(gSettings\GameStartDelay, 2, 120)
-  gSettings\GameStopDelay    = ClampInt(gSettings\GameStopDelay, 2, 300)
   gSettings\ThresholdFull24  = ClampInt(gSettings\ThresholdFull24, 45, 100)
   gSettings\Threshold2421    = ClampInt(gSettings\Threshold2421, gSettings\ThresholdFull24 + 1, 105)
   gSettings\Threshold2118    = ClampInt(gSettings\Threshold2118, gSettings\Threshold2421 + 1, 110)
   gSettings\Threshold1815    = ClampInt(gSettings\Threshold1815, gSettings\Threshold2118 + 1, 115)
   gSettings\Threshold1512    = ClampInt(gSettings\Threshold1512, gSettings\Threshold1815 + 1, 120)
   gSettings\LastPluggedPlan  = NormalizeRememberedPluggedPlan(gSettings\LastPluggedPlan)
-  gSettings\LastDgpuPluggedPlan = NormalizeDgpuPluggedPlan(gSettings\LastDgpuPluggedPlan)
   gSettings\CurrentManagedPlan = NormalizeManagedPlan(gSettings\CurrentManagedPlan)
 EndProcedure
 
@@ -1761,11 +1450,7 @@ Procedure LoadSettings()
 
   If OpenPreferences(SettingsPath())
     gSettings\AutoEnabled      = ReadPreferenceInteger("AutoEnabled", gSettings\AutoEnabled)
-    gSettings\AutoDetectGame   = ReadPreferenceInteger("GpuLoadCoolTrigger", gSettings\AutoDetectGame)
     gSettings\UseWindows       = ReadPreferenceInteger("UseWindows", gSettings\UseWindows)
-    gSettings\UseGpuPerfHelper = ReadPreferenceInteger("UseGpuPerfHelper", gSettings\UseGpuPerfHelper)
-    gSettings\GpuPerfHelperIntervalSeconds = ReadPreferenceInteger("GpuPerfHelperIntervalSeconds", gSettings\GpuPerfHelperIntervalSeconds)
-    gSettings\UsePowerControl  = ReadPreferenceInteger("UsePowerControl", gSettings\UsePowerControl)
     gSettings\AutoStartWithApp = ReadPreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     gSettings\KeepSettingsOnReinstall = ReadPreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
     gSettings\AutoBatteryPlan  = ReadPreferenceInteger("AutoBatteryPlan", gSettings\AutoBatteryPlan)
@@ -1773,18 +1458,13 @@ Procedure LoadSettings()
     gSettings\Hysteresis       = ReadPreferenceInteger("Hysteresis", gSettings\Hysteresis)
     gSettings\PowerHysteresis  = ReadPreferenceInteger("PowerHysteresis", gSettings\PowerHysteresis)
     gSettings\CpuPowerTarget   = ReadPreferenceInteger("CpuPowerTarget", gSettings\CpuPowerTarget)
-    gSettings\GpuPowerTarget   = ReadPreferenceInteger("GpuPowerTarget", gSettings\GpuPowerTarget)
-    gSettings\GpuLoadThreshold = ReadPreferenceInteger("GpuLoadThreshold", gSettings\GpuLoadThreshold)
     gSettings\GameCoolAverageSeconds = ReadPreferenceInteger("GameCoolAverageSeconds", gSettings\GameCoolAverageSeconds)
-    gSettings\GameStartDelay   = ReadPreferenceInteger("GameStartDelay", gSettings\GameStartDelay)
-    gSettings\GameStopDelay    = ReadPreferenceInteger("GameStopDelay", gSettings\GameStopDelay)
     gSettings\ThresholdFull24  = ReadPreferenceInteger("ThresholdFull24", gSettings\ThresholdFull24)
     gSettings\Threshold2421    = ReadPreferenceInteger("Threshold2421", gSettings\Threshold2421)
     gSettings\Threshold2118    = ReadPreferenceInteger("Threshold2118", gSettings\Threshold2118)
     gSettings\Threshold1815    = ReadPreferenceInteger("Threshold1815", gSettings\Threshold1815)
     gSettings\Threshold1512    = ReadPreferenceInteger("Threshold1512", gSettings\Threshold1512)
     gSettings\LastPluggedPlan  = ReadPreferenceString("LastPluggedPlan", gSettings\LastPluggedPlan)
-    gSettings\LastDgpuPluggedPlan = ReadPreferenceString("LastDgpuPluggedPlan", gSettings\LastDgpuPluggedPlan)
     gSettings\CurrentManagedPlan = ReadPreferenceString("CurrentManagedPlan", gSettings\CurrentManagedPlan)
     ClosePreferences()
   EndIf
@@ -1798,12 +1478,7 @@ Procedure SaveSettings()
 
   If CreatePreferences(SettingsPath())
     WritePreferenceInteger("AutoEnabled", gSettings\AutoEnabled)
-    WritePreferenceInteger("GpuLoadCoolTrigger", gSettings\AutoDetectGame)
-    WritePreferenceInteger("AutoDetectGame", gSettings\AutoDetectGame)
     WritePreferenceInteger("UseWindows", gSettings\UseWindows)
-    WritePreferenceInteger("UseGpuPerfHelper", gSettings\UseGpuPerfHelper)
-    WritePreferenceInteger("GpuPerfHelperIntervalSeconds", gSettings\GpuPerfHelperIntervalSeconds)
-    WritePreferenceInteger("UsePowerControl", gSettings\UsePowerControl)
     WritePreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     WritePreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
     WritePreferenceInteger("AutoBatteryPlan", gSettings\AutoBatteryPlan)
@@ -1811,74 +1486,55 @@ Procedure SaveSettings()
     WritePreferenceInteger("Hysteresis", gSettings\Hysteresis)
     WritePreferenceInteger("PowerHysteresis", gSettings\PowerHysteresis)
     WritePreferenceInteger("CpuPowerTarget", gSettings\CpuPowerTarget)
-    WritePreferenceInteger("GpuPowerTarget", gSettings\GpuPowerTarget)
-    WritePreferenceInteger("GpuLoadThreshold", gSettings\GpuLoadThreshold)
     WritePreferenceInteger("GameCoolAverageSeconds", gSettings\GameCoolAverageSeconds)
-    WritePreferenceInteger("GameStartDelay", gSettings\GameStartDelay)
-    WritePreferenceInteger("GameStopDelay", gSettings\GameStopDelay)
     WritePreferenceInteger("ThresholdFull24", gSettings\ThresholdFull24)
     WritePreferenceInteger("Threshold2421", gSettings\Threshold2421)
     WritePreferenceInteger("Threshold2118", gSettings\Threshold2118)
     WritePreferenceInteger("Threshold1815", gSettings\Threshold1815)
     WritePreferenceInteger("Threshold1512", gSettings\Threshold1512)
     WritePreferenceString("LastPluggedPlan", gSettings\LastPluggedPlan)
-    WritePreferenceString("LastDgpuPluggedPlan", gSettings\LastDgpuPluggedPlan)
     WritePreferenceString("CurrentManagedPlan", gSettings\CurrentManagedPlan)
     ClosePreferences()
   EndIf
 EndProcedure
 
 Procedure PullSettingsFromGui()
-  gSettings\AutoEnabled      = GetGadgetState(#GadgetAutoEnabled)
-  gSettings\AutoDetectGame   = GetGadgetState(#GadgetAutoDetectGame)
-  gSettings\UseWindows       = GetGadgetState(#GadgetUseWindows)
-  gSettings\UseGpuPerfHelper = GetGadgetState(#GadgetUseGpuPerfHelper)
-  gSettings\GpuPerfHelperIntervalSeconds = GetGadgetState(#GadgetGpuPerfHelperInterval)
-  gSettings\UsePowerControl  = GetGadgetState(#GadgetUsePowerControl)
-  gSettings\AutoStartWithApp = GetGadgetState(#GadgetAutoStart)
-  gSettings\KeepSettingsOnReinstall = GetGadgetState(#GadgetKeepSettings)
-  gSettings\AutoBatteryPlan  = GetGadgetState(#GadgetAutoBatteryPlan)
-  gSettings\PollSeconds      = GetGadgetState(#GadgetPollSpin)
-  gSettings\Hysteresis       = GetGadgetState(#GadgetHysteresisSpin)
-  gSettings\PowerHysteresis  = GetGadgetState(#GadgetPowerHysteresisSpin)
-  gSettings\CpuPowerTarget   = GetGadgetState(#GadgetCpuPowerTarget)
-  gSettings\GpuPowerTarget   = GetGadgetState(#GadgetGpuPowerTarget)
-  gSettings\GpuLoadThreshold = GetGadgetState(#GadgetGpuLoadThreshold)
-  gSettings\GameCoolAverageSeconds = GetGadgetState(#GadgetGameCoolAverage)
-  gSettings\GameStartDelay   = GetGadgetState(#GadgetGameStartDelay)
-  gSettings\GameStopDelay    = GetGadgetState(#GadgetGameStopDelay)
-  gSettings\ThresholdFull24  = GetGadgetState(#GadgetThresholdFull24)
-  gSettings\Threshold2421    = GetGadgetState(#GadgetThreshold2421)
-  gSettings\Threshold2118    = GetGadgetState(#GadgetThreshold2118)
-  gSettings\Threshold1815    = GetGadgetState(#GadgetThreshold1815)
-  gSettings\Threshold1512    = GetGadgetState(#GadgetThreshold1512)
+  If IsGadget(#GadgetAutoEnabled) : gSettings\AutoEnabled = GetGadgetState(#GadgetAutoEnabled) : EndIf
+  If IsGadget(#GadgetUseWindows) : gSettings\UseWindows = GetGadgetState(#GadgetUseWindows) : EndIf
+  If IsGadget(#GadgetAutoStart) : gSettings\AutoStartWithApp = GetGadgetState(#GadgetAutoStart) : EndIf
+  If IsGadget(#GadgetKeepSettings) : gSettings\KeepSettingsOnReinstall = GetGadgetState(#GadgetKeepSettings) : EndIf
+  If IsGadget(#GadgetAutoBatteryPlan) : gSettings\AutoBatteryPlan = GetGadgetState(#GadgetAutoBatteryPlan) : EndIf
+  If IsGadget(#GadgetPollSpin) : gSettings\PollSeconds = GetGadgetState(#GadgetPollSpin) : EndIf
+  If IsGadget(#GadgetHysteresisSpin) : gSettings\Hysteresis = GetGadgetState(#GadgetHysteresisSpin) : EndIf
+  If IsGadget(#GadgetPowerHysteresisSpin) : gSettings\PowerHysteresis = GetGadgetState(#GadgetPowerHysteresisSpin) : EndIf
+  If IsGadget(#GadgetGameCoolAverage) : gSettings\GameCoolAverageSeconds = GetGadgetState(#GadgetGameCoolAverage) : EndIf
+  If IsGadget(#GadgetThresholdFull24) : gSettings\ThresholdFull24 = GetGadgetState(#GadgetThresholdFull24) : EndIf
+  If IsGadget(#GadgetThreshold2421) : gSettings\Threshold2421 = GetGadgetState(#GadgetThreshold2421) : EndIf
+  If IsGadget(#GadgetThreshold2118) : gSettings\Threshold2118 = GetGadgetState(#GadgetThreshold2118) : EndIf
+  If IsGadget(#GadgetThreshold1815) : gSettings\Threshold1815 = GetGadgetState(#GadgetThreshold1815) : EndIf
+  If IsGadget(#GadgetThreshold1512) : gSettings\Threshold1512 = GetGadgetState(#GadgetThreshold1512) : EndIf
   NormalizeSettings()
+EndProcedure
+
+Procedure UpdateTelemetryControlState()
 EndProcedure
 
 Procedure PushSettingsToGui()
   UpdateGadgetStateIfNeeded(#GadgetAutoEnabled, gSettings\AutoEnabled)
-  UpdateGadgetStateIfNeeded(#GadgetAutoDetectGame, gSettings\AutoDetectGame)
   UpdateGadgetStateIfNeeded(#GadgetUseWindows, gSettings\UseWindows)
-  UpdateGadgetStateIfNeeded(#GadgetUseGpuPerfHelper, gSettings\UseGpuPerfHelper)
-  UpdateGadgetStateIfNeeded(#GadgetGpuPerfHelperInterval, gSettings\GpuPerfHelperIntervalSeconds)
-  UpdateGadgetStateIfNeeded(#GadgetUsePowerControl, gSettings\UsePowerControl)
   UpdateGadgetStateIfNeeded(#GadgetAutoStart, gSettings\AutoStartWithApp)
   UpdateGadgetStateIfNeeded(#GadgetKeepSettings, gSettings\KeepSettingsOnReinstall)
   UpdateGadgetStateIfNeeded(#GadgetAutoBatteryPlan, gSettings\AutoBatteryPlan)
   UpdateGadgetStateIfNeeded(#GadgetPollSpin, gSettings\PollSeconds)
   UpdateGadgetStateIfNeeded(#GadgetHysteresisSpin, gSettings\Hysteresis)
   UpdateGadgetStateIfNeeded(#GadgetPowerHysteresisSpin, gSettings\PowerHysteresis)
-  UpdateGadgetStateIfNeeded(#GadgetCpuPowerTarget, gSettings\CpuPowerTarget)
-  UpdateGadgetStateIfNeeded(#GadgetGpuPowerTarget, gSettings\GpuPowerTarget)
-  UpdateGadgetStateIfNeeded(#GadgetGpuLoadThreshold, gSettings\GpuLoadThreshold)
   UpdateGadgetStateIfNeeded(#GadgetGameCoolAverage, gSettings\GameCoolAverageSeconds)
-  UpdateGadgetStateIfNeeded(#GadgetGameStartDelay, gSettings\GameStartDelay)
-  UpdateGadgetStateIfNeeded(#GadgetGameStopDelay, gSettings\GameStopDelay)
   UpdateGadgetStateIfNeeded(#GadgetThresholdFull24, gSettings\ThresholdFull24)
   UpdateGadgetStateIfNeeded(#GadgetThreshold2421, gSettings\Threshold2421)
   UpdateGadgetStateIfNeeded(#GadgetThreshold2118, gSettings\Threshold2118)
   UpdateGadgetStateIfNeeded(#GadgetThreshold1815, gSettings\Threshold1815)
   UpdateGadgetStateIfNeeded(#GadgetThreshold1512, gSettings\Threshold1512)
+  UpdateTelemetryControlState()
 EndProcedure
 
 Procedure LogAction(text$)
@@ -1981,44 +1637,6 @@ Procedure.i RunPowerCfgElevated(arguments$)
                "exit $p.ExitCode }"
 
   ProcedureReturn RunExitCode("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + QuoteArgument(psCommand$))
-EndProcedure
-
-Procedure.i RunTemporaryPowerShell(scriptText$, scriptName$)
-  Protected scriptPath$ = SettingsDirectory() + "\" + scriptName$
-  Protected file.i
-  Protected result.i
-
-  EnsureSettingsDirectory()
-  file = CreateFile(#PB_Any, scriptPath$)
-  If file = 0
-    ProcedureReturn -1
-  EndIf
-
-  WriteString(file, scriptText$, #PB_UTF8)
-  CloseFile(file)
-
-  result = RunExitCode("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File " + QuoteArgument(scriptPath$))
-  DeleteFile(scriptPath$)
-  ProcedureReturn result
-EndProcedure
-
-Procedure.s RunTemporaryPowerShellCapture(scriptText$, scriptName$)
-  Protected scriptPath$ = SettingsDirectory() + "\" + scriptName$
-  Protected file.i
-  Protected result$
-
-  EnsureSettingsDirectory()
-  file = CreateFile(#PB_Any, scriptPath$)
-  If file = 0
-    ProcedureReturn ""
-  EndIf
-
-  WriteString(file, scriptText$, #PB_UTF8)
-  CloseFile(file)
-
-  result$ = RunCapture("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File " + QuoteArgument(scriptPath$))
-  DeleteFile(scriptPath$)
-  ProcedureReturn result$
 EndProcedure
 
 Procedure TriggerDisplayReset()
@@ -2130,17 +1748,33 @@ Procedure.i ManagedPlansPresent()
   ProcedureReturn Bool(GetSchemeGuidByName(#PlanVisible$) <> "")
 EndProcedure
 
-Procedure.i IsManagedPlanName(planName$)
-  If planName$ = #PlanVisible$
-    ProcedureReturn #True
+Procedure InvalidateManagedPlansCache()
+  LockMutex(gStateMutex)
+  gManagedPlansCacheValid = #False
+  gManagedPlansExistCacheValid = #False
+  UnlockMutex(gStateMutex)
+EndProcedure
+
+Procedure.i CachedManagedPlansPresent()
+  Protected valid.i
+  Protected value.i
+
+  LockMutex(gStateMutex)
+  valid = gManagedPlansCacheValid
+  value = gManagedPlansCacheValue
+  UnlockMutex(gStateMutex)
+
+  If valid
+    ProcedureReturn value
   EndIf
-  If Left(planName$, Len(#PlanPrefixNew$)) = #PlanPrefixNew$
-    ProcedureReturn #True
-  EndIf
-  If Left(planName$, Len(#PlanPrefixOld$)) = #PlanPrefixOld$
-    ProcedureReturn #True
-  EndIf
-  ProcedureReturn #False
+
+  value = ManagedPlansPresent()
+  LockMutex(gStateMutex)
+  gManagedPlansCacheValue = value
+  gManagedPlansCacheValid = #True
+  UnlockMutex(gStateMutex)
+
+  ProcedureReturn value
 EndProcedure
 
 Procedure.i SetSchemeValue(schemeGuid$, acMode.i, subgroup$, setting$, value.i)
@@ -2164,51 +1798,6 @@ Procedure.i SetFrequencyCaps(schemeGuid$, acMode.i, mhz.i)
   If SetSchemeValue(schemeGuid$, acMode, "SUB_PROCESSOR", "PROCFREQMAX", mhz) <> 0 : ProcedureReturn #False : EndIf
   If SetSchemeValue(schemeGuid$, acMode, "SUB_PROCESSOR", "PROCFREQMAX1", mhz) <> 0 : ProcedureReturn #False : EndIf
   If SetSchemeValue(schemeGuid$, acMode, "SUB_PROCESSOR", "PROCFREQMAX2", mhz) <> 0 : ProcedureReturn #False : EndIf
-  ProcedureReturn #True
-EndProcedure
-
-Procedure.i ApplyDcBaseline(schemeGuid$)
-  If SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFEPP", 80) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTMODE", 0) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PROCTHROTTLEMAX", 85) <> 0 : ProcedureReturn #False : EndIf
-  If SetFrequencyCaps(schemeGuid$, #False, 2500) = #False : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SYSCOOLPOL", 0) <> 0 : ProcedureReturn #False : EndIf
-  ProcedureReturn #True
-EndProcedure
-
-Procedure.i ApplyAcBattery(schemeGuid$)
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFEPP", 65) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTMODE", 0) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX", 90) <> 0 : ProcedureReturn #False : EndIf
-  If SetFrequencyCaps(schemeGuid$, #True, 2800) = #False : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SYSCOOLPOL", 0) <> 0 : ProcedureReturn #False : EndIf
-  ProcedureReturn #True
-EndProcedure
-
-Procedure.i ApplyAcPlugged(schemeGuid$)
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFEPP", 15) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTMODE", 1) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX", 100) <> 0 : ProcedureReturn #False : EndIf
-  If SetFrequencyCaps(schemeGuid$, #True, 0) = #False : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SYSCOOLPOL", 1) <> 0 : ProcedureReturn #False : EndIf
-  ProcedureReturn #True
-EndProcedure
-
-Procedure.i ApplyAcGame(schemeGuid$, epp.i, maxState.i, mhz.i)
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFEPP", epp) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTMODE", 0) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX", maxState) <> 0 : ProcedureReturn #False : EndIf
-  If SetFrequencyCaps(schemeGuid$, #True, mhz) = #False : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SYSCOOLPOL", 1) <> 0 : ProcedureReturn #False : EndIf
-  ProcedureReturn #True
-EndProcedure
-
-Procedure.i ApplyAcFull(schemeGuid$)
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFEPP", 5) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTMODE", 2) <> 0 : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX", 100) <> 0 : ProcedureReturn #False : EndIf
-  If SetFrequencyCaps(schemeGuid$, #True, 0) = #False : ProcedureReturn #False : EndIf
-  If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SYSCOOLPOL", 1) <> 0 : ProcedureReturn #False : EndIf
   ProcedureReturn #True
 EndProcedure
 
@@ -2267,11 +1856,132 @@ Procedure.i DerivedPlanCoreParkingMin(epp.i, boostMode.i, cooling.i, maxState.i,
   ProcedureReturn parkingMin
 EndProcedure
 
+Procedure.i DerivedPlanPerfIncreaseThreshold(epp.i, boostMode.i, maxState.i, freqMHz.i)
+  If boostMode >= 2
+    ProcedureReturn 25
+  EndIf
+  If boostMode = 1
+    ProcedureReturn 45
+  EndIf
+
+  If epp >= 95 Or maxState <= 65 Or (freqMHz > 0 And freqMHz <= 1800)
+    ProcedureReturn 95
+  ElseIf epp >= 90 Or maxState <= 75 Or (freqMHz > 0 And freqMHz <= 2200)
+    ProcedureReturn 90
+  ElseIf epp >= 80 Or maxState <= 85 Or (freqMHz > 0 And freqMHz <= 2600)
+    ProcedureReturn 80
+  ElseIf epp >= 65
+    ProcedureReturn 65
+  EndIf
+
+  ProcedureReturn 45
+EndProcedure
+
+Procedure.i DerivedPlanPerfDecreaseThreshold(epp.i, boostMode.i, maxState.i, freqMHz.i)
+  If boostMode >= 2
+    ProcedureReturn 10
+  EndIf
+  If boostMode = 1
+    ProcedureReturn 20
+  EndIf
+
+  If epp >= 95 Or maxState <= 65 Or (freqMHz > 0 And freqMHz <= 1800)
+    ProcedureReturn 55
+  ElseIf epp >= 90 Or maxState <= 75 Or (freqMHz > 0 And freqMHz <= 2200)
+    ProcedureReturn 45
+  ElseIf epp >= 80 Or maxState <= 85 Or (freqMHz > 0 And freqMHz <= 2600)
+    ProcedureReturn 35
+  ElseIf epp >= 65
+    ProcedureReturn 25
+  EndIf
+
+  ProcedureReturn 15
+EndProcedure
+
+Procedure.i DerivedPlanBoostPolicy(epp.i, boostMode.i, maxState.i, freqMHz.i)
+  If boostMode >= 2
+    ProcedureReturn 70
+  EndIf
+  If boostMode = 1
+    ProcedureReturn 45
+  EndIf
+
+  If epp >= 90 Or maxState <= 75 Or (freqMHz > 0 And freqMHz <= 2200)
+    ProcedureReturn 0
+  EndIf
+
+  ProcedureReturn 20
+EndProcedure
+
+Procedure.i DerivedPlanPerfIncreasePolicy(epp.i, boostMode.i)
+  If boostMode >= 2
+    ProcedureReturn 2
+  EndIf
+  If boostMode = 1 Or epp < 40
+    ProcedureReturn 1
+  EndIf
+
+  ProcedureReturn 0
+EndProcedure
+
+Procedure.i DerivedPlanPerfDecreasePolicy(epp.i, boostMode.i)
+  If boostMode >= 2 Or epp < 40
+    ProcedureReturn 1
+  EndIf
+
+  ProcedureReturn 0
+EndProcedure
+
+Procedure.i DerivedPlanLatencyHintPerf(epp.i, boostMode.i, maxState.i, freqMHz.i)
+  If boostMode >= 2
+    ProcedureReturn 99
+  EndIf
+  If boostMode = 1
+    ProcedureReturn 70
+  EndIf
+
+  If epp >= 95 Or maxState <= 65 Or (freqMHz > 0 And freqMHz <= 1800)
+    ProcedureReturn 30
+  ElseIf epp >= 90 Or maxState <= 75 Or (freqMHz > 0 And freqMHz <= 2200)
+    ProcedureReturn 40
+  ElseIf epp >= 80 Or maxState <= 85 Or (freqMHz > 0 And freqMHz <= 2600)
+    ProcedureReturn 50
+  EndIf
+
+  ProcedureReturn 60
+EndProcedure
+
+Procedure.i DerivedPlanSchedulingPolicy(epp.i, boostMode.i, maxState.i, freqMHz.i)
+  If boostMode >= 2 Or epp < 80
+    ProcedureReturn 5
+  EndIf
+
+  If epp >= 95 Or maxState <= 65 Or (freqMHz > 0 And freqMHz <= 1800)
+    ProcedureReturn 4
+  EndIf
+
+  ProcedureReturn 5
+EndProcedure
+
 Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   Protected dcMinState.i
   Protected acMinState.i
   Protected dcCoreParkingMin.i
   Protected acCoreParkingMin.i
+  Protected dcPerfIncreaseThreshold.i
+  Protected acPerfIncreaseThreshold.i
+  Protected dcPerfDecreaseThreshold.i
+  Protected acPerfDecreaseThreshold.i
+  Protected dcBoostPolicy.i
+  Protected acBoostPolicy.i
+  Protected dcPerfIncreasePolicy.i
+  Protected acPerfIncreasePolicy.i
+  Protected dcPerfDecreasePolicy.i
+  Protected acPerfDecreasePolicy.i
+  Protected dcLatencyHintPerf.i
+  Protected acLatencyHintPerf.i
+  Protected dcSchedulingPolicy.i
+  Protected acSchedulingPolicy.i
 
   If *plan = 0
     ProcedureReturn #False
@@ -2281,6 +1991,20 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   acMinState = DerivedPlanMinState(*plan\AcEpp, *plan\AcBoostMode, *plan\AcCooling, *plan\AcMaxState, *plan\AcFreqMHz)
   dcCoreParkingMin = DerivedPlanCoreParkingMin(*plan\DcEpp, *plan\DcBoostMode, *plan\DcCooling, *plan\DcMaxState, *plan\DcFreqMHz)
   acCoreParkingMin = DerivedPlanCoreParkingMin(*plan\AcEpp, *plan\AcBoostMode, *plan\AcCooling, *plan\AcMaxState, *plan\AcFreqMHz)
+  dcPerfIncreaseThreshold = DerivedPlanPerfIncreaseThreshold(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
+  acPerfIncreaseThreshold = DerivedPlanPerfIncreaseThreshold(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
+  dcPerfDecreaseThreshold = DerivedPlanPerfDecreaseThreshold(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
+  acPerfDecreaseThreshold = DerivedPlanPerfDecreaseThreshold(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
+  dcBoostPolicy = DerivedPlanBoostPolicy(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
+  acBoostPolicy = DerivedPlanBoostPolicy(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
+  dcPerfIncreasePolicy = DerivedPlanPerfIncreasePolicy(*plan\DcEpp, *plan\DcBoostMode)
+  acPerfIncreasePolicy = DerivedPlanPerfIncreasePolicy(*plan\AcEpp, *plan\AcBoostMode)
+  dcPerfDecreasePolicy = DerivedPlanPerfDecreasePolicy(*plan\DcEpp, *plan\DcBoostMode)
+  acPerfDecreasePolicy = DerivedPlanPerfDecreasePolicy(*plan\AcEpp, *plan\AcBoostMode)
+  dcLatencyHintPerf = DerivedPlanLatencyHintPerf(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
+  acLatencyHintPerf = DerivedPlanLatencyHintPerf(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
+  dcSchedulingPolicy = DerivedPlanSchedulingPolicy(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
+  acSchedulingPolicy = DerivedPlanSchedulingPolicy(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
 
   ; These processor knobs are optional so older systems can still accept the
   ; base plan even if a specific alias is absent. The existing EPP/boost/cooling
@@ -2294,6 +2018,23 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMIN2", acMinState)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES", acCoreParkingMin)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES1", acCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD", acPerfIncreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", acPerfIncreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD", acPerfDecreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", acPerfDecreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCPOL", acPerfIncreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCPOL1", acPerfIncreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECPOL", acPerfDecreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECPOL1", acPerfDecreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTPOL", acBoostPolicy)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTEPP", 100)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTEPP1", 100)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTEPP2", 100)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTPERF", acLatencyHintPerf)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTPERF1", acLatencyHintPerf)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTPERF2", acLatencyHintPerf)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SCHEDPOLICY", acSchedulingPolicy)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SHORTSCHEDPOLICY", acSchedulingPolicy)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFAUTONOMOUS", 1)
 
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFEPP1", *plan\DcEpp)
@@ -2305,6 +2046,23 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PROCTHROTTLEMIN2", dcMinState)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES", dcCoreParkingMin)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES1", dcCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD", dcPerfIncreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", dcPerfIncreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD", dcPerfDecreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", dcPerfDecreaseThreshold)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCPOL", dcPerfIncreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCPOL1", dcPerfIncreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECPOL", dcPerfDecreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECPOL1", dcPerfDecreasePolicy)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTPOL", dcBoostPolicy)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTEPP", 100)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTEPP1", 100)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTEPP2", 100)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTPERF", dcLatencyHintPerf)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTPERF1", dcLatencyHintPerf)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTPERF2", dcLatencyHintPerf)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SCHEDPOLICY", dcSchedulingPolicy)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SHORTSCHEDPOLICY", dcSchedulingPolicy)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFAUTONOMOUS", 1)
 
   ProcedureReturn #True
@@ -2398,6 +2156,7 @@ Procedure.i EnsurePlanInstalled(planName$)
     ProcedureReturn #False
   EndIf
 
+  InvalidateManagedPlansCache()
   ProcedureReturn #True
 EndProcedure
 
@@ -2425,9 +2184,6 @@ Procedure.i RemoveManagedPlanByName(planName$)
   If gSettings\LastPluggedPlan = planName$
     RememberPluggedPlan(#PlanPlugged$, #True)
   EndIf
-  If gSettings\LastDgpuPluggedPlan = planName$
-    RememberDgpuPluggedPlan(#PlanFull$, #True)
-  EndIf
 
   If RunPowerCfg("/DELETE " + guid$) <> 0
     LogAction("Failed to remove " + planName$)
@@ -2435,6 +2191,7 @@ Procedure.i RemoveManagedPlanByName(planName$)
   EndIf
 
   LogAction("Removed " + planName$)
+  InvalidateManagedPlansCache()
   ProcedureReturn #True
 EndProcedure
 
@@ -2743,6 +2500,7 @@ Procedure.i CreateManagedPlans()
   Next
 
   If ConfigureScheme(GetCurrentManagedPlan(), visibleGuid$) = #False : LogAction("Failed to configure " + #PlanVisible$) : ProcedureReturn #False : EndIf
+  InvalidateManagedPlansCache()
   LogAction("Custom PowerPilot plans are present.")
   ProcedureReturn #True
 EndProcedure
@@ -2766,6 +2524,7 @@ Procedure.i CleanupManagedPlans()
 
   result$ = RunCapture("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + QuoteArgument(script$))
   If FindString(result$, "OK", 1)
+    InvalidateManagedPlansCache()
     LogAction("Managed custom plans removed.")
     ProcedureReturn #True
   EndIf
@@ -2909,30 +2668,6 @@ Procedure.i WindowsCpuCounterScore(instanceName$)
   ProcedureReturn -1
 EndProcedure
 
-Procedure.i WindowsGpuPowerCounterScore(instanceName$)
-  Protected inst$ = LCase(instanceName$)
-
-  If inst$ = "vddgfx power" : ProcedureReturn 7000 : EndIf
-  If inst$ = "vddcr_gfx power" : ProcedureReturn 6900 : EndIf
-  If FindString(inst$, "gfx", 1) : ProcedureReturn 6600 : EndIf
-  If FindString(inst$, "gpu", 1) : ProcedureReturn 6300 : EndIf
-  If inst$ = "vddcr_soc power" : ProcedureReturn 4200 : EndIf
-  If FindString(inst$, "soc", 1) : ProcedureReturn 3200 : EndIf
-
-  ProcedureReturn -1
-EndProcedure
-
-Procedure.i WindowsGpuEngineRelevant(instanceName$)
-  Protected inst$ = LCase(instanceName$)
-
-  If FindString(inst$, "engtype_3d", 1) : ProcedureReturn #True : EndIf
-  If FindString(inst$, "engtype_high priority 3d", 1) : ProcedureReturn #True : EndIf
-  If FindString(inst$, "engtype_compute", 1) : ProcedureReturn #True : EndIf
-  If FindString(inst$, "engtype_high priority compute", 1) : ProcedureReturn #True : EndIf
-
-  ProcedureReturn #False
-EndProcedure
-
 Procedure.i ReadWindowsCounterDouble(counterHandle.i, *out.DoubleHolder)
   Protected fmt.PDH_FMT_COUNTERVALUE_DOUBLE
   Protected counterType.l
@@ -2952,11 +2687,8 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
   Protected counterHandle.i
   Protected result.i
   Protected cpuBestScore.i = -1
-  Protected gpuPowerBestScore.i = -1
   Protected tempBestScore.i = -1
   Protected powerFallbackNeeded.i
-  Protected gpuLoadSeen.i
-  Protected gpuMemorySeen.i
   Protected value.DoubleHolder
   Protected instanceName$
   Protected tempC.d
@@ -2965,9 +2697,11 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
   Protected NewList counters.WindowsCounterEntry()
 
   ReadWindowsPmiTelemetry(*reading)
-  ReadWindowsEmiTelemetry(*reading)
+  If *reading\cpuPackageValid = #False
+    ReadWindowsEmiTelemetry(*reading)
+  EndIf
   ReadWindowsPerfStreamTelemetry(*reading)
-  powerFallbackNeeded = Bool(*reading\cpuPackageValid = #False Or *reading\apuPowerValid = #False Or *reading\gpuPowerValid = #False)
+  powerFallbackNeeded = Bool(*reading\cpuPackageValid = #False)
 
   If InitializePdh() = #False
     ProcedureReturn HasUsableTelemetry(*reading)
@@ -2983,28 +2717,6 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
       If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
         AddElement(counters())
         counters()\kind = #WinCounterCpu
-        counters()\path = counterPaths()
-        counters()\handle = counterHandle
-      EndIf
-    Next
-  EndIf
-
-  If ShouldUseWindowsGpuPerfTelemetry() And *reading\gpuLoadValid = #False And ExpandWindowsCounterPaths("\GPU Engine(*)\Utilization Percentage", counterPaths())
-    ForEach counterPaths()
-      If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
-        AddElement(counters())
-        counters()\kind = #WinCounterGpu
-        counters()\path = counterPaths()
-        counters()\handle = counterHandle
-      EndIf
-    Next
-  EndIf
-
-  If ShouldUseWindowsGpuPerfTelemetry() And *reading\gpuMemoryValid = #False And ExpandWindowsCounterPaths("\GPU Adapter Memory(*)\Dedicated Usage", counterPaths())
-    ForEach counterPaths()
-      If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
-        AddElement(counters())
-        counters()\kind = #WinCounterMem
         counters()\path = counterPaths()
         counters()\handle = counterHandle
       EndIf
@@ -3052,46 +2764,12 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
     Select counters()\kind
       Case #WinCounterCpu
         watts = value\value / 1000.0
-        If *reading\apuPowerValid = #False And LCase(instanceName$) = "apu power"
-          If HasMeaningfulPowerWatts(watts)
-            *reading\apuPowerValid = #True
-            *reading\apuPowerSensor = "Windows power reading / " + instanceName$
-            *reading\apuPowerWatts = watts
-          EndIf
-        EndIf
-
         result = WindowsCpuCounterScore(instanceName$)
         If *reading\cpuPackageValid = #False And result >= 0 And HasMeaningfulPowerWatts(watts) And (result > cpuBestScore Or (result = cpuBestScore And value\value > (*reading\cpuPackageWatts * 1000.0)))
           cpuBestScore = result
           *reading\cpuPackageValid = #True
           *reading\cpuPackageSensor = "Windows power reading / " + instanceName$
           *reading\cpuPackageWatts = watts
-        EndIf
-
-        result = WindowsGpuPowerCounterScore(instanceName$)
-        If *reading\gpuPowerValid = #False And result >= 0 And HasMeaningfulPowerWatts(watts) And (result > gpuPowerBestScore Or (result = gpuPowerBestScore And value\value > (*reading\gpuPowerWatts * 1000.0)))
-          gpuPowerBestScore = result
-          *reading\gpuPowerValid = #True
-          *reading\gpuPowerSensor = "Windows power reading / " + instanceName$
-          *reading\gpuPowerWatts = watts
-        EndIf
-
-      Case #WinCounterGpu
-        If WindowsGpuEngineRelevant(instanceName$)
-          gpuLoadSeen = #True
-          If *reading\gpuLoadValid = #False Or value\value > *reading\gpuLoadPct
-            *reading\gpuLoadValid = #True
-            *reading\gpuLoadSensor = "Windows " + instanceName$
-            *reading\gpuLoadPct = value\value
-          EndIf
-        EndIf
-
-      Case #WinCounterMem
-        gpuMemorySeen = #True
-        If *reading\gpuMemoryValid = #False Or value\value > (*reading\gpuMemoryMb * 1024.0 * 1024.0)
-          *reading\gpuMemoryValid = #True
-          *reading\gpuMemorySensor = "Windows " + instanceName$
-          *reading\gpuMemoryMb = value\value / (1024.0 * 1024.0)
         EndIf
 
       Case #WinCounterTempHp
@@ -3116,18 +2794,6 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
 
   PdhCloseQuery(queryHandle)
 
-  If gpuLoadSeen And *reading\gpuLoadValid = #False
-    *reading\gpuLoadValid = #True
-    *reading\gpuLoadSensor = "Windows GPU Engine"
-    *reading\gpuLoadPct = 0.0
-  EndIf
-
-  If gpuMemorySeen And *reading\gpuMemoryValid = #False
-    *reading\gpuMemoryValid = #True
-    *reading\gpuMemorySensor = "Windows GPU Adapter Memory"
-    *reading\gpuMemoryMb = 0.0
-  EndIf
-
   If *reading\windowsTempValid
     *reading\valid = #True
     *reading\source = "Windows Performance Counters"
@@ -3135,7 +2801,7 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
     *reading\celsius = *reading\windowsTempCelsius
   EndIf
 
-  ProcedureReturn Bool(*reading\windowsTempValid Or *reading\cpuPackageValid Or *reading\apuPowerValid Or *reading\gpuPowerValid Or *reading\gpuLoadValid Or *reading\gpuMemoryValid)
+  ProcedureReturn Bool(*reading\windowsTempValid Or *reading\cpuPackageValid Or *reading\gpuMemoryValid Or *reading\gpuSharedMemoryValid Or *reading\gpuDeviceNames <> "")
 EndProcedure
 
 Procedure.i ReadFallbackSensor(*reading.TempReading)
@@ -3183,26 +2849,6 @@ Procedure MergeTelemetryReading(*target.TempReading, *source.TempReading)
     *target\cpuPackageWatts = *source\cpuPackageWatts
   EndIf
 
-  If *target\apuPowerValid = #False And *source\apuPowerValid
-    *target\apuPowerValid = #True
-    *target\apuPowerSensor = *source\apuPowerSensor
-    *target\apuPowerWatts = *source\apuPowerWatts
-  EndIf
-
-  If *source\gpuPowerValid
-    If *target\gpuPowerValid = #False Or (IsEstimatedGpuPowerSensor(*target\gpuPowerSensor) And IsEstimatedGpuPowerSensor(*source\gpuPowerSensor) = #False)
-      *target\gpuPowerValid = #True
-      *target\gpuPowerSensor = *source\gpuPowerSensor
-      *target\gpuPowerWatts = *source\gpuPowerWatts
-    EndIf
-  EndIf
-
-  If *target\gpuLoadValid = #False And *source\gpuLoadValid
-    *target\gpuLoadValid = #True
-    *target\gpuLoadSensor = *source\gpuLoadSensor
-    *target\gpuLoadPct = *source\gpuLoadPct
-  EndIf
-
   If *target\gpuMemoryValid = #False And *source\gpuMemoryValid
     *target\gpuMemoryValid = #True
     *target\gpuMemorySensor = *source\gpuMemorySensor
@@ -3220,41 +2866,6 @@ Procedure MergeTelemetryReading(*target.TempReading, *source.TempReading)
   EndIf
 EndProcedure
 
-Procedure.i TelemetryCompletenessScore(*reading.TempReading)
-  Protected score.i
-
-  If *reading\valid Or *reading\windowsTempValid
-    score + 1
-  EndIf
-  If *reading\cpuPackageValid
-    score + 1
-  EndIf
-  If *reading\apuPowerValid
-    score + 1
-  EndIf
-  If *reading\gpuPowerValid
-    score + 1
-  EndIf
-  If *reading\gpuLoadValid
-    score + 1
-  EndIf
-  If *reading\gpuMemoryValid
-    score + 1
-  EndIf
-
-  ProcedureReturn score
-EndProcedure
-
-Procedure.i IsEstimatedGpuPowerSensor(sensor$)
-  Protected upper$ = UCase(sensor$)
-
-  If upper$ = ""
-    ProcedureReturn #False
-  EndIf
-
-  ProcedureReturn Bool(FindString(upper$, "ESTIMATED", 1) > 0 Or FindString(upper$, "WINDOWS POWER READING", 1) > 0)
-EndProcedure
-
 Procedure.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading, *fallback.TempReading)
   Protected useWindows.i
   Protected windowsReady.i
@@ -3270,7 +2881,6 @@ Procedure.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading,
 
   If useWindows
     windowsReady = ReadWindowsTelemetry(*windows)
-    ApplySimulatedGpuLoadFromPower(*windows)
     ApplyTelemetryLatch(*windows, @gWindowsTelemetryLatch)
     windowsReady = HasUsableTelemetry(*windows)
     If windowsReady
@@ -3285,23 +2895,18 @@ Procedure.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading,
     *reading\celsius = *reading\windowsTempCelsius
   EndIf
 
-  fallbackReady = ReadFallbackSensor(*fallback)
-  ApplyTelemetryLatch(*fallback, @gFallbackTelemetryLatch)
-  fallbackReady = HasUsableTelemetry(*fallback)
-  If HasUsableTelemetry(*reading) = #False And fallbackReady
-    CopyTempReading(*reading, *fallback)
+  If *reading\valid = #False And *reading\windowsTempValid = #False
+    fallbackReady = ReadFallbackSensor(*fallback)
+    ApplyTelemetryLatch(*fallback, @gFallbackTelemetryLatch)
+    fallbackReady = *fallback\valid
+    If fallbackReady
+      CopyTempReading(*reading, *fallback)
+    EndIf
   EndIf
 
   ApplyTelemetryLatch(*reading, @gBlendTelemetryLatch)
 
   ProcedureReturn HasVisibleTelemetry(*reading)
-EndProcedure
-
-Procedure.i ReadBestSensor(*reading.TempReading)
-  Protected windows.TempReading
-  Protected fallback.TempReading
-
-  ProcedureReturn CaptureTelemetrySnapshot(*reading, @windows, @fallback)
 EndProcedure
 
 Procedure.s FindBundledWindowsEmiHelper()
@@ -3380,33 +2985,84 @@ Procedure StopWindowsPerfHelper()
   gWindowsPerfHelperLatestTick = 0
 EndProcedure
 
-Procedure.i WindowsPerfHelperIntervalMs()
-  Protected intervalSeconds.i
+Procedure.i ParseWindowsPerfBlockTelemetry(*reading.TempReading, blockText$, staleSuffix$ = "")
+  Protected normalized$ = ReplaceString(blockText$, #CR$, "")
+  Protected lineCount.i
+  Protected i.i
+  Protected line$
+  Protected kind$
+  Protected sensor$
+  Protected value$
 
-  LockMutex(gStateMutex)
-  intervalSeconds = gSettings\GpuPerfHelperIntervalSeconds
-  UnlockMutex(gStateMutex)
+  lineCount = CountString(normalized$, #LF$) + 1
 
-  If intervalSeconds < 5
-    intervalSeconds = 5
-  EndIf
-  ProcedureReturn ClampInt(intervalSeconds * 1000, 5000, 120000)
+  For i = 1 To lineCount
+    line$ = Trim(StringField(normalized$, i, #LF$))
+    If line$ = "" Or line$ = "WINDOWSPERFBEGIN" Or line$ = "WINDOWSPERFEND"
+      Continue
+    EndIf
+
+    kind$ = StringField(line$, 1, "|")
+    sensor$ = StringField(line$, 2, "|")
+    value$ = StringField(line$, 3, "|")
+    If staleSuffix$ <> "" And sensor$ <> ""
+      sensor$ + " / " + staleSuffix$
+    EndIf
+
+    Select kind$
+      Case "WINDOWSGPUMEM"
+        *reading\gpuMemoryValid = #True
+        *reading\gpuMemorySensor = sensor$
+        *reading\gpuMemoryMb = ValD(value$)
+
+      Case "WINDOWSGPUMEMSHARED"
+        *reading\gpuSharedMemoryValid = #True
+        *reading\gpuSharedMemorySensor = sensor$
+        *reading\gpuSharedMemoryMb = ValD(value$)
+
+      Case "WINDOWSGPUDEVICE"
+        *reading\gpuDeviceNames = MergeLineLists(*reading\gpuDeviceNames, sensor$)
+    EndSelect
+  Next
+
+  ProcedureReturn Bool(*reading\gpuMemoryValid Or *reading\gpuSharedMemoryValid Or *reading\gpuDeviceNames <> "")
 EndProcedure
 
-Procedure.i ShouldUseWindowsGpuPerfTelemetry()
-  Protected useWindows.i
-  Protected useGpuPerfHelper.i
+Procedure.i ReadWindowsPerfStartupSnapshotTelemetry(*reading.TempReading)
+  Protected helper$
+  Protected output$
 
-  LockMutex(gStateMutex)
-  useWindows = gSettings\UseWindows
-  useGpuPerfHelper = gSettings\UseGpuPerfHelper
-  UnlockMutex(gStateMutex)
+  If gWindowsPerfStartupSnapshotRead = #False
+    gWindowsPerfStartupSnapshotRead = #True
+    helper$ = FindBundledWindowsPerfHelper()
+    If helper$ <> ""
+      output$ = RunCapture(helper$, "")
+      If output$ <> ""
+        gWindowsPerfStartupSnapshotBlock$ = output$
+        gWindowsPerfStartupSnapshotTick = ElapsedMilliseconds()
+      EndIf
+    EndIf
+  EndIf
 
-  ProcedureReturn Bool(useWindows And useGpuPerfHelper)
+  If gWindowsPerfStartupSnapshotBlock$ = ""
+    ProcedureReturn #False
+  EndIf
+
+  ProcedureReturn ParseWindowsPerfBlockTelemetry(*reading, gWindowsPerfStartupSnapshotBlock$, "startup snapshot - stale, helper off")
+EndProcedure
+
+Procedure.i WindowsPerfHelperIntervalMs()
+  ProcedureReturn #SlowGpuPerfHelperIntervalSeconds * 1000
 EndProcedure
 
 Procedure.i ShouldUseWindowsPerfHelper()
-  ProcedureReturn ShouldUseWindowsGpuPerfTelemetry()
+  Protected useWindows.i
+
+  LockMutex(gStateMutex)
+  useWindows = gSettings\UseWindows
+  UnlockMutex(gStateMutex)
+
+  ProcedureReturn Bool(useWindows)
 EndProcedure
 
 Procedure DrainWindowsPerfHelperOutput()
@@ -3479,79 +3135,25 @@ EndProcedure
 
 Procedure.i ReadWindowsPerfStreamTelemetry(*reading.TempReading)
   Protected freshnessMs.i
-  Protected waitDeadline.q
   Protected nowTick.q
-  Protected normalized$
-  Protected lineCount.i
-  Protected i.i
-  Protected line$
-  Protected kind$
-  Protected sensor$
-  Protected value$
 
   If ShouldUseWindowsPerfHelper() = #False
     StopWindowsPerfHelper()
-    ProcedureReturn #False
+    ProcedureReturn ReadWindowsPerfStartupSnapshotTelemetry(*reading)
   EndIf
 
-  freshnessMs = ClampInt(WindowsPerfHelperIntervalMs() * 3, 1500, 12000)
+  freshnessMs = ClampInt(WindowsPerfHelperIntervalMs() * 2, 12000, 130000)
 
   If EnsureWindowsPerfHelper()
-    waitDeadline = ElapsedMilliseconds() + ClampInt(gWindowsPerfHelperIntervalMs + 250, 500, 2500)
-    Repeat
-      DrainWindowsPerfHelperOutput()
-      If gWindowsPerfHelperLatestTick > 0 And ElapsedMilliseconds() - gWindowsPerfHelperLatestTick <= freshnessMs
-        Break
-      EndIf
-
-      If ElapsedMilliseconds() >= waitDeadline
-        Break
-      EndIf
-
-      Delay(25)
-    ForEver
+    DrainWindowsPerfHelperOutput()
   EndIf
 
   nowTick = ElapsedMilliseconds()
   If gWindowsPerfHelperLatestTick = 0 Or nowTick - gWindowsPerfHelperLatestTick > freshnessMs
-    ProcedureReturn #False
+    ProcedureReturn ReadWindowsPerfStartupSnapshotTelemetry(*reading)
   EndIf
 
-  normalized$ = ReplaceString(gWindowsPerfHelperLatestBlock$, #CR$, "")
-  lineCount = CountString(normalized$, #LF$) + 1
-
-  For i = 1 To lineCount
-    line$ = Trim(StringField(normalized$, i, #LF$))
-    If line$ = ""
-      Continue
-    EndIf
-
-    kind$ = StringField(line$, 1, "|")
-    sensor$ = StringField(line$, 2, "|")
-    value$ = StringField(line$, 3, "|")
-
-    Select kind$
-      Case "WINDOWSGPULOAD"
-        *reading\gpuLoadValid = #True
-        *reading\gpuLoadSensor = sensor$
-        *reading\gpuLoadPct = ValD(value$)
-
-      Case "WINDOWSGPUMEM"
-        *reading\gpuMemoryValid = #True
-        *reading\gpuMemorySensor = sensor$
-        *reading\gpuMemoryMb = ValD(value$)
-
-      Case "WINDOWSGPUMEMSHARED"
-        *reading\gpuSharedMemoryValid = #True
-        *reading\gpuSharedMemorySensor = sensor$
-        *reading\gpuSharedMemoryMb = ValD(value$)
-
-      Case "WINDOWSGPUDEVICE"
-        *reading\gpuDeviceNames = MergeLineLists(*reading\gpuDeviceNames, sensor$)
-    EndSelect
-  Next
-
-  ProcedureReturn Bool(*reading\gpuLoadValid Or *reading\gpuMemoryValid)
+  ProcedureReturn ParseWindowsPerfBlockTelemetry(*reading, gWindowsPerfHelperLatestBlock$)
 EndProcedure
 
 Procedure.s DependencyLaunchLabel()
@@ -3606,23 +3208,10 @@ Procedure.i ReadWindowsPmiTelemetry(*reading.TempReading)
           *reading\cpuPackageWatts = ValD(value$)
         EndIf
 
-      Case "WINDOWSAPUPOWER"
-        If HasMeaningfulPowerWatts(ValD(value$))
-          *reading\apuPowerValid = #True
-          *reading\apuPowerSensor = sensor$
-          *reading\apuPowerWatts = ValD(value$)
-        EndIf
-
-      Case "WINDOWSGPUPOWER"
-        If HasMeaningfulPowerWatts(ValD(value$))
-          *reading\gpuPowerValid = #True
-          *reading\gpuPowerSensor = sensor$
-          *reading\gpuPowerWatts = ValD(value$)
-        EndIf
     EndSelect
   Next
 
-  ProcedureReturn Bool(*reading\cpuPackageValid Or *reading\apuPowerValid Or *reading\gpuPowerValid)
+  ProcedureReturn *reading\cpuPackageValid
 EndProcedure
 
 Procedure.i ReadWindowsEmiTelemetry(*reading.TempReading)
@@ -3667,23 +3256,10 @@ Procedure.i ReadWindowsEmiTelemetry(*reading.TempReading)
           *reading\cpuPackageWatts = ValD(value$)
         EndIf
 
-      Case "WINDOWSAPUPOWER"
-        If HasMeaningfulPowerWatts(ValD(value$))
-          *reading\apuPowerValid = #True
-          *reading\apuPowerSensor = sensor$
-          *reading\apuPowerWatts = ValD(value$)
-        EndIf
-
-      Case "WINDOWSGPUPOWER"
-        If HasMeaningfulPowerWatts(ValD(value$))
-          *reading\gpuPowerValid = #True
-          *reading\gpuPowerSensor = sensor$
-          *reading\gpuPowerWatts = ValD(value$)
-        EndIf
     EndSelect
   Next
 
-  ProcedureReturn Bool(*reading\cpuPackageValid Or *reading\apuPowerValid Or *reading\gpuPowerValid)
+  ProcedureReturn *reading\cpuPackageValid
 EndProcedure
 
 Procedure ReadDependencyStatus(*status.DependencyStatus)
@@ -3701,7 +3277,7 @@ Procedure ReadDependencyStatus(*status.DependencyStatus)
 
   ReadWindowsTelemetry(@windows)
   ApplyTelemetryLatch(@windows, @gWindowsTelemetryLatch)
-  If HasUsableTelemetry(@windows) = #False
+  If windows\valid = #False And windows\windowsTempValid = #False
     ReadFallbackSensor(@fallback)
     ApplyTelemetryLatch(@fallback, @gFallbackTelemetryLatch)
   EndIf
@@ -3714,22 +3290,22 @@ Procedure.s BuildDependencySummary()
   CopyCachedDependencyStatus(@status)
 
   If status\ManagedPlansReady = #False
-    ProcedureReturn "Problem now: the PowerPilot plans are missing, so create them once before using Auto Cool."
+    ProcedureReturn "Plans are missing. Create PowerPilot plans once before using Auto Cool."
   EndIf
 
   If status\WindowsTelemetryReady
-    ProcedureReturn "Status now: live telemetry is active."
+    ProcedureReturn "Live telemetry is working."
   EndIf
 
   If status\FallbackAvailable
-    ProcedureReturn "Status now: generic fallback temperature is active."
+    ProcedureReturn "Only ACPI fallback temperature is working."
   EndIf
 
   If status\WindowsEnabled And status\WindowsTelemetryReady = #False
-    ProcedureReturn "Problem now: telemetry is enabled, but Windows is not returning usable counters."
+    ProcedureReturn "Windows telemetry is enabled, but no usable readings are available."
   EndIf
 
-  ProcedureReturn "Problem now: no telemetry source is producing usable data."
+  ProcedureReturn "No usable temperature or CPU-power reading is available."
 EndProcedure
 
 Procedure.s BuildDependencyInstructions()
@@ -3738,156 +3314,122 @@ Procedure.s BuildDependencyInstructions()
 
   CopyCachedDependencyStatus(@status)
 
-  text$ + "Current status" + #LF$
-  text$ + "Use Windows telemetry in PowerPilot: " + YesNoText(status\WindowsEnabled) + #LF$
-  text$ + "Live Windows telemetry available: " + YesNoText(status\WindowsTelemetryReady) + #LF$
+  text$ + "Current Status" + #LF$
+  text$ + "Windows telemetry enabled: " + YesNoText(status\WindowsEnabled) + #LF$
+  text$ + "Any Windows reading available: " + YesNoText(status\WindowsTelemetryReady) + #LF$
   text$ + "Windows temperature available: " + YesNoText(status\WindowsTempReady) + #LF$
-  text$ + "Windows CPU power available: " + YesNoText(status\WindowsPowerReady) + #LF$
-  text$ + "Windows GPU counters available: " + YesNoText(status\WindowsGpuReady) + #LF$
-  text$ + "Fallback temperature available: " + YesNoText(status\FallbackAvailable) + #LF$
-  text$ + "PowerPilot managed plans present: " + YesNoText(status\ManagedPlansReady) + #LF$
+  text$ + "Windows CPU package power available: " + YesNoText(status\WindowsPowerReady) + #LF$
+  text$ + "GPU name or VRAM display available: " + YesNoText(status\WindowsGpuReady) + #LF$
+  text$ + "ACPI fallback temperature available: " + YesNoText(status\FallbackAvailable) + #LF$
+  text$ + "PowerPilot plans installed: " + YesNoText(status\ManagedPlansReady) + #LF$
   If status\SensorReady
-    text$ + "Sensor PowerPilot can use now: " + status\SensorSource + " / " + status\SensorName + #LF$
+    text$ + "Reading used now: " + status\SensorSource + " / " + status\SensorName + #LF$
   Else
-  text$ + "Sensor PowerPilot can use now: none" + #LF$
+    text$ + "Reading used now: none" + #LF$
   EndIf
 
   text$ + #LF$
-  text$ + "How PowerPilot reads data" + #LF$
-  text$ + "PowerPilot reads live telemetry from Windows first." + #LF$
-  text$ + "If Windows cannot provide a usable temperature, PowerPilot can still fall back to a generic thermal-zone reading." + #LF$
-  text$ + "For power data, PowerPilot prefers PMI first, EMI second, and only uses older Windows power counters when neither modern interface is available." + #LF$
-  text$ + "For GPU load and memory, PowerPilot prefers the persistent WMI refresher helper and only falls back to older Windows counters if that helper is unavailable." + #LF$
-  text$ + "Brief telemetry gaps hold the last good field value until a new reading arrives or the gap grows much larger than the normal successful polling pattern." + #LF$
-  text$ + "Windows APU or GPU power can still be useful even when it is not a direct dedicated-GPU watt reading." + #LF$
-  text$ + "GPU power is only used when Windows exposes a usable watt reading." + #LF$
-  text$ + "Overview and Live Telemetry show the current snapshot, while Auto Cool uses the Control tab average window before changing plans." + #LF$
-  text$ + "If 'Auto battery/plugged plan' is ticked, it holds Battery Saver on battery and Full Power when plugged in unless sustained GPU load is currently detected." + #LF$
+  text$ + "How Auto Cool Works" + #LF$
+  text$ + "PowerPilot reads Windows telemetry first." + #LF$
+  text$ + "Full Power uses Windows temperature to enter Cool 24W." + #LF$
+  text$ + "Cool 12W through Cool 24W use Windows CPU package power first." + #LF$
+  text$ + "Temperature can still force a cooler plan if the system gets hot." + #LF$
+  text$ + "GPU names and VRAM are shown for information only." + #LF$
+  text$ + "Dashboard values use the average window from the Control tab." + #LF$
+  text$ + "On battery, PowerPilot can hold Battery Saver instead of running Auto Cool." + #LF$
+  text$ + "Battery note: set Windows Power mode to Balanced or Best performance. Best power efficiency can cap the system before PowerPilot gets the full Auto Cool range." + #LF$
 
   text$ + #LF$
-  text$ + "Telemetry pipeline" + #LF$
-  text$ + "1. GPU load from a persistent Windows WMI performance refresher over the GPU engine classes." + #LF$
-  text$ + "2. GPU memory from a persistent Windows WMI performance refresher over the GPU adapter memory classes." + #LF$
-  text$ + "3. CPU power from Windows Energy Meter counters when your firmware exposes it." + #LF$
-  text$ + "4. Fallback temperature from Windows thermal zone counters when Windows temperature is not usable." + #LF$
+  text$ + "Reading Priority" + #LF$
+  text$ + "1. CPU package power from Windows PMI, EMI, or energy counters." + #LF$
+  text$ + "2. Temperature from Windows thermal-zone counters." + #LF$
+  text$ + "3. GPU names and VRAM from the helper, for display only." + #LF$
+  text$ + "4. Basic ACPI fallback temperature only when Windows temperature is missing." + #LF$
   If status\WindowsPowerReady
-    text$ + "5. Windows is currently supplying the active CPU-power reading." + #LF$
+    text$ + "CPU package power is working right now." + #LF$
   EndIf
 
   text$ + #LF$
-  text$ + "GPU power" + #LF$
-  text$ + "1. PowerPilot now relies on Windows telemetry only." + #LF$
-  text$ + "2. If Windows exposes a usable GPU-power watt reading, PowerPilot will use it." + #LF$
-  text$ + "3. If Windows does not expose GPU power, PowerPilot will continue using temperature, CPU power, GPU load, and GPU memory when those are available." + #LF$
-
-  text$ + #LF$
-  text$ + "What to do next" + #LF$
+  text$ + "What To Do Next" + #LF$
   If status\WindowsTelemetryReady
-    text$ + "- Live telemetry is already working, so PowerPilot can operate without extra tools." + #LF$
+    text$ + "- Telemetry is working. Auto Cool can run." + #LF$
   Else
-    text$ + "- Live Windows telemetry is not available right now, so Auto Cool will lean on fallback temperature only when it exists." + #LF$
+    text$ + "- Windows telemetry is not working. Auto Cool can only use ACPI fallback temperature if it exists." + #LF$
   EndIf
 
   If status\WindowsPowerReady = #False
-    text$ + "- CPU power is not currently exposed by Windows on this pass, so power-based control may lean more on temperature." + #LF$
+    text$ + "- CPU package power is missing. Cool plans will use temperature until CPU power appears." + #LF$
   EndIf
 
   If status\WindowsEnabled And status\WindowsGpuReady = #False
-    text$ + "- GPU load and GPU memory are not currently available from Windows, so the Cool trigger may be limited." + #LF$
+    text$ + "- GPU names or VRAM are missing. Auto Cool does not need them." + #LF$
   EndIf
 
   If status\FallbackAvailable And status\WindowsTelemetryReady = #False
-    text$ + "- A generic fallback temperature source is visible, but it is lower quality than the named sources above." + #LF$
+    text$ + "- ACPI fallback temperature is available. It is less specific than Windows telemetry." + #LF$
   ElseIf status\FallbackAvailable = #False And status\WindowsTelemetryReady = #False
-    text$ + "- No enabled telemetry source is producing data right now, so Auto Cool will stay paused." + #LF$
+    text$ + "- No usable reading is available, so Auto Cool will stay paused." + #LF$
   EndIf
 
   If status\ManagedPlansReady = #False
-    text$ + "- Click 'Create Plans' in the main PowerPilot window once to install the Battery Saver, Plugged In, Cool, and Full Power plans." + #LF$
+    text$ + "- Open Plan Manager and click Create Defaults to install the PowerPilot plans." + #LF$
   Else
-    text$ + "- The custom PowerPilot power plans are already present." + #LF$
+    text$ + "- The PowerPilot plans are installed." + #LF$
   EndIf
 
   text$ + #LF$
-  text$ + "Quick reminder" + #LF$
-  text$ + "Windows remains the normal live-data path. Generic fallback temperature is only used when Windows cannot provide a usable temperature." + #LF$
+  text$ + "Short Version" + #LF$
+  text$ + "Use Windows telemetry. Use Balanced or Best performance on battery. Auto Cool uses CPU package power on Cool plans and temperature from Full Power." + #LF$
 
   ProcedureReturn text$
 EndProcedure
 
-Procedure.s BuildMainStatusText(*reading.TempReading, autoEnabled.i, autoDetectGame.i)
+Procedure.s BuildMainStatusText(*reading.TempReading, autoEnabled.i)
   Protected status.DependencyStatus
 
   CopyCachedDependencyStatus(@status)
 
   If autoEnabled And status\ManagedPlansReady = #False
-    ProcedureReturn "Plans missing. Use Create Plans or Help."
+    ProcedureReturn "PowerPilot plans are missing. Open Plan Manager and click Create Defaults."
   EndIf
 
   If HasControlTelemetry(*reading, @gSettings)
     If status\WindowsTelemetryReady
       If autoEnabled
-        If *reading\gameDetected
-          ProcedureReturn "Telemetry active. GPU load trigger active."
+        If *reading\cpuPackageValid
+          ProcedureReturn "Auto Cool is active. Cool plans use CPU package power; Full Power uses temperature."
         EndIf
-        ProcedureReturn "Telemetry active. Auto Cool armed."
+        ProcedureReturn "Auto Cool is active. CPU power is missing, so temperature is controlling."
       EndIf
 
-      If autoDetectGame
-        If *reading\gameDetected
-          ProcedureReturn "Telemetry active. GPU load trigger active."
-        EndIf
-        ProcedureReturn "Telemetry active. Waiting for GPU load."
-      EndIf
-
-      ProcedureReturn "Telemetry active."
+      ProcedureReturn "Telemetry is working. Auto Cool is off."
     EndIf
     If Left(*reading\source, 4) = "ACPI" Or FindString(UCase(*reading\source), "FALLBACK", 1)
       If autoEnabled
-        ProcedureReturn "Fallback temperature active. Auto Cool armed."
+      ProcedureReturn "ACPI fallback temperature is active. Auto Cool can only use temperature."
       EndIf
-      If autoDetectGame
-        If *reading\gameDetected
-          ProcedureReturn "Fallback temperature active. GPU load trigger active."
-        EndIf
-        ProcedureReturn "Fallback temperature active. Waiting for GPU load."
-      EndIf
-      ProcedureReturn "Fallback temperature active."
+      ProcedureReturn "ACPI fallback temperature is active. Auto Cool is off."
     EndIf
 
     If autoEnabled
-      If *reading\gameDetected
-        ProcedureReturn "Auto Cool enabled. GPU load trigger active."
-      EndIf
-      ProcedureReturn "Auto Cool enabled."
+      ProcedureReturn "Auto Cool is on and waiting for CPU power or temperature."
     EndIf
 
-    If autoDetectGame
-      If *reading\gameDetected
-        ProcedureReturn "GPU load trigger active. Auto active."
-      EndIf
-      ProcedureReturn "Waiting for GPU load."
-    EndIf
-
-    ProcedureReturn "Auto Cool disabled."
+    ProcedureReturn "Auto Cool is off."
   EndIf
 
   If status\WindowsEnabled And status\WindowsTelemetryReady = #False
     If status\FallbackAvailable
-      ProcedureReturn "Live telemetry unavailable. PowerPilot will use generic fallback temperature."
+      ProcedureReturn "Windows telemetry is missing. PowerPilot will use ACPI fallback temperature."
     EndIf
-    ProcedureReturn "Live telemetry unavailable. PowerPilot is waiting for data."
+    ProcedureReturn "No usable telemetry yet. PowerPilot is waiting for readings."
   EndIf
 
   If autoEnabled
-    ProcedureReturn "Auto Cool enabled."
+    ProcedureReturn "Auto Cool is on."
   EndIf
 
-  If autoDetectGame
-    ProcedureReturn "Waiting for GPU load."
-  EndIf
-
-  ProcedureReturn "Auto Cool disabled."
+  ProcedureReturn "Auto Cool is off."
 EndProcedure
 
 Procedure.i DependencyAlertNeeded()
@@ -3968,56 +3510,10 @@ Procedure DrawHelpButton()
   gLastHelpAlertState = gHelpAlertNeeded
 EndProcedure
 
-Procedure.s DecideAutoPlan(tempC.d, currentPlan$)
-  Protected h.i = gSettings\Hysteresis
-
-  Select currentPlan$
-    Case ""
-      If tempC >= gSettings\Threshold1512 : ProcedureReturn #PlanGame12$ : EndIf
-      If tempC >= gSettings\Threshold1815 : ProcedureReturn #PlanGame15$ : EndIf
-      If tempC >= gSettings\Threshold2118 : ProcedureReturn #PlanGame18$ : EndIf
-      If tempC >= gSettings\Threshold2421 : ProcedureReturn #PlanGame21$ : EndIf
-      If tempC >= gSettings\ThresholdFull24 : ProcedureReturn #PlanGame24$ : EndIf
-      ProcedureReturn #PlanFull$
-
-    Case #PlanFull$
-      If tempC >= gSettings\ThresholdFull24 : ProcedureReturn #PlanGame24$ : EndIf
-      ProcedureReturn #PlanFull$
-
-    Case #PlanGame24$
-      If tempC >= gSettings\Threshold2421 : ProcedureReturn #PlanGame21$ : EndIf
-      If tempC <= gSettings\ThresholdFull24 - h : ProcedureReturn #PlanFull$ : EndIf
-      ProcedureReturn #PlanGame24$
-
-    Case #PlanGame21$
-      If tempC >= gSettings\Threshold2118 : ProcedureReturn #PlanGame18$ : EndIf
-      If tempC <= gSettings\Threshold2421 - h : ProcedureReturn #PlanGame24$ : EndIf
-      ProcedureReturn #PlanGame21$
-
-    Case #PlanGame18$
-      If tempC >= gSettings\Threshold1815 : ProcedureReturn #PlanGame15$ : EndIf
-      If tempC <= gSettings\Threshold2118 - h : ProcedureReturn #PlanGame21$ : EndIf
-      ProcedureReturn #PlanGame18$
-
-    Case #PlanGame15$
-      If tempC >= gSettings\Threshold1512 : ProcedureReturn #PlanGame12$ : EndIf
-      If tempC <= gSettings\Threshold1815 - h : ProcedureReturn #PlanGame18$ : EndIf
-      ProcedureReturn #PlanGame15$
-
-    Case #PlanGame12$
-      If tempC <= gSettings\Threshold1512 - h : ProcedureReturn #PlanGame15$ : EndIf
-      ProcedureReturn #PlanGame12$
-  EndSelect
-
-  ProcedureReturn #PlanFull$
-EndProcedure
-
 Procedure CopySettings(*settings.AppSettings)
   LockMutex(gStateMutex)
   *settings\AutoEnabled = gSettings\AutoEnabled
-  *settings\AutoDetectGame = gSettings\AutoDetectGame
   *settings\UseWindows = gSettings\UseWindows
-  *settings\UsePowerControl = gSettings\UsePowerControl
   *settings\AutoStartWithApp = gSettings\AutoStartWithApp
   *settings\KeepSettingsOnReinstall = gSettings\KeepSettingsOnReinstall
   *settings\AutoBatteryPlan = gSettings\AutoBatteryPlan
@@ -4025,30 +3521,15 @@ Procedure CopySettings(*settings.AppSettings)
   *settings\Hysteresis = gSettings\Hysteresis
   *settings\PowerHysteresis = gSettings\PowerHysteresis
   *settings\CpuPowerTarget = gSettings\CpuPowerTarget
-  *settings\GpuPowerTarget = gSettings\GpuPowerTarget
-  *settings\GpuLoadThreshold = gSettings\GpuLoadThreshold
   *settings\GameCoolAverageSeconds = gSettings\GameCoolAverageSeconds
-  *settings\GameStartDelay = gSettings\GameStartDelay
-  *settings\GameStopDelay = gSettings\GameStopDelay
   *settings\ThresholdFull24 = gSettings\ThresholdFull24
   *settings\Threshold2421 = gSettings\Threshold2421
   *settings\Threshold2118 = gSettings\Threshold2118
   *settings\Threshold1815 = gSettings\Threshold1815
   *settings\Threshold1512 = gSettings\Threshold1512
   *settings\LastPluggedPlan = gSettings\LastPluggedPlan
-  *settings\LastDgpuPluggedPlan = gSettings\LastDgpuPluggedPlan
   *settings\CurrentManagedPlan = gSettings\CurrentManagedPlan
   UnlockMutex(gStateMutex)
-EndProcedure
-
-Procedure.s GetRememberedPluggedPlan()
-  Protected plan$
-
-  LockMutex(gStateMutex)
-  plan$ = gSettings\LastPluggedPlan
-  UnlockMutex(gStateMutex)
-
-  ProcedureReturn NormalizeRememberedPluggedPlan(plan$)
 EndProcedure
 
 Procedure RememberPluggedPlan(planName$, persist.i = #False)
@@ -4064,38 +3545,6 @@ Procedure RememberPluggedPlan(planName$, persist.i = #False)
   LockMutex(gStateMutex)
   If gSettings\LastPluggedPlan <> normalized$
     gSettings\LastPluggedPlan = normalized$
-    changed = #True
-  EndIf
-  UnlockMutex(gStateMutex)
-
-  If changed And persist
-    SaveSettings()
-  EndIf
-EndProcedure
-
-Procedure.s GetRememberedDgpuPluggedPlan()
-  Protected plan$
-
-  LockMutex(gStateMutex)
-  plan$ = gSettings\LastDgpuPluggedPlan
-  UnlockMutex(gStateMutex)
-
-  ProcedureReturn NormalizeDgpuPluggedPlan(plan$)
-EndProcedure
-
-Procedure RememberDgpuPluggedPlan(planName$, persist.i = #False)
-  Protected normalized$
-  Protected changed.i
-
-  If IsRememberedPluggedPlanName(planName$) = #False
-    ProcedureReturn
-  EndIf
-
-  normalized$ = NormalizeDgpuPluggedPlan(planName$)
-
-  LockMutex(gStateMutex)
-  If gSettings\LastDgpuPluggedPlan <> normalized$
-    gSettings\LastDgpuPluggedPlan = normalized$
     changed = #True
   EndIf
   UnlockMutex(gStateMutex)
@@ -4156,6 +3605,28 @@ Procedure.i ManagedPlansExist()
   If GetSchemeGuidByName(#PlanGame24$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanFull$) = "" : ProcedureReturn #False : EndIf
   ProcedureReturn #True
+EndProcedure
+
+Procedure.i CachedManagedPlansExist()
+  Protected valid.i
+  Protected value.i
+
+  LockMutex(gStateMutex)
+  valid = gManagedPlansExistCacheValid
+  value = gManagedPlansExistCacheValue
+  UnlockMutex(gStateMutex)
+
+  If valid
+    ProcedureReturn value
+  EndIf
+
+  value = ManagedPlansExist()
+  LockMutex(gStateMutex)
+  gManagedPlansExistCacheValue = value
+  gManagedPlansExistCacheValid = #True
+  UnlockMutex(gStateMutex)
+
+  ProcedureReturn value
 EndProcedure
 
 Procedure.i SetStartupRegistry(enabled.i)
@@ -4238,52 +3709,44 @@ Procedure.s DecideAutoPlanSnapshot(*reading.TempReading, currentPlan$, *settings
   Protected currentLevel.i = PlanLevelFromName(currentPlan$)
   Protected desiredLevel.i = currentLevel
   Protected tempPlan$
+  Protected tempLevel.i
   Protected powerError.d
-  Protected powerCount.i
-  Protected normalizedCpuError.d
-  Protected normalizedGpuError.d
   Protected thresholdW.d
-  Static powerIntegrator.d
+  Static cpuPowerIntegrator.d
 
   If currentPlan$ = ""
     currentLevel = 5
     desiredLevel = 5
   EndIf
 
-  If *reading\valid
-    tempPlan$ = DecideTempDrivenPlan(*reading\celsius, currentPlan$, *settings)
-    desiredLevel = PlanLevelFromName(tempPlan$)
-  EndIf
-
-  If *settings\UsePowerControl And HasPowerTelemetry(*reading)
+  If IsGameCoolPlanName(currentPlan$) And *reading\cpuPackageValid
     thresholdW = *settings\PowerHysteresis
-
-    If *reading\cpuPackageValid
-      normalizedCpuError = (*reading\cpuPackageWatts - *settings\CpuPowerTarget) / thresholdW
-      powerError + normalizedCpuError
-      powerCount + 1
+    If thresholdW < 1.0
+      thresholdW = 1.0
     EndIf
 
-    If *reading\gpuPowerValid
-      normalizedGpuError = (*reading\gpuPowerWatts - *settings\GpuPowerTarget) / thresholdW
-      powerError + normalizedGpuError
-      powerCount + 1
+    powerError = (*reading\cpuPackageWatts - *settings\CpuPowerTarget) / thresholdW
+    cpuPowerIntegrator = ClampDouble((cpuPowerIntegrator * 0.55) + powerError, -3.0, 3.0)
+
+    If powerError >= 1.0 Or cpuPowerIntegrator >= 1.2
+      desiredLevel = currentLevel - 1
+    ElseIf powerError <= -1.0 Or cpuPowerIntegrator <= -1.2
+      desiredLevel = currentLevel + 1
     EndIf
 
-    If powerCount > 0
-      powerError / powerCount
-      powerIntegrator = ClampDouble((powerIntegrator * 0.55) + powerError, -3.0, 3.0)
-
-      If powerError >= 1.0 Or powerIntegrator >= 1.2
-        desiredLevel - 1
-      ElseIf powerError <= -1.0 Or powerIntegrator <= -1.2
-        If *reading\valid = #False Or *reading\celsius <= *settings\ThresholdFull24 - *settings\Hysteresis
-          desiredLevel + 1
-        EndIf
+    If *reading\valid
+      tempPlan$ = DecideTempDrivenPlan(*reading\celsius, currentPlan$, *settings)
+      tempLevel = PlanLevelFromName(tempPlan$)
+      If tempLevel < desiredLevel
+        desiredLevel = tempLevel
       EndIf
     EndIf
+  ElseIf *reading\valid
+    tempPlan$ = DecideTempDrivenPlan(*reading\celsius, currentPlan$, *settings)
+    desiredLevel = PlanLevelFromName(tempPlan$)
+    cpuPowerIntegrator * 0.5
   Else
-    powerIntegrator * 0.5
+    cpuPowerIntegrator * 0.5
   EndIf
 
   If *reading\valid And *reading\celsius >= *settings\Threshold1512
@@ -4330,16 +3793,8 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
   Protected targetPlan$
   Protected autoWanted.i
   Protected pollSeconds.i
-  Protected dgpuActive.i
-  Protected dgpuPlan$
-  Protected averageLabel$
   Static warnedMissing.i
   Static warnedSensor.i
-  Static gameDetected.i
-  Static highLoadSeconds.i
-  Static lowLoadSeconds.i
-  Static detectionActive.i
-  Static detectionRestorePlan$
 
   CopySettings(@settings)
   pollSeconds = settings\PollSeconds
@@ -4353,10 +3808,8 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
   CaptureTelemetrySnapshot(@reading, @windows, @fallback)
   CopyTempReading(@controlReading, @reading)
   ApplyTelemetryAveraging(@controlReading, settings\GameCoolAverageSeconds * 1000)
-  averageLabel$ = Str(settings\GameCoolAverageSeconds) + " sec avg"
   BuildDependencyStatusFromSnapshots(@dependency, @reading, @windows, @fallback, @settings)
   CacheDependencyStatus(@dependency)
-  dgpuActive = Bool(ActiveDiscreteGpuConnected(@reading) Or ActiveDiscreteGpuConnected(@controlReading))
   currentPlan$ = GetActiveSchemeName()
 
   If currentPlan$ = #PlanVisible$
@@ -4371,100 +3824,32 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
 
   LockMutex(gStateMutex)
   gState\AutoEnabled = settings\AutoEnabled
-  gState\AutoDetectGame = settings\AutoDetectGame
   UnlockMutex(gStateMutex)
 
-  If settings\AutoDetectGame
-    If controlReading\gpuLoadValid And controlReading\gpuLoadPct >= settings\GpuLoadThreshold
-      highLoadSeconds + pollSeconds
-      lowLoadSeconds = 0
-      If gameDetected = #False And highLoadSeconds >= settings\GameStartDelay
-        gameDetected = #True
-        LogAction("GPU load trigger became active from " + averageLabel$ + " GPU load " + StrD(controlReading\gpuLoadPct, 1) + "%.")
-      EndIf
-    Else
-      lowLoadSeconds + pollSeconds
-      highLoadSeconds = 0
-      If gameDetected And lowLoadSeconds >= settings\GameStopDelay
-        gameDetected = #False
-        LogAction("GPU load trigger cleared after load stayed below " + Str(settings\GpuLoadThreshold) + "%.")
-      EndIf
-    EndIf
-
-    If controlReading\gpuLoadValid
-      If gameDetected
-        reading\gameReason = averageLabel$ + " GPU load " + StrD(controlReading\gpuLoadPct, 1) + "% is holding above the trigger."
-      Else
-        reading\gameReason = averageLabel$ + " GPU load " + StrD(controlReading\gpuLoadPct, 1) + "%, waiting for " + Str(settings\GameStartDelay) + " sec above " + Str(settings\GpuLoadThreshold) + "% before Cool mode starts."
-      EndIf
-    Else
-      reading\gameReason = "Waiting for GPU load telemetry from the enabled sources."
-    EndIf
-  Else
-    gameDetected = #False
-    highLoadSeconds = 0
-    lowLoadSeconds = 0
-    reading\gameReason = ""
-  EndIf
-
-  reading\gameDetected = gameDetected
-  controlReading\gameDetected = gameDetected
-  controlReading\gameReason = reading\gameReason
   UpdateRuntimeState(@reading, powerSource, currentPlan$)
   UpdateRuntimeControlState(@controlReading)
   UpdateRuntimeSourceSnapshots(@windows, @fallback)
 
-  If settings\AutoBatteryPlan And gameDetected = #False
+  If settings\AutoBatteryPlan And powerSource = #PowerSourceBattery
     warnedSensor = #False
-    detectionActive = #False
-    detectionRestorePlan$ = ""
-
-    Select powerSource
-      Case #PowerSourceBattery
-        If currentPlan$ <> #PlanBattery$
-          LogAction("Battery/plugged auto is switching to " + #PlanBattery$)
-          ProcedureReturn ActivatePlanByName(#PlanBattery$)
-        ElseIf announceKeep
-          LogAction("Battery/plugged auto is keeping " + #PlanBattery$)
-        EndIf
-        ProcedureReturn #False
-
-      Case #PowerSourcePlugged
-        If currentPlan$ <> #PlanFull$
-          LogAction("Battery/plugged auto is switching to " + #PlanFull$)
-          ProcedureReturn ActivatePlanByName(#PlanFull$)
-        ElseIf announceKeep
-          LogAction("Battery/plugged auto is keeping " + #PlanFull$)
-        EndIf
-        ProcedureReturn #False
-    EndSelect
-  EndIf
-
-  autoWanted = settings\AutoEnabled
-  If settings\AutoDetectGame
-    autoWanted = Bool(autoWanted And gameDetected)
-  EndIf
-
-  If autoWanted = #False
-    If detectionActive And powerSource = #PowerSourcePlugged
-      detectionActive = #False
-      If detectionRestorePlan$ <> ""
-        targetPlan$ = detectionRestorePlan$
-      Else
-        targetPlan$ = ResolveIdleRememberedPluggedPlan(@settings)
-      EndIf
-      detectionRestorePlan$ = ""
-      If targetPlan$ <> "" And currentPlan$ <> targetPlan$
-        LogAction("Restoring " + targetPlan$ + " because the GPU load trigger is inactive.")
-        ProcedureReturn ActivatePlanByName(targetPlan$)
-      EndIf
+    If currentPlan$ <> #PlanBattery$
+      LogAction("Battery power detected. Switching to " + #PlanBattery$)
+      ProcedureReturn ActivatePlanByName(#PlanBattery$)
+    ElseIf announceKeep
+      LogAction("Battery power detected. Keeping " + #PlanBattery$)
     EndIf
     ProcedureReturn #False
   EndIf
 
-  If ManagedPlansExist() = #False
+  autoWanted = settings\AutoEnabled
+
+  If autoWanted = #False
+    ProcedureReturn #False
+  EndIf
+
+  If CachedManagedPlansExist() = #False
     If warnedMissing = #False
-      LogAction("Managed power plans are missing. Use Create Plans once as administrator.")
+      LogAction("PowerPilot plans are missing. Open Plan Manager and click Create Defaults.")
       warnedMissing = #True
     EndIf
     ProcedureReturn #False
@@ -4475,8 +3860,6 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
   Select powerSource
     Case #PowerSourceBattery
       warnedSensor = #False
-      detectionActive = #False
-      detectionRestorePlan$ = ""
       If currentPlan$ <> #PlanBattery$
         ProcedureReturn ActivatePlanByName(#PlanBattery$)
       ElseIf announceKeep
@@ -4484,9 +3867,6 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
       EndIf
 
     Case #PowerSourcePlugged
-      detectionActive = #False
-      detectionRestorePlan$ = ""
-
       If Date() < gManualOverrideUntil
         If announceKeep
           LogAction("Manual plan override is active. Keeping " + currentPlan$)
@@ -4506,9 +3886,9 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
         If warnedSensor = #False
           ReadDependencyStatus(@dependency)
           If dependency\WindowsTelemetryReady = #False And dependency\FallbackAvailable = #False
-            LogAction("No supported live Windows or fallback telemetry is currently available.")
+            LogAction("No usable Windows or fallback reading is available.")
           Else
-            LogAction("No supported live temperature or power telemetry is currently available.")
+            LogAction("No usable temperature or CPU-power reading is available.")
           EndIf
           warnedSensor = #True
         EndIf
@@ -4629,54 +4009,6 @@ Procedure StopWorkerThread()
   gState\WorkerRunning = #False
   gWorkerThread = 0
   UnlockMutex(gStateMutex)
-EndProcedure
-
-Procedure.i CreateTrayImage()
-  Protected loaded.i
-  Protected fallbackIcon$
-
-  If IsImage(#ImageTrayMain)
-    FreeImage(#ImageTrayMain)
-  EndIf
-
-  If FileSize(InstalledTrayIconPath()) > 0
-    loaded = LoadImage(#ImageTrayMain, InstalledTrayIconPath())
-    If loaded
-      ProcedureReturn #ImageTrayMain
-    EndIf
-  EndIf
-
-  If FileSize(InstalledIconPath()) > 0
-    loaded = LoadImage(#ImageTrayMain, InstalledIconPath())
-    If loaded
-      ProcedureReturn #ImageTrayMain
-    EndIf
-  EndIf
-
-  fallbackIcon$ = #PB_Compiler_Home + "Examples\Sources\Data\CdPlayer.ico"
-  If FileSize(fallbackIcon$) > 0
-    loaded = LoadImage(#ImageTrayMain, fallbackIcon$)
-    If loaded
-      ProcedureReturn #ImageTrayMain
-    EndIf
-  EndIf
-
-  ; Final fallback if icon loading fails.
-  loaded = CreateImage(#ImageTrayMain, 16, 16, 24, RGB(255, 255, 255))
-
-  If loaded And StartDrawing(ImageOutput(#ImageTrayMain))
-    Box(0, 0, 16, 16, RGB(255, 255, 255))
-    Box(1, 2, 12, 12, RGB(26, 34, 46))
-    Box(2, 3, 10, 10, RGB(39, 167, 255))
-    Box(13, 6, 2, 4, RGB(255, 196, 61))
-    Box(4, 5, 3, 6, RGB(255, 255, 255))
-    Box(7, 6, 1, 4, RGB(39, 167, 255))
-    Box(8, 5, 3, 6, RGB(255, 255, 255))
-    StopDrawing()
-    ProcedureReturn #ImageTrayMain
-  EndIf
-
-  ProcedureReturn 0
 EndProcedure
 
 Procedure FreeNativeTrayIcons()
@@ -4995,6 +4327,16 @@ Procedure.s ResolveAmdIntegratedGpuName(cpuName$)
   ProcedureReturn ""
 EndProcedure
 
+Procedure.s CpuInferredIntegratedGpuName()
+  Protected gpuName$ = ResolveAmdIntegratedGpuName(CachedCpuName())
+
+  If gpuName$ <> ""
+    ProcedureReturn gpuName$ + " [iGPU]"
+  EndIf
+
+  ProcedureReturn ""
+EndProcedure
+
 Procedure.s NormalizeGpuHardwareName(hardwareName$)
   Protected cleaned$ = Trim(hardwareName$)
   Protected lowered$
@@ -5182,16 +4524,6 @@ Procedure.s GpuHardwareNamesFromReading(*reading.TempReading)
         names$ = MergeLineLists(names$, AnnotateGpuHardwareName(hardware$))
       EndIf
     Next
-  EndIf
-
-  hardware$ = ExtractHardwareNameFromSensor(*reading\gpuPowerSensor)
-  If hardware$ <> ""
-    names$ = MergeLineLists(names$, AnnotateGpuHardwareName(hardware$))
-  EndIf
-
-  hardware$ = ExtractHardwareNameFromSensor(*reading\gpuLoadSensor)
-  If hardware$ <> ""
-    names$ = MergeLineLists(names$, AnnotateGpuHardwareName(hardware$))
   EndIf
 
   hardware$ = ExtractHardwareNameFromSensor(*reading\gpuMemorySensor)
@@ -5383,9 +4715,9 @@ Procedure.s DisplayGpuMemoryValue(*reading.TempReading, deviceList$)
   totalMb = dedicatedMb + sharedMb
   If totalMb > 0.0
     If tagSensor$ <> ""
-      ProcedureReturn ValueWithSourceTag(StrD(totalMb, 0) + " MB", tagSensor$) + " iGPU"
+      ProcedureReturn ValueWithSourceTag(StrD(totalMb, 0) + " MB", tagSensor$)
     EndIf
-    ProcedureReturn StrD(totalMb, 0) + " MB iGPU"
+    ProcedureReturn StrD(totalMb, 0) + " MB"
   EndIf
 
   If PreferSharedGpuMemoryDisplay(*reading, deviceList$)
@@ -5438,23 +4770,6 @@ Procedure.s BuildTelemetrySourceDisplay(*reading.TempReading)
   ProcedureReturn display$
 EndProcedure
 
-Procedure.s FormatReadingValue(label$, valid.i, valueText$, sensorText$)
-  Protected hardware$
-
-  If valid
-    If sensorText$ <> ""
-      hardware$ = ExtractHardwareNameFromSensor(sensorText$)
-      If hardware$ <> ""
-        ProcedureReturn label$ + ": " + valueText$ + " on " + AnnotateGpuHardwareName(hardware$)
-      EndIf
-      ProcedureReturn label$ + ": " + valueText$
-    EndIf
-    ProcedureReturn label$ + ": " + valueText$
-  EndIf
-
-  ProcedureReturn label$ + ": unavailable"
-EndProcedure
-
 Procedure.s FormatTelemetryValue(valid.i, valueText$, sensorText$, includeHardware.i = #False)
   Protected hardware$
 
@@ -5474,21 +4789,11 @@ Procedure.s FormatTelemetryValue(valid.i, valueText$, sensorText$, includeHardwa
 EndProcedure
 
 Procedure.s FormatGpuTelemetryValue(valid.i, valueText$, sensorText$, deviceList$)
-  Protected suffix$
-
   If valid = #False
     ProcedureReturn "Unavailable"
   EndIf
 
-  suffix$ = ShortGpuSuffix(sensorText$, deviceList$)
-  If suffix$ <> ""
-    If sensorText$ <> ""
-      ProcedureReturn ValueWithSourceTag(valueText$, sensorText$) + " " + suffix$
-    EndIf
-    ProcedureReturn valueText$ + " " + suffix$
-  EndIf
-
-  ProcedureReturn FormatTelemetryValue(valid, valueText$, sensorText$)
+  ProcedureReturn valueText$
 EndProcedure
 
 Procedure.s CurrentGpuHardwareDisplay(*reading.TempReading)
@@ -5499,7 +4804,7 @@ Procedure.s CurrentGpuHardwareDisplay(*reading.TempReading)
   Protected display$
 
   If names$ = ""
-    ProcedureReturn ""
+    ProcedureReturn CpuInferredIntegratedGpuName()
   EndIf
 
   lineCount = CountString(names$, #LF$) + 1
@@ -5528,6 +4833,10 @@ Procedure.s BuildGpuDeviceSummary(*reading.TempReading, *windows.TempReading)
   names$ = CombinedGpuDeviceList(*reading, *windows)
 
   If names$ = ""
+    value$ = CpuInferredIntegratedGpuName()
+    If value$ <> ""
+      ProcedureReturn "iGPU: " + CompactGpuHardwareName(value$, #False)
+    EndIf
     ProcedureReturn "GPU names appear here when Windows exposes them."
   EndIf
 
@@ -5776,83 +5085,31 @@ Procedure.i ActiveDiscreteGpuConnected(*reading.TempReading)
   ProcedureReturn #False
 EndProcedure
 
-Procedure RememberRuntimeDgpuPlanIfActive(planName$, persist.i = #False)
-  Protected reading.TempReading
-
-  If IsRememberedPluggedPlanName(planName$) = #False
-    ProcedureReturn
-  EndIf
-
-  LockMutex(gStateMutex)
-  CopyTempReading(@reading, @gState\LastControl)
-  UnlockMutex(gStateMutex)
-
-  If ActiveDiscreteGpuConnected(@reading)
-    RememberDgpuPluggedPlan(planName$, persist)
-  EndIf
-EndProcedure
-
-Procedure.s DriverProviderText(*reading.TempReading)
-  Protected sourceUpper$ = UCase(*reading\gpuPowerSensor)
-  Protected hardware$
-
-  hardware$ = CurrentGpuHardwareDisplay(*reading)
-
-  If *reading\gpuPowerSensor = ""
-    If hardware$ <> ""
-      ProcedureReturn "No GPU power reading for " + hardware$
-    EndIf
-    ProcedureReturn "No GPU power reading"
-  EndIf
-
-  If IsEstimatedGpuPowerSensor(*reading\gpuPowerSensor)
-    If hardware$ <> ""
-      ProcedureReturn "Windows power reading for " + hardware$
-    EndIf
-    ProcedureReturn "Windows power reading"
-  EndIf
-
-  If FindString(sourceUpper$, "WINDOWS", 1)
-    If hardware$ <> ""
-      ProcedureReturn "Windows telemetry for " + hardware$
-    EndIf
-    ProcedureReturn "Windows telemetry"
-  EndIf
-
-  If hardware$ <> ""
-    ProcedureReturn hardware$
-  EndIf
-
-  ProcedureReturn *reading\gpuPowerSensor
-EndProcedure
-
 Procedure.s SecondaryFallbackSummary(*reading.TempReading, *windows.TempReading, *fallback.TempReading, *settings.AppSettings)
   If *fallback\valid
-    ProcedureReturn "Generic fallback sensor" + #LF$ + FormatTelemetryValue(#True, StrD(*fallback\celsius, 1) + " C", *fallback\sensor)
+  ProcedureReturn "ACPI fallback temperature" + #LF$ + FormatTelemetryValue(#True, StrD(*fallback\celsius, 1) + " C", *fallback\sensor)
   EndIf
 
-  If *windows\valid Or *windows\cpuPackageValid Or *windows\gpuPowerValid Or *windows\gpuLoadValid Or *windows\gpuMemoryValid
-    ProcedureReturn "No generic fallback reading is active."
+  If *windows\valid Or *windows\cpuPackageValid Or *windows\gpuMemoryValid Or *windows\gpuSharedMemoryValid Or *windows\gpuDeviceNames <> ""
+    ProcedureReturn "No ACPI fallback temperature is active."
   EndIf
 
-  ProcedureReturn "No generic fallback reading is active."
+  ProcedureReturn "No ACPI fallback temperature is active."
 EndProcedure
 
 Procedure RefreshStatusDisplay()
   Protected reading.TempReading
+  Protected averaged.TempReading
   Protected windows.TempReading
   Protected fallback.TempReading
   Protected powerSource.i
   Protected activePlan$
   Protected autoEnabled.i
-  Protected autoDetectGame.i
+  Protected averageSeconds.i
   Protected logText$
   Protected status.DependencyStatus
   Protected tempText$
   Protected cpuPowerText$
-  Protected apuPowerText$
-  Protected gpuPowerText$
-  Protected gpuLoadText$
   Protected gpuMemoryText$
   Protected gameStateText$
   Protected telemetrySourceText$
@@ -5862,15 +5119,20 @@ Procedure RefreshStatusDisplay()
 
   LockMutex(gStateMutex)
   CopyTempReading(@reading, @gState\LastTemp)
+  CopyTempReading(@averaged, @gState\LastControl)
   CopyTempReading(@windows, @gState\LastWindows)
   CopyTempReading(@fallback, @gState\LastFallback)
   powerSource = gState\PowerSource
   activePlan$ = gState\ActivePlan
   autoEnabled = gState\AutoEnabled
-  autoDetectGame = gState\AutoDetectGame
+  averageSeconds = gSettings\GameCoolAverageSeconds
   logText$ = BuildUiLogText()
   UnlockMutex(gStateMutex)
   CopyCachedDependencyStatus(@status)
+
+  If HasUsableTelemetry(@averaged)
+    CopyTempReading(@reading, @averaged)
+  EndIf
 
   If reading\valid
     tempText$ = ValueWithSourceTag(StrD(reading\celsius, 1) + " C", reading\source)
@@ -5886,31 +5148,16 @@ Procedure RefreshStatusDisplay()
     cpuPowerText$ = "Unavailable"
   EndIf
 
-  If reading\apuPowerValid
-    apuPowerText$ = ValueWithSourceTag(StrD(reading\apuPowerWatts, 1) + " W", reading\apuPowerSensor)
-  Else
-    apuPowerText$ = "Unavailable"
-  EndIf
-
   blendGpuDevices$ = GpuHardwareNamesFromReading(@reading)
-
-  If reading\gpuPowerValid
-    gpuPowerText$ = FormatGpuTelemetryValue(#True, StrD(reading\gpuPowerWatts, 1) + " W", reading\gpuPowerSensor, blendGpuDevices$)
-  Else
-    gpuPowerText$ = "Unavailable"
-  EndIf
-
-  If reading\gpuLoadValid
-    gpuLoadText$ = FormatGpuTelemetryValue(#True, StrD(reading\gpuLoadPct, 1) + " %", reading\gpuLoadSensor, blendGpuDevices$)
-  Else
-    gpuLoadText$ = "Unavailable"
-  EndIf
 
   gpuMemoryText$ = DisplayGpuMemoryValue(@reading, blendGpuDevices$)
 
   gameStateText$ = BuildGameStateText(@reading, @gSettings)
   If activePlan$ = "" : activePlan$ = "Unknown" : EndIf
   telemetrySourceText$ = BuildTelemetrySourceDisplay(@reading)
+  If averageSeconds > 0 And HasUsableTelemetry(@averaged)
+    telemetrySourceText$ + ", " + Str(averageSeconds) + " sec average"
+  EndIf
 
   UpdateTextGadgetIfNeeded(#GadgetOverviewSourceValue, telemetrySourceText$)
   If reading\sensor <> ""
@@ -5919,10 +5166,7 @@ Procedure RefreshStatusDisplay()
     UpdateTextGadgetIfNeeded(#GadgetOverviewTempSensorValue, "Unavailable")
   EndIf
   UpdateTextGadgetIfNeeded(#GadgetOverviewTempValue, tempText$)
-  UpdateTextGadgetIfNeeded(#GadgetOverviewApuPowerValue, apuPowerText$)
-  UpdateTextGadgetIfNeeded(#GadgetOverviewGpuPowerValue, gpuPowerText$)
   UpdateTextGadgetIfNeeded(#GadgetOverviewCpuPowerValue, cpuPowerText$)
-  UpdateTextGadgetIfNeeded(#GadgetOverviewGpuLoadValue, gpuLoadText$)
   UpdateTextGadgetIfNeeded(#GadgetOverviewGpuMemoryValue, gpuMemoryText$)
   UpdateTextGadgetIfNeeded(#GadgetOverviewPowerValue, PowerSourceText(powerSource))
   UpdateTextGadgetIfNeeded(#GadgetOverviewPlanValue, activePlan$)
@@ -5940,9 +5184,6 @@ Procedure RefreshStatusDisplay()
   EndIf
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendTemp, tempText$)
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendCpu, cpuPowerText$)
-  UpdateTextGadgetIfNeeded(#GadgetLiveBlendApu, apuPowerText$)
-  UpdateTextGadgetIfNeeded(#GadgetLiveBlendGpuPower, gpuPowerText$)
-  UpdateTextGadgetIfNeeded(#GadgetLiveBlendGpuLoad, gpuLoadText$)
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendGpuMemory, gpuMemoryText$)
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendPowerSource, PowerSourceText(powerSource))
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendActivePlan, activePlan$)
@@ -5956,7 +5197,7 @@ Procedure RefreshStatusDisplay()
   EndIf
   gHelpAlertNeeded = DependencyAlertNeeded()
   DrawHelpButton()
-  logText$ = BuildMainStatusText(@reading, autoEnabled, autoDetectGame)
+  logText$ = BuildMainStatusText(@reading, autoEnabled)
   If gLastStatusText$ <> logText$
     UpdateTextGadgetIfNeeded(#GadgetStatusLine, logText$)
     gLastStatusText$ = logText$
@@ -5994,7 +5235,6 @@ Procedure RefreshRuntimeSnapshot()
 
   LockMutex(gStateMutex)
   gState\AutoEnabled = gSettings\AutoEnabled
-  gState\AutoDetectGame = gSettings\AutoDetectGame
   UnlockMutex(gStateMutex)
 EndProcedure
 
@@ -6017,23 +5257,12 @@ Procedure RequestImmediateTelemetryRefresh()
   gState\LastTemp\cpuPackageValid = #False
   gState\LastTemp\cpuPackageSensor = ""
   gState\LastTemp\cpuPackageWatts = 0.0
-  gState\LastTemp\apuPowerValid = #False
-  gState\LastTemp\apuPowerSensor = ""
-  gState\LastTemp\apuPowerWatts = 0.0
-  gState\LastTemp\gpuPowerValid = #False
-  gState\LastTemp\gpuPowerSensor = ""
-  gState\LastTemp\gpuPowerWatts = 0.0
-  gState\LastTemp\gpuLoadValid = #False
-  gState\LastTemp\gpuLoadSensor = ""
-  gState\LastTemp\gpuLoadPct = 0.0
   gState\LastTemp\gpuMemoryValid = #False
   gState\LastTemp\gpuMemorySensor = ""
   gState\LastTemp\gpuMemoryMb = 0.0
   gState\LastTemp\gpuSharedMemoryValid = #False
   gState\LastTemp\gpuSharedMemorySensor = ""
   gState\LastTemp\gpuSharedMemoryMb = 0.0
-  gState\LastTemp\gameDetected = #False
-  gState\LastTemp\gameReason = ""
   ResetTempReading(@gState\LastControl)
   gState\LastWindows\valid = #False
   gState\LastWindows\source = ""
@@ -6076,10 +5305,10 @@ Procedure ApplyLiveCheckboxSettings(logText$ = "")
     SetStartupRegistry(gSettings\AutoStartWithApp)
   EndIf
   UpdateUiRefreshTimer()
+  PushSettingsToGui()
 
   LockMutex(gStateMutex)
   gState\AutoEnabled = gSettings\AutoEnabled
-  gState\AutoDetectGame = gSettings\AutoDetectGame
   UnlockMutex(gStateMutex)
 
   RequestImmediateTelemetryRefresh()
@@ -6248,7 +5477,7 @@ Procedure.i CreateMainWindow(showWindow.i)
     windowFlags | #PB_Window_Invisible
   EndIf
 
-  If OpenWindow(#WindowMain, 0, 0, 760, 670, #AppFullName$, windowFlags) = 0
+  If OpenWindow(#WindowMain, 0, 0, 860, 660, #AppFullName$, windowFlags) = 0
     ProcedureReturn #False
   EndIf
   AppendRuntimeLog("CreateMainWindow: OpenWindow ok")
@@ -6260,255 +5489,219 @@ Procedure.i CreateMainWindow(showWindow.i)
   EnsureUiFonts()
   AppendRuntimeLog("CreateMainWindow: EnsureUiFonts ok")
 
-  PanelGadget(#GadgetMainPanel, 20, 16, 720, 510)
+  PanelGadget(#GadgetMainPanel, 20, 16, 820, 520)
   AppendRuntimeLog("CreateMainWindow: PanelGadget ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Overview")
-  TextGadget(#PB_Any, 18, 12, 660, 34, "Quick dashboard for the current snapshot, control state, and hardware context." + #CRLF$ + "Overview shows the live readings. Auto Cool still reacts to the Control tab average window.")
-  FrameGadget(#PB_Any, 18, 54, 340, 150, "Current Snapshot")
+  TextGadget(#PB_Any, 18, 12, 780, 34, "Main dashboard. Shows the readings and plan state PowerPilot is using now." + #CRLF$ + "Values are averaged using the Control tab setting.")
+  FrameGadget(#PB_Any, 18, 54, 370, 150, "Averaged Snapshot")
   TextGadget(#PB_Any, 34, 84, 94, 20, "Temperature:")
-  TextGadget(#GadgetOverviewTempValue, 136, 82, 190, 22, "Waiting...")
+  TextGadget(#GadgetOverviewTempValue, 136, 82, 220, 22, "Waiting...")
   SetGadgetFont(#GadgetOverviewTempValue, FontID(gFontBold))
   TextGadget(#PB_Any, 34, 112, 94, 20, "Telemetry:")
-  TextGadget(#GadgetOverviewSourceValue, 136, 110, 190, 30, "Waiting...")
+  TextGadget(#GadgetOverviewSourceValue, 136, 110, 220, 30, "Waiting...")
   SetGadgetFont(#GadgetOverviewSourceValue, FontID(gFontBoldSmall))
   TextGadget(#PB_Any, 34, 148, 94, 20, "Temp Sensor:")
-  TextGadget(#GadgetOverviewTempSensorValue, 136, 146, 190, 34, "Waiting...")
+  TextGadget(#GadgetOverviewTempSensorValue, 136, 146, 220, 34, "Waiting...")
   SetGadgetFont(#GadgetOverviewTempSensorValue, FontID(gFontBoldSmall))
 
-  FrameGadget(#PB_Any, 18, 216, 340, 198, "Power and State")
-  TextGadget(#PB_Any, 34, 246, 68, 20, "APU Power:")
-  TextGadget(#GadgetOverviewApuPowerValue, 108, 246, 72, 20, "Waiting...")
-  SetGadgetFont(#GadgetOverviewApuPowerValue, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 188, 246, 68, 20, "GPU Power:")
-  TextGadget(#GadgetOverviewGpuPowerValue, 260, 246, 66, 20, "Waiting...")
-  SetGadgetFont(#GadgetOverviewGpuPowerValue, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 272, 68, 20, "CPU Power:")
-  TextGadget(#GadgetOverviewCpuPowerValue, 108, 272, 72, 20, "Waiting...")
-  SetGadgetFont(#GadgetOverviewCpuPowerValue, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 188, 272, 68, 20, "GPU Load:")
-  TextGadget(#GadgetOverviewGpuLoadValue, 260, 272, 66, 20, "Waiting...")
-  SetGadgetFont(#GadgetOverviewGpuLoadValue, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 300, 82, 20, "GPU Memory:")
-  TextGadget(#GadgetOverviewGpuMemoryValue, 122, 300, 204, 20, "Waiting...")
+  FrameGadget(#PB_Any, 18, 216, 370, 198, "Power and State")
+  TextGadget(#PB_Any, 34, 246, 82, 20, "CPU Power:")
+  TextGadget(#GadgetOverviewCpuPowerValue, 122, 246, 240, 20, "Waiting...")
+  SetGadgetFont(#GadgetOverviewCpuPowerValue, FontID(gFontBold))
+  TextGadget(#PB_Any, 34, 274, 82, 20, "GPU Memory:")
+  TextGadget(#GadgetOverviewGpuMemoryValue, 122, 274, 240, 20, "Waiting...")
   SetGadgetFont(#GadgetOverviewGpuMemoryValue, FontID(gFontBoldSmall))
   TextGadget(#PB_Any, 34, 326, 82, 20, "Power Source:")
-  TextGadget(#GadgetOverviewPowerValue, 122, 326, 204, 20, "Waiting...")
+  TextGadget(#GadgetOverviewPowerValue, 122, 326, 240, 20, "Waiting...")
   SetGadgetFont(#GadgetOverviewPowerValue, FontID(gFontBoldSmall))
   TextGadget(#PB_Any, 34, 352, 82, 20, "Active Plan:")
-  TextGadget(#GadgetOverviewPlanValue, 122, 350, 204, 28, "Waiting...")
+  TextGadget(#GadgetOverviewPlanValue, 122, 350, 240, 28, "Waiting...")
   SetGadgetFont(#GadgetOverviewPlanValue, FontID(gFontBoldSmall))
   TextGadget(#PB_Any, 34, 382, 82, 20, "Cool State:")
-  TextGadget(#GadgetOverviewGameStateValue, 122, 380, 204, 28, "Waiting...")
+  TextGadget(#GadgetOverviewGameStateValue, 122, 380, 240, 28, "Waiting...")
   SetGadgetFont(#GadgetOverviewGameStateValue, FontID(gFontBoldSmall))
 
-  FrameGadget(#PB_Any, 376, 54, 302, 220, "Activity Log")
-  TextGadget(#PB_Any, 392, 82, 260, 18, "Recent plan and control activity.")
-  EditorGadget(#GadgetActionValue, 392, 106, 270, 144, #PB_Editor_ReadOnly | #PB_Editor_WordWrap)
+  FrameGadget(#PB_Any, 408, 54, 390, 220, "Activity Log")
+  TextGadget(#PB_Any, 424, 82, 350, 18, "Recent Auto Cool and manual plan actions.")
+  EditorGadget(#GadgetActionValue, 424, 106, 350, 144, #PB_Editor_ReadOnly | #PB_Editor_WordWrap)
 
-  FrameGadget(#PB_Any, 376, 286, 302, 150, "System Details")
-  TextGadget(#GadgetOverviewHardwareDetails, 392, 312, 270, 112, "Waiting...")
+  FrameGadget(#PB_Any, 408, 286, 390, 150, "System Details")
+  TextGadget(#GadgetOverviewHardwareDetails, 424, 312, 350, 112, "Waiting...")
   SetGadgetFont(#GadgetOverviewHardwareDetails, FontID(gFontBoldSmall))
 
-  TextGadget(#PB_Any, 18, 448, 660, 34, "GPU memory combines dedicated and shared use when Windows exposes both." + #CRLF$ + "Overview and Live Telemetry show the current snapshot, while Auto Cool still uses the averaged Control window.")
+  TextGadget(#PB_Any, 18, 448, 780, 34, "Auto Cool uses Windows CPU package power and temperature only." + #CRLF$ + "GPU names and VRAM are display-only information.")
   AppendRuntimeLog("CreateMainWindow: Overview tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Live Telemetry")
-  TextGadget(#PB_Any, 18, 12, 660, 34, "Live snapshot of the readings PowerPilot is using right now." + #CRLF$ + "This tab focuses on the active blend, detected GPUs, and current operating state.")
+  TextGadget(#PB_Any, 18, 12, 780, 34, "Live reading summary. Use this tab to see what PowerPilot can currently read." + #CRLF$ + "Windows temperature and CPU package power control Auto Cool.")
 
-  FrameGadget(#PB_Any, 18, 54, 314, 286, "Blend Snapshot")
+  FrameGadget(#PB_Any, 18, 54, 390, 286, "Control Readings")
   TextGadget(#PB_Any, 34, 86, 96, 20, "Temperature:")
-  TextGadget(#GadgetLiveBlendTemp, 136, 84, 178, 22, "")
+  TextGadget(#GadgetLiveBlendTemp, 152, 84, 220, 22, "")
   SetGadgetFont(#GadgetLiveBlendTemp, FontID(gFontBold))
   TextGadget(#PB_Any, 34, 116, 96, 20, "Telemetry:")
-  TextGadget(#GadgetLiveBlendSourceMix, 136, 114, 178, 34, "")
+  TextGadget(#GadgetLiveBlendSourceMix, 152, 114, 220, 48, "")
   SetGadgetFont(#GadgetLiveBlendSourceMix, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 152, 96, 20, "Temp Sensor:")
-  TextGadget(#GadgetLiveBlendTempSensor, 136, 150, 178, 42, "")
+  TextGadget(#PB_Any, 34, 174, 96, 20, "Temp Sensor:")
+  TextGadget(#GadgetLiveBlendTempSensor, 152, 172, 220, 42, "")
   SetGadgetFont(#GadgetLiveBlendTempSensor, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 200, 96, 20, "APU Power:")
-  TextGadget(#GadgetLiveBlendApu, 136, 198, 178, 20, "")
-  SetGadgetFont(#GadgetLiveBlendApu, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 224, 96, 20, "GPU Power:")
-  TextGadget(#GadgetLiveBlendGpuPower, 136, 222, 178, 20, "")
-  SetGadgetFont(#GadgetLiveBlendGpuPower, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 248, 96, 20, "CPU Power:")
-  TextGadget(#GadgetLiveBlendCpu, 136, 246, 178, 20, "")
-  SetGadgetFont(#GadgetLiveBlendCpu, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 34, 230, 96, 20, "CPU Power:")
+  TextGadget(#GadgetLiveBlendCpu, 152, 226, 220, 26, "")
+  SetGadgetFont(#GadgetLiveBlendCpu, FontID(gFontBold))
 
-  FrameGadget(#PB_Any, 344, 54, 334, 286, "GPU and System State")
-  TextGadget(#PB_Any, 360, 86, 110, 20, "Detected GPUs:")
-  TextGadget(#GadgetLiveFallbackStatus, 360, 108, 300, 64, "")
+  FrameGadget(#PB_Any, 418, 54, 380, 286, "Display-Only Hardware Info")
+  TextGadget(#PB_Any, 434, 86, 110, 20, "Detected GPUs:")
+  TextGadget(#GadgetLiveFallbackStatus, 434, 108, 340, 64, "")
   SetGadgetFont(#GadgetLiveFallbackStatus, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 360, 178, 100, 20, "GPU Load:")
-  TextGadget(#GadgetLiveBlendGpuLoad, 466, 178, 194, 20, "")
-  SetGadgetFont(#GadgetLiveBlendGpuLoad, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 360, 204, 100, 20, "GPU Memory:")
-  TextGadget(#GadgetLiveBlendGpuMemory, 466, 204, 194, 20, "")
+  TextGadget(#PB_Any, 434, 178, 100, 20, "GPU Memory:")
+  TextGadget(#GadgetLiveBlendGpuMemory, 550, 178, 224, 20, "")
   SetGadgetFont(#GadgetLiveBlendGpuMemory, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 360, 230, 100, 20, "Power Source:")
-  TextGadget(#GadgetLiveBlendPowerSource, 466, 230, 194, 20, "")
+  TextGadget(#PB_Any, 434, 230, 100, 20, "Power Source:")
+  TextGadget(#GadgetLiveBlendPowerSource, 550, 230, 224, 20, "")
   SetGadgetFont(#GadgetLiveBlendPowerSource, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 360, 256, 100, 20, "Active Plan:")
-  TextGadget(#GadgetLiveBlendActivePlan, 466, 254, 194, 30, "")
+  TextGadget(#PB_Any, 434, 256, 100, 20, "Active Plan:")
+  TextGadget(#GadgetLiveBlendActivePlan, 550, 254, 224, 30, "")
   SetGadgetFont(#GadgetLiveBlendActivePlan, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 360, 290, 100, 20, "Cool State:")
-  TextGadget(#GadgetLiveBlendGameState, 466, 288, 194, 32, "")
+  TextGadget(#PB_Any, 434, 290, 100, 20, "Cool State:")
+  TextGadget(#GadgetLiveBlendGameState, 550, 288, 224, 32, "")
   SetGadgetFont(#GadgetLiveBlendGameState, FontID(gFontBoldSmall))
 
-  FrameGadget(#PB_Any, 18, 352, 660, 96, "Notes")
-  TextGadget(#PB_Any, 34, 378, 628, 38, "GPU memory combines dedicated and shared RAM when Windows exposes both." + #CRLF$ + "Live Telemetry shows the current instant snapshot; Auto Cool still reacts to the averaged Control window.")
+  FrameGadget(#PB_Any, 18, 352, 780, 96, "Important")
+  TextGadget(#PB_Any, 34, 378, 740, 38, "GPU names and VRAM are shown for hardware awareness." + #CRLF$ + "Auto Cool decisions come from CPU package power and temperature.")
   AppendRuntimeLog("CreateMainWindow: Live Telemetry tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Automation")
-  TextGadget(#PB_Any, 18, 12, 660, 36, "Choose when PowerPilot should manage plans automatically." + #CRLF$ + "This tab controls when Auto Cool is allowed to act and how startup behavior works.")
-  FrameGadget(#PB_Any, 18, 54, 320, 154, "Automatic Control")
-  CheckBoxGadget(#GadgetAutoEnabled, 34, 84, 280, 24, "Enable automatic plan control")
-  CheckBoxGadget(#GadgetAutoDetectGame, 34, 114, 280, 24, "Trigger Cool plans from GPU load")
-  CheckBoxGadget(#GadgetUsePowerControl, 34, 144, 280, 24, "Use power targets, not just heat")
-  CheckBoxGadget(#GadgetAutoBatteryPlan, 34, 174, 280, 24, "Force Battery Saver / Full Power by power source")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Choose when PowerPilot is allowed to change plans for you." + #CRLF$ + "On battery it can hold Battery Saver. Plugged in, Auto Cool manages Cool plans.")
+  FrameGadget(#PB_Any, 18, 54, 360, 146, "Auto Cool")
+  CheckBoxGadget(#GadgetAutoEnabled, 34, 84, 280, 24, "Allow Auto Cool to change plans")
+  CheckBoxGadget(#GadgetAutoBatteryPlan, 34, 114, 292, 24, "Use Battery Saver when unplugged")
 
-  FrameGadget(#PB_Any, 356, 54, 322, 154, "Startup and Install")
-  CheckBoxGadget(#GadgetAutoStart, 372, 84, 170, 24, "Start in tray")
-  CheckBoxGadget(#GadgetKeepSettings, 372, 114, 220, 24, "Keep settings on reinstall")
-  TextGadget(#PB_Any, 372, 150, 280, 34, "Start in tray keeps PowerPilot hidden until you open it from the tray." + #CRLF$ + "Keep settings preserves your saved config across reinstalls.")
+  FrameGadget(#PB_Any, 392, 54, 406, 146, "Startup")
+  CheckBoxGadget(#GadgetAutoStart, 410, 84, 170, 24, "Start in tray")
+  CheckBoxGadget(#GadgetKeepSettings, 410, 114, 220, 24, "Keep settings on reinstall")
+  TextGadget(#PB_Any, 410, 150, 360, 36, "Start in tray keeps the window hidden after login." + #CRLF$ + "Keep settings preserves your config during reinstall.")
 
-  FrameGadget(#PB_Any, 18, 220, 660, 220, "Telemetry")
-  TextGadget(#PB_Any, 34, 248, 610, 42, "Leave Windows enabled to use Windows for temperature, CPU power, GPU power, and lower-cost telemetry whenever Windows exposes it." + #CRLF$ + "The GPU perf helper adds GPU load and memory, but can cause visible package-power polling spikes.")
-  CheckBoxGadget(#GadgetUseWindows, 34, 302, 185, 24, "Use Windows telemetry")
-  ButtonGadget(#GadgetWindowsInfo, 222, 296, 24, 24, "i")
-  CheckBoxGadget(#GadgetUseGpuPerfHelper, 34, 332, 220, 24, "Use GPU perf helper")
-  TextGadget(#PB_Any, 34, 364, 154, 20, "Helper interval (sec):")
-  SpinGadget(#GadgetGpuPerfHelperInterval, 194, 360, 72, 25, 5, 120, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 398, 610, 28, "Disable Windows telemetry only for troubleshooting. Disable the GPU perf helper to keep GPU load/memory unavailable without turning off temperature and power readings.")
+  FrameGadget(#PB_Any, 18, 220, 780, 176, "Readings")
+  TextGadget(#PB_Any, 34, 248, 740, 42, "Leave Windows telemetry on. It provides temperature and CPU package power." + #CRLF$ + "The GPU helper is only for GPU names and VRAM display.")
+  CheckBoxGadget(#GadgetUseWindows, 34, 306, 190, 24, "Use Windows telemetry")
+  ButtonGadget(#GadgetWindowsInfo, 244, 302, 24, 24, "i")
+  TextGadget(#PB_Any, 34, 342, 740, 40, "Battery note: use Windows Balanced or Best performance mode." + #CRLF$ + "Best power efficiency may cap power before Auto Cool can work fully.")
   AppendRuntimeLog("CreateMainWindow: Automation tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Control")
-  TextGadget(#PB_Any, 18, 12, 660, 36, "These targets decide how aggressively PowerPilot reacts to rising power draw and sustained GPU load." + #CRLF$ + "Use smaller margins and shorter delays for quicker reactions, or larger ones for steadier plan switching.")
-  FrameGadget(#PB_Any, 18, 54, 320, 174, "Polling and Smoothing")
-  TextGadget(#PB_Any, 34, 86, 170, 20, "Poll interval (sec):")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Tune how quickly Auto Cool reacts." + #CRLF$ + "Full Power enters Cool by temperature. Cool plans adjust by CPU package power first.")
+  FrameGadget(#PB_Any, 18, 54, 360, 174, "Timing")
+  TextGadget(#PB_Any, 34, 86, 170, 20, "Refresh every (sec):")
   SpinGadget(#GadgetPollSpin, 248, 82, 72, 25, 1, 60, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 116, 170, 20, "Temp hysteresis (C):")
+  TextGadget(#PB_Any, 34, 116, 170, 20, "Temp step-back gap (C):")
   SpinGadget(#GadgetHysteresisSpin, 248, 112, 72, 25, 1, 20, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 146, 170, 20, "Power hysteresis (W):")
+  TextGadget(#PB_Any, 34, 146, 170, 20, "Power step-back gap (W):")
   SpinGadget(#GadgetPowerHysteresisSpin, 248, 142, 72, 25, 1, 30, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 176, 170, 20, "Control average (sec):")
+  TextGadget(#PB_Any, 34, 176, 170, 20, "Average window (sec):")
   SpinGadget(#GadgetGameCoolAverage, 248, 172, 72, 25, 1, 60, #PB_Spin_Numeric)
 
-  FrameGadget(#PB_Any, 356, 54, 322, 174, "GPU Trigger")
-  TextGadget(#PB_Any, 372, 86, 166, 20, "GPU load trigger (%):")
-  SpinGadget(#GadgetGpuLoadThreshold, 588, 82, 72, 25, 1, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 372, 116, 166, 20, "Load start delay (sec):")
-  SpinGadget(#GadgetGameStartDelay, 588, 112, 72, 25, 2, 120, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 372, 146, 166, 20, "Load stop delay (sec):")
-  SpinGadget(#GadgetGameStopDelay, 588, 142, 72, 25, 2, 300, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 372, 176, 270, 28, "Longer delays make plan changes steadier when GPU load bounces during short spikes.")
+  FrameGadget(#PB_Any, 392, 54, 406, 174, "Decision Rule")
+  TextGadget(#PB_Any, 410, 86, 360, 92, "From Full Power: temperature chooses when to enter Cool 24W." + #CRLF$ + "Inside Cool plans: CPU package power chooses the level." + #CRLF$ + "High temperature can still force a lower-power Cool plan.")
 
-  FrameGadget(#PB_Any, 18, 242, 660, 104, "Power Targets")
-  TextGadget(#PB_Any, 34, 274, 156, 20, "CPU power target (W):")
-  SpinGadget(#GadgetCpuPowerTarget, 196, 270, 72, 25, 5, 120, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 344, 274, 156, 20, "GPU power target (W):")
-  SpinGadget(#GadgetGpuPowerTarget, 506, 270, 72, 25, 5, 250, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 306, 610, 20, "These targets matter most when Windows exposes usable CPU and GPU power readings.")
-
-  FrameGadget(#PB_Any, 18, 358, 660, 88, "Tuning Notes")
-  TextGadget(#PB_Any, 34, 384, 610, 34, "Smaller margins react faster but can switch plans more often." + #CRLF$ + "Larger margins and longer delays usually feel steadier.")
+  FrameGadget(#PB_Any, 18, 252, 780, 128, "Tuning Notes")
+  TextGadget(#PB_Any, 34, 280, 740, 72, "Shorter refresh and smaller gaps react faster." + #CRLF$ + "Longer refresh and larger gaps switch plans less often." + #CRLF$ + "Use smoother settings if plan changes feel too busy.")
   AppendRuntimeLog("CreateMainWindow: Control tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Thermal Steps")
-  TextGadget(#PB_Any, 18, 12, 660, 36, "These safety thresholds step PowerPilot down from Full Power through the Cool levels as temperatures rise." + #CRLF$ + "Keep them in ascending order so each lower-power plan becomes the next protection step.")
-  FrameGadget(#PB_Any, 18, 54, 660, 186, "Temperature Thresholds")
-  TextGadget(#PB_Any, 34, 86, 190, 20, "Full -> 24W threshold (C):")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Set the temperature safety limits." + #CRLF$ + "Higher temperature means PowerPilot can move to a lower-power Cool plan.")
+  FrameGadget(#PB_Any, 18, 54, 780, 186, "Temperature Safety Limits")
+  TextGadget(#PB_Any, 34, 86, 190, 20, "Full Power -> 24W (C):")
   SpinGadget(#GadgetThresholdFull24, 250, 82, 72, 25, 45, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 116, 190, 20, "24W -> 21W threshold (C):")
+  TextGadget(#PB_Any, 34, 116, 190, 20, "24W -> 21W (C):")
   SpinGadget(#GadgetThreshold2421, 250, 112, 72, 25, 46, 105, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 146, 190, 20, "21W -> 18W threshold (C):")
+  TextGadget(#PB_Any, 34, 146, 190, 20, "21W -> 18W (C):")
   SpinGadget(#GadgetThreshold2118, 250, 142, 72, 25, 47, 110, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 176, 190, 20, "18W -> 15W threshold (C):")
+  TextGadget(#PB_Any, 34, 176, 190, 20, "18W -> 15W (C):")
   SpinGadget(#GadgetThreshold1815, 250, 172, 72, 25, 48, 115, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 206, 190, 20, "15W -> 12W threshold (C):")
+  TextGadget(#PB_Any, 34, 206, 190, 20, "15W -> 12W (C):")
   SpinGadget(#GadgetThreshold1512, 250, 202, 72, 25, 49, 120, #PB_Spin_Numeric)
 
-  FrameGadget(#PB_Any, 18, 252, 660, 84, "How Thresholds Are Used")
-  TextGadget(#PB_Any, 34, 278, 610, 28, "When temperature crosses a threshold, PowerPilot steps down to the next cooler plan." + #CRLF$ + "As temperature falls back with hysteresis, it can step upward again.")
+  FrameGadget(#PB_Any, 18, 252, 780, 84, "How This Is Used")
+  TextGadget(#PB_Any, 34, 278, 740, 28, "When temperature crosses a limit, PowerPilot can move down to the next Cool plan." + #CRLF$ + "When temperature drops below the gap, it can move back up.")
 
-  FrameGadget(#PB_Any, 18, 348, 660, 88, "Tuning Tips")
-  TextGadget(#PB_Any, 34, 374, 610, 34, "Lower thresholds protect temperature sooner." + #CRLF$ + "Higher thresholds hold performance longer, but they also allow more heat before stepping down.")
+  FrameGadget(#PB_Any, 18, 348, 780, 88, "Choosing Values")
+  TextGadget(#PB_Any, 34, 374, 740, 34, "Lower numbers cool sooner." + #CRLF$ + "Higher numbers keep more performance, but allow more heat.")
   AppendRuntimeLog("CreateMainWindow: Thermal Steps tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Plan Manager")
-  TextGadget(#PB_Any, 18, 12, 660, 36, "Manage which plans PowerPilot keeps installed in Windows and edit the behavior of each one." + #CRLF$ + "Select a plan to tune its AC/DC behavior, or create a new custom plan from a preset.")
-  FrameGadget(#PB_Any, 18, 54, 314, 392, "Installed Plans")
-  ListIconGadget(#GadgetPlanList, 34, 84, 282, 250, "Plan", 155, #PB_ListIcon_CheckBoxes | #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
-  AddGadgetColumn(#GadgetPlanList, 1, "Type", 60)
-  AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 200)
-  ButtonGadget(#GadgetPlanRefreshAll, 34, 348, 132, 28, "Create Missing Defaults")
-  ButtonGadget(#GadgetPlanRemoveAll, 184, 348, 132, 28, "Remove All Managed")
-  TextGadget(#PB_Any, 34, 384, 282, 34, "Tick a plan to keep it installed. Untick it to remove only that plan." + #CRLF$ + "Select a row to edit it on the right.")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Install, remove, and edit PowerPilot power plans." + #CRLF$ + "Built-in plans can be refreshed. Custom plans can be created from a preset.")
+  FrameGadget(#PB_Any, 18, 54, 370, 442, "Installed Plans")
+  ListIconGadget(#GadgetPlanList, 34, 84, 338, 270, "Plan", 175, #PB_ListIcon_CheckBoxes | #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
+  AddGadgetColumn(#GadgetPlanList, 1, "Type", 72)
+  AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 280)
+  ButtonGadget(#GadgetPlanRefreshAll, 34, 372, 150, 30, "Create Defaults")
+  ButtonGadget(#GadgetPlanRemoveAll, 198, 372, 174, 30, "Remove Managed")
+  TextGadget(#PB_Any, 34, 420, 338, 54, "Tick to keep installed; untick to remove." + #CRLF$ + "Select a row to edit plug/battery settings.")
 
-  FrameGadget(#PB_Any, 346, 54, 332, 392, "Plan Editor")
-  TextGadget(#PB_Any, 362, 84, 78, 20, "Plan Name:")
-  StringGadget(#GadgetPlanEditorName, 446, 80, 216, 24, "")
-  TextGadget(#PB_Any, 362, 114, 78, 20, "Purpose:")
-  StringGadget(#GadgetPlanEditorSummary, 446, 110, 216, 24, "")
-  TextGadget(#PB_Any, 362, 144, 78, 20, "Preset:")
-  ComboBoxGadget(#GadgetPlanEditorPreset, 446, 140, 124, 24)
-  ButtonGadget(#GadgetPlanEditorLoadPreset, 580, 140, 82, 24, "Load")
+  FrameGadget(#PB_Any, 408, 54, 390, 442, "Plan Editor")
+  TextGadget(#PB_Any, 426, 84, 78, 20, "Plan Name:")
+  StringGadget(#GadgetPlanEditorName, 512, 80, 266, 24, "")
+  TextGadget(#PB_Any, 426, 114, 78, 20, "Purpose:")
+  StringGadget(#GadgetPlanEditorSummary, 512, 110, 266, 24, "")
+  TextGadget(#PB_Any, 426, 144, 78, 20, "Preset:")
+  ComboBoxGadget(#GadgetPlanEditorPreset, 512, 140, 178, 24)
+  ButtonGadget(#GadgetPlanEditorLoadPreset, 704, 140, 74, 24, "Load")
 
-  FrameGadget(#PB_Any, 362, 176, 300, 112, "Behavior")
-  TextGadget(#PB_Any, 378, 204, 50, 20, "AC EPP:")
-  SpinGadget(#GadgetPlanAcEpp, 432, 200, 60, 24, 0, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 518, 204, 50, 20, "DC EPP:")
-  SpinGadget(#GadgetPlanDcEpp, 572, 200, 60, 24, 0, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 378, 232, 48, 20, "AC Boost:")
-  ComboBoxGadget(#GadgetPlanAcBoost, 430, 228, 82, 24)
-  TextGadget(#PB_Any, 520, 232, 48, 20, "DC Boost:")
-  ComboBoxGadget(#GadgetPlanDcBoost, 572, 228, 82, 24)
-  TextGadget(#PB_Any, 378, 260, 58, 20, "AC Cooling:")
-  ComboBoxGadget(#GadgetPlanAcCooling, 440, 256, 72, 24)
-  TextGadget(#PB_Any, 518, 260, 58, 20, "DC Cooling:")
-  ComboBoxGadget(#GadgetPlanDcCooling, 580, 256, 72, 24)
+  FrameGadget(#PB_Any, 426, 176, 352, 116, "CPU Behavior")
+  TextGadget(#PB_Any, 444, 204, 76, 20, "Plug Eff:")
+  SpinGadget(#GadgetPlanAcEpp, 524, 200, 60, 24, 0, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 612, 204, 76, 20, "Batt Eff:")
+  SpinGadget(#GadgetPlanDcEpp, 696, 200, 60, 24, 0, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 444, 232, 76, 20, "Plug Boost:")
+  ComboBoxGadget(#GadgetPlanAcBoost, 524, 228, 82, 24)
+  TextGadget(#PB_Any, 612, 232, 76, 20, "Batt Boost:")
+  ComboBoxGadget(#GadgetPlanDcBoost, 696, 228, 82, 24)
+  TextGadget(#PB_Any, 444, 260, 76, 20, "Plug Cool:")
+  ComboBoxGadget(#GadgetPlanAcCooling, 524, 256, 82, 24)
+  TextGadget(#PB_Any, 612, 260, 76, 20, "Batt Cool:")
+  ComboBoxGadget(#GadgetPlanDcCooling, 696, 256, 82, 24)
 
-  FrameGadget(#PB_Any, 362, 296, 300, 86, "Limits")
-  TextGadget(#PB_Any, 378, 324, 50, 20, "AC Max %:")
-  SpinGadget(#GadgetPlanAcState, 432, 320, 60, 24, 1, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 516, 324, 54, 20, "DC Max %:")
-  SpinGadget(#GadgetPlanDcState, 572, 320, 60, 24, 1, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 378, 352, 50, 20, "AC MHz:")
-  SpinGadget(#GadgetPlanAcFreq, 432, 348, 70, 24, 0, 5000, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 516, 352, 50, 20, "DC MHz:")
-  SpinGadget(#GadgetPlanDcFreq, 572, 348, 60, 24, 0, 5000, #PB_Spin_Numeric)
+  FrameGadget(#PB_Any, 426, 304, 352, 92, "CPU Limits")
+  TextGadget(#PB_Any, 444, 332, 76, 20, "Plug Max:")
+  SpinGadget(#GadgetPlanAcState, 524, 328, 60, 24, 1, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 612, 332, 76, 20, "Batt Max:")
+  SpinGadget(#GadgetPlanDcState, 696, 328, 60, 24, 1, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 444, 360, 76, 20, "Plug MHz:")
+  SpinGadget(#GadgetPlanAcFreq, 524, 356, 72, 24, 0, 5000, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 612, 360, 76, 20, "Batt MHz:")
+  SpinGadget(#GadgetPlanDcFreq, 696, 356, 72, 24, 0, 5000, #PB_Spin_Numeric)
 
-  ButtonGadget(#GadgetPlanEditorSave, 362, 394, 88, 28, "Save Plan")
-  ButtonGadget(#GadgetPlanEditorNew, 460, 394, 94, 28, "New Custom")
-  ButtonGadget(#GadgetPlanEditorDelete, 564, 394, 98, 28, "Delete Custom")
+  ButtonGadget(#GadgetPlanEditorSave, 426, 420, 96, 30, "Save Plan")
+  ButtonGadget(#GadgetPlanEditorNew, 536, 420, 108, 30, "New Custom")
+  ButtonGadget(#GadgetPlanEditorDelete, 654, 420, 124, 30, "Delete Custom")
   AppendRuntimeLog("CreateMainWindow: Plan Manager tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Manual Override")
-  TextGadget(#PB_Any, 18, 12, 660, 36, "Use manual override when you want to take over plan selection yourself." + #CRLF$ + "Activate forces the chosen plan and turns automation off until you re-enable it.")
-  FrameGadget(#PB_Any, 18, 54, 660, 116, "Manual Plan")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Use this tab when you want to choose the plan yourself." + #CRLF$ + "Full Power and Cool plans keep Auto Cool on. Battery Saver and Plugged In turn it off.")
+  FrameGadget(#PB_Any, 18, 54, 780, 136, "Manual Plan")
   TextGadget(#PB_Any, 34, 90, 80, 20, "Select Plan:")
-  ComboBoxGadget(#GadgetPlanCombo, 120, 86, 320, 28)
+  ComboBoxGadget(#GadgetPlanCombo, 120, 86, 398, 28)
   PopulatePlanCombo()
-  ButtonGadget(#GadgetActivatePlan, 454, 85, 92, 28, "Activate")
-  ButtonGadget(#GadgetAutoOnce, 556, 85, 106, 28, "Auto Once")
-  TextGadget(#PB_Any, 34, 122, 628, 24, "Activate keeps the selected plan in effect until you turn Auto Cool back on. Auto Once runs a single automatic decision without changing your checkboxes.")
+  ButtonGadget(#GadgetActivatePlan, 542, 85, 110, 28, "Activate")
+  ButtonGadget(#GadgetAutoOnce, 670, 85, 106, 28, "Auto Once")
+  TextGadget(#PB_Any, 34, 126, 740, 42, "Activate switches to the selected plan now." + #CRLF$ + "Auto Once makes one Auto Cool decision and leaves your settings unchanged.")
 
-  FrameGadget(#PB_Any, 18, 184, 660, 96, "Display Recovery")
-  ButtonGadget(#GadgetResetDisplay, 34, 220, 190, 30, "Reset Display")
-  TextGadget(#PB_Any, 244, 218, 418, 34, "Reset Display sends the Windows graphics reset hotkey (Win+Ctrl+Shift+B) so Windows can refresh the display path without a full reboot.")
+  FrameGadget(#PB_Any, 18, 210, 780, 96, "Display Recovery")
+  ButtonGadget(#GadgetResetDisplay, 34, 246, 190, 30, "Reset Display")
+  TextGadget(#PB_Any, 244, 244, 530, 34, "Sends Win+Ctrl+Shift+B. Use this if the display path needs a quick Windows reset.")
 
-  FrameGadget(#PB_Any, 18, 294, 660, 132, "Notes")
-  TextGadget(#PB_Any, 34, 320, 628, 72, "Only plans that are currently installed in Plan Manager appear here." + #CRLF$ + "Use Plan Manager to create, remove, or tune plans before forcing one manually." + #CRLF$ + "If you want PowerPilot to take over again after a manual activation, re-enable automatic control on the Automation tab.")
+  FrameGadget(#PB_Any, 18, 326, 780, 132, "How Manual Plans Behave")
+  TextGadget(#PB_Any, 34, 352, 740, 72, "Only installed plans appear in the list." + #CRLF$ + "Battery Saver and Plugged In are manual plans, so they turn Auto Cool off." + #CRLF$ + "To let PowerPilot choose again, turn Auto Cool back on in Automation.")
 
   CloseGadgetList()
   AppendRuntimeLog("CreateMainWindow: Manual Override tab ok")
 
-  CanvasGadget(#GadgetDependencies, 20, 538, 95, 30)
-  ButtonGadget(#GadgetSaveSettings, 125, 538, 90, 30, "Save")
-  ButtonGadget(#GadgetHideToTray, 225, 538, 95, 30, "Hide")
-  ButtonGadget(#GadgetExit, 630, 538, 110, 30, "Exit")
-  TextGadget(#GadgetStatusLine, 20, 582, 720, 36, "Ready.", #PB_Text_Border)
+  CanvasGadget(#GadgetDependencies, 20, 548, 95, 30)
+  ButtonGadget(#GadgetSaveSettings, 125, 548, 90, 30, "Save")
+  ButtonGadget(#GadgetHideToTray, 225, 548, 95, 30, "Hide")
+  ButtonGadget(#GadgetExit, 730, 548, 110, 30, "Exit")
+  TextGadget(#GadgetStatusLine, 20, 590, 820, 36, "Ready.", #PB_Text_Border)
 
   AddGadgetItem(#GadgetPlanAcBoost, -1, "Disabled")
   AddGadgetItem(#GadgetPlanAcBoost, -1, "Efficient")
@@ -6595,15 +5788,27 @@ Procedure HandleManualAction(action.i)
       If planName$ <> ""
         If ActivatePlanByName(planName$, #True) And IsRememberedPluggedPlanName(planName$)
           RememberPluggedPlan(planName$, #True)
-          RememberRuntimeDgpuPlanIfActive(planName$, #True)
           gManualOverrideUntil = 0
-          LockMutex(gStateMutex)
-          gSettings\AutoEnabled = #False
-          gState\AutoEnabled = #False
-          UnlockMutex(gStateMutex)
+          If planName$ = #PlanFull$ Or IsGameCoolPlanName(planName$)
+            LockMutex(gStateMutex)
+            gSettings\AutoEnabled = #True
+            gState\AutoEnabled = #True
+            UnlockMutex(gStateMutex)
+          Else
+            LockMutex(gStateMutex)
+            gSettings\AutoEnabled = #False
+            gState\AutoEnabled = #False
+            UnlockMutex(gStateMutex)
+          EndIf
           SaveSettings()
           PushSettingsToGui()
-          LogAction("Manual plan activated. Auto Cool was turned off so the plan stays in effect.")
+          If planName$ = #PlanFull$
+            LogAction("Full Power activated. Auto Cool stays on and will use temperature.")
+          ElseIf IsGameCoolPlanName(planName$)
+            LogAction("Cool plan activated. Auto Cool stays on and will use CPU package power first.")
+          Else
+            LogAction("Manual plan activated. Auto Cool is off so this plan stays active.")
+          EndIf
         EndIf
       Else
         LogAction("No manual plan is selected.")
@@ -6619,21 +5824,9 @@ Procedure HandleManualAction(action.i)
     Case #GadgetAutoEnabled
       ApplyLiveCheckboxSettings("Auto Cool setting updated.")
 
-    Case #GadgetAutoDetectGame
-      ApplyLiveCheckboxSettings("GPU load trigger setting updated.")
-
     Case #GadgetUseWindows
       SelectPrimaryTelemetrySource(GetGadgetState(#GadgetUseWindows))
       ApplyLiveCheckboxSettings("Windows telemetry setting updated.")
-
-    Case #GadgetUseGpuPerfHelper
-      ApplyLiveCheckboxSettings("GPU perf helper setting updated.")
-
-    Case #GadgetGpuPerfHelperInterval
-      ApplyLiveCheckboxSettings("GPU perf helper interval updated.")
-
-    Case #GadgetUsePowerControl
-      ApplyLiveCheckboxSettings("CPU power control setting updated.")
 
     Case #GadgetAutoStart
       ApplyLiveCheckboxSettings("Start With Windows setting updated.")
@@ -6686,13 +5879,11 @@ Procedure HandleTrayMenu(menuID.i)
     Case #MenuPlugged
       If ActivatePlanByName(#PlanPlugged$, #True)
         RememberPluggedPlan(#PlanPlugged$, #True)
-        RememberRuntimeDgpuPlanIfActive(#PlanPlugged$, #True)
       EndIf
 
     Case #MenuFull
       If ActivatePlanByName(#PlanFull$, #True)
         RememberPluggedPlan(#PlanFull$, #True)
-        RememberRuntimeDgpuPlanIfActive(#PlanFull$, #True)
       EndIf
 
     Case #MenuDependencies
@@ -6814,7 +6005,6 @@ InitializePlanDefinitions()
 
 LockMutex(gStateMutex)
 gState\AutoEnabled = gSettings\AutoEnabled
-gState\AutoDetectGame = gSettings\AutoDetectGame
 gState\PowerSource = DetectPowerSource()
 gState\ActivePlan = GetActiveSchemeName()
 UnlockMutex(gStateMutex)

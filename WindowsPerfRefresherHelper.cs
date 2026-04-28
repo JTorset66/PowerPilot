@@ -14,7 +14,6 @@ internal static class WindowsPerfRefresherHelper
     private sealed class RefresherContext
     {
         public dynamic Refresher;
-        public dynamic EngineItem;
         public dynamic MemoryItem;
         public string[] GpuDevices;
         public int GpuDeviceRefreshTick;
@@ -23,10 +22,8 @@ internal static class WindowsPerfRefresherHelper
         public void Dispose()
         {
             ReleaseComObjectQuietly((object)MemoryItem);
-            ReleaseComObjectQuietly((object)EngineItem);
             ReleaseComObjectQuietly((object)Refresher);
             MemoryItem = null;
-            EngineItem = null;
             Refresher = null;
             GpuDevices = null;
         }
@@ -34,9 +31,6 @@ internal static class WindowsPerfRefresherHelper
 
     private sealed class Sample
     {
-        public bool GpuLoadSeen;
-        public string GpuLoadSensor = "Windows WMI performance / GPU Engine";
-        public double GpuLoadPct;
         public bool GpuMemorySeen;
         public string GpuMemorySensor = "Windows WMI performance / GPU Adapter Memory";
         public double GpuMemoryMb;
@@ -421,15 +415,6 @@ internal static class WindowsPerfRefresherHelper
             devices[key] = decoratedName;
     }
 
-    private static bool IsRelevantEngine(string name)
-    {
-        var lowered = (name ?? string.Empty).ToLowerInvariant();
-        return lowered.Contains("engtype_3d") ||
-               lowered.Contains("engtype_high priority 3d") ||
-               lowered.Contains("engtype_compute") ||
-               lowered.Contains("engtype_high priority compute");
-    }
-
     private static RefresherContext CreateContext()
     {
         var refresherType = Type.GetTypeFromProgID("WbemScripting.SWbemRefresher");
@@ -446,7 +431,6 @@ internal static class WindowsPerfRefresherHelper
         }
 
         dynamic services = Marshal.BindToMoniker(@"winmgmts:{impersonationLevel=impersonate,authenticationLevel=pktPrivacy}!\\.\root\cimv2");
-        dynamic engineItem = refresher.AddEnum(services, "Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine");
         dynamic memoryItem = refresher.AddEnum(services, "Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory");
 
         refresher.Refresh();
@@ -455,7 +439,6 @@ internal static class WindowsPerfRefresherHelper
         return new RefresherContext
         {
             Refresher = refresher,
-            EngineItem = engineItem,
             MemoryItem = memoryItem,
             GpuDevices = new string[0],
             GpuDeviceRefreshTick = 0
@@ -528,42 +511,6 @@ internal static class WindowsPerfRefresherHelper
         return context.GpuDevices ?? new string[0];
     }
 
-    private static void CaptureGpuLoad(RefresherContext context, Sample sample)
-    {
-        object objectSet = null;
-
-        try
-        {
-            objectSet = context.EngineItem.ObjectSet;
-            foreach (object engine in (IEnumerable)objectSet)
-            {
-                try
-                {
-                    var name = ReadString(engine, "Name");
-                    if (!IsRelevantEngine(name))
-                        continue;
-
-                    sample.GpuLoadSeen = true;
-                    var utilization = ReadDouble(engine, "UtilizationPercentage");
-
-                    if (utilization >= sample.GpuLoadPct)
-                    {
-                        sample.GpuLoadPct = utilization;
-                        sample.GpuLoadSensor = "Windows WMI performance / " + Sanitize(name);
-                    }
-                }
-                finally
-                {
-                    ReleaseComObjectQuietly(engine);
-                }
-            }
-        }
-        finally
-        {
-            ReleaseComObjectQuietly(objectSet);
-        }
-    }
-
     private static void ConsiderMemory(Sample sample, string sensor, double usageBytes, int priority)
     {
         if (usageBytes <= 0.0)
@@ -632,7 +579,6 @@ internal static class WindowsPerfRefresherHelper
         context.Refresher.Refresh();
 
         var sample = new Sample();
-        CaptureGpuLoad(context, sample);
         CaptureGpuMemory(context, sample);
         sample.GpuDevices.AddRange(GetGpuDevices(context));
         return sample;
@@ -641,9 +587,6 @@ internal static class WindowsPerfRefresherHelper
     private static void EmitBlock(Sample sample)
     {
         Console.WriteLine("WINDOWSPERFBEGIN");
-
-        if (sample.GpuLoadSeen)
-            Console.WriteLine("WINDOWSGPULOAD|{0}|{1}", Sanitize(sample.GpuLoadSensor), sample.GpuLoadPct.ToString("0.00", Invariant));
 
         if (sample.GpuMemorySeen)
             Console.WriteLine("WINDOWSGPUMEM|{0}|{1}", Sanitize(sample.GpuMemorySensor), sample.GpuMemoryMb.ToString("0.00", Invariant));
@@ -666,7 +609,7 @@ internal static class WindowsPerfRefresherHelper
 
         var sample = CaptureSample(context);
         EmitBlock(sample);
-        return (sample.GpuLoadSeen || sample.GpuMemorySeen) ? 0 : 1;
+        return sample.GpuMemorySeen ? 0 : 1;
     }
 
     private static bool ShouldRecycleContext(RefresherContext context)
