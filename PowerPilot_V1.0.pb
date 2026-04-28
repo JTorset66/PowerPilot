@@ -12,7 +12,8 @@
 #CustomPlansFileName$ = "custom_plans.tsv"
 #TrayTooltip$        = #AppFullName$
 
-#UseWindowsGpuPerfTelemetry = #False
+#DefaultUseGpuPerfHelper = #False
+#DefaultGpuPerfHelperIntervalSeconds = 15
 
 #PowerSourceUnknown = 0
 #PowerSourceBattery = 1
@@ -90,6 +91,7 @@
 #TelemetryLatchMinimumMs = 15000
 #TelemetryLatchMaximumMs = 120000
 #MinimumMeaningfulPowerW = 0.05
+#SimulatedGpuLoadMaxWatts = 28.0
 
 #PDH_MORE_DATA    = $800007D2
 #PDH_CSTATUS_VALID_DATA = 0
@@ -154,6 +156,8 @@ Enumeration 200
   #GadgetAutoEnabled
   #GadgetAutoDetectGame
   #GadgetUseWindows
+  #GadgetUseGpuPerfHelper
+  #GadgetGpuPerfHelperInterval
   #GadgetWindowsInfo
   #GadgetUsePowerControl
   #GadgetAutoStart
@@ -263,6 +267,8 @@ Structure AppSettings
   AutoEnabled.i
   AutoDetectGame.i
   UseWindows.i
+  UseGpuPerfHelper.i
+  GpuPerfHelperIntervalSeconds.i
   UsePowerControl.i
   AutoStartWithApp.i
   KeepSettingsOnReinstall.i
@@ -450,7 +456,9 @@ Declare ResetTempReading(*reading.TempReading)
 Declare.i HasUsableTelemetry(*reading.TempReading)
 Declare.i HasVisibleTelemetry(*reading.TempReading)
 Declare.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading, *fallback.TempReading)
+Declare ApplySimulatedGpuLoadFromPower(*reading.TempReading)
 Declare.s FindBundledWindowsPerfHelper()
+Declare.i ShouldUseWindowsGpuPerfTelemetry()
 Declare.i ReadWindowsPerfStreamTelemetry(*reading.TempReading)
 Declare RememberDgpuPluggedPlan(planName$, persist.i = #False)
 Declare RememberRuntimeDgpuPlanIfActive(planName$, persist.i = #False)
@@ -990,6 +998,38 @@ EndProcedure
 
 Procedure.i HasMeaningfulPowerWatts(watts.d)
   ProcedureReturn Bool(watts > #MinimumMeaningfulPowerW)
+EndProcedure
+
+Procedure ApplySimulatedGpuLoadFromPower(*reading.TempReading)
+  Protected watts.d
+  Protected source$
+
+  If *reading\gpuLoadValid
+    ProcedureReturn
+  EndIf
+
+  If *reading\gpuPowerValid And HasMeaningfulPowerWatts(*reading\gpuPowerWatts)
+    watts = *reading\gpuPowerWatts
+    source$ = *reading\gpuPowerSensor
+  ElseIf *reading\apuPowerValid And HasMeaningfulPowerWatts(*reading\apuPowerWatts)
+    watts = *reading\apuPowerWatts
+    source$ = *reading\apuPowerSensor
+  Else
+    ProcedureReturn
+  EndIf
+
+  *reading\gpuLoadValid = #True
+  *reading\gpuLoadPct = (watts / #SimulatedGpuLoadMaxWatts) * 100.0
+  If *reading\gpuLoadPct < 0.0
+    *reading\gpuLoadPct = 0.0
+  ElseIf *reading\gpuLoadPct > 100.0
+    *reading\gpuLoadPct = 100.0
+  EndIf
+  If source$ <> ""
+    *reading\gpuLoadSensor = "Simulated from " + StrD(#SimulatedGpuLoadMaxWatts, 0) + " W max / " + source$
+  Else
+    *reading\gpuLoadSensor = "Simulated from " + StrD(#SimulatedGpuLoadMaxWatts, 0) + " W max"
+  EndIf
 EndProcedure
 
 Procedure ResetTempReading(*reading.TempReading)
@@ -1597,10 +1637,11 @@ Procedure.s BuildWindowsInfoText()
   Protected text$
 
   text$ + "PowerPilot reads live telemetry from Windows first." + #LF$ + #LF$
-  text$ + "Leave Windows telemetry enabled for temperature, CPU power, GPU power, GPU load, GPU memory, and GPU device names whenever Windows exposes them." + #LF$
+  text$ + "Leave Windows telemetry enabled for temperature, CPU power, GPU power, and the lower-cost Windows readings PowerPilot can use." + #LF$
   text$ + "If Windows cannot provide a usable temperature, PowerPilot can still fall back to a generic thermal-zone reading." + #LF$ + #LF$
   text$ + "PowerPilot prefers the documented Windows PMI provider first, then the Windows EMI energy-meter interface, and only uses older Windows power counters when neither modern interface is available." + #LF$
-  text$ + "GPU load and GPU memory stay alive through the persistent WMI refresher helper instead of rebuilding those queries on every poll." + #LF$
+  text$ + "GPU load and GPU memory require the optional GPU perf helper. That helper uses Windows WMI/performance GPU engine counters and can be expensive, so keep it disabled unless GPU-load triggering is worth the overhead." + #LF$
+  text$ + "When the helper is disabled or unavailable, PowerPilot can simulate GPU load from GPU/APU power by treating 28 W as 100% load." + #LF$
   text$ + "Brief telemetry gaps hold the last good value until a new reading arrives or the gap grows much longer than the normal polling pattern." + #LF$
   text$ + "On APU systems, Windows APU or GPU power can still be useful even when a dedicated GPU watt reading is not available." + #LF$
   text$ + "GPU power appears only when Windows exposes a usable watt reading for the current GPU."
@@ -1610,9 +1651,11 @@ EndProcedure
 
 Procedure ApplyMainWindowToolTips()
   GadgetToolTip(#GadgetAutoEnabled, "Lets PowerPilot manage Cool plans automatically when usable telemetry is available.")
-  GadgetToolTip(#GadgetAutoDetectGame, "When enabled, PowerPilot only enters Cool plans after sustained GPU load is detected.")
+  GadgetToolTip(#GadgetAutoDetectGame, "When enabled, PowerPilot only enters Cool plans after sustained real or simulated GPU load is detected.")
   GadgetToolTip(#GadgetUsePowerControl, "Uses CPU and GPU power targets as control input instead of relying on temperature steps alone.")
-  GadgetToolTip(#GadgetUseWindows, "Use the native Windows telemetry stack for temperature, CPU power, GPU power, GPU load, GPU memory, and any GPU names Windows exposes.")
+  GadgetToolTip(#GadgetUseWindows, "Use the native Windows telemetry stack for temperature, CPU power, GPU power, and optional GPU performance data.")
+  GadgetToolTip(#GadgetUseGpuPerfHelper, "Enables the expensive Windows GPU load/memory helper. Leave off to avoid WMI GPU engine polling spikes.")
+  GadgetToolTip(#GadgetGpuPerfHelperInterval, "How often the GPU load/memory helper polls when enabled. Longer intervals reduce package-power spikes.")
   GadgetToolTip(#GadgetWindowsInfo, "Show a short explanation of the telemetry path PowerPilot uses.")
   GadgetToolTip(#GadgetAutoStart, "Starts PowerPilot with Windows and opens only in the tray.")
   GadgetToolTip(#GadgetKeepSettings, "Keeps your settings on reinstall. Leave off if you want reinstall to reset to defaults.")
@@ -1666,6 +1709,8 @@ Procedure ApplyDefaultSettings()
   gSettings\AutoEnabled      = #True
   gSettings\AutoDetectGame   = #True
   gSettings\UseWindows       = #True
+  gSettings\UseGpuPerfHelper = #DefaultUseGpuPerfHelper
+  gSettings\GpuPerfHelperIntervalSeconds = #DefaultGpuPerfHelperIntervalSeconds
   gSettings\UsePowerControl  = #True
   gSettings\AutoStartWithApp = #True
   gSettings\KeepSettingsOnReinstall = #False
@@ -1691,6 +1736,7 @@ EndProcedure
 
 Procedure NormalizeSettings()
   gSettings\PollSeconds      = ClampInt(gSettings\PollSeconds, 1, 60)
+  gSettings\GpuPerfHelperIntervalSeconds = ClampInt(gSettings\GpuPerfHelperIntervalSeconds, 5, 120)
   gSettings\Hysteresis       = ClampInt(gSettings\Hysteresis, 1, 20)
   gSettings\PowerHysteresis  = ClampInt(gSettings\PowerHysteresis, 1, 30)
   gSettings\CpuPowerTarget   = ClampInt(gSettings\CpuPowerTarget, 5, 120)
@@ -1717,6 +1763,8 @@ Procedure LoadSettings()
     gSettings\AutoEnabled      = ReadPreferenceInteger("AutoEnabled", gSettings\AutoEnabled)
     gSettings\AutoDetectGame   = ReadPreferenceInteger("GpuLoadCoolTrigger", gSettings\AutoDetectGame)
     gSettings\UseWindows       = ReadPreferenceInteger("UseWindows", gSettings\UseWindows)
+    gSettings\UseGpuPerfHelper = ReadPreferenceInteger("UseGpuPerfHelper", gSettings\UseGpuPerfHelper)
+    gSettings\GpuPerfHelperIntervalSeconds = ReadPreferenceInteger("GpuPerfHelperIntervalSeconds", gSettings\GpuPerfHelperIntervalSeconds)
     gSettings\UsePowerControl  = ReadPreferenceInteger("UsePowerControl", gSettings\UsePowerControl)
     gSettings\AutoStartWithApp = ReadPreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     gSettings\KeepSettingsOnReinstall = ReadPreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
@@ -1753,6 +1801,8 @@ Procedure SaveSettings()
     WritePreferenceInteger("GpuLoadCoolTrigger", gSettings\AutoDetectGame)
     WritePreferenceInteger("AutoDetectGame", gSettings\AutoDetectGame)
     WritePreferenceInteger("UseWindows", gSettings\UseWindows)
+    WritePreferenceInteger("UseGpuPerfHelper", gSettings\UseGpuPerfHelper)
+    WritePreferenceInteger("GpuPerfHelperIntervalSeconds", gSettings\GpuPerfHelperIntervalSeconds)
     WritePreferenceInteger("UsePowerControl", gSettings\UsePowerControl)
     WritePreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     WritePreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
@@ -1782,6 +1832,8 @@ Procedure PullSettingsFromGui()
   gSettings\AutoEnabled      = GetGadgetState(#GadgetAutoEnabled)
   gSettings\AutoDetectGame   = GetGadgetState(#GadgetAutoDetectGame)
   gSettings\UseWindows       = GetGadgetState(#GadgetUseWindows)
+  gSettings\UseGpuPerfHelper = GetGadgetState(#GadgetUseGpuPerfHelper)
+  gSettings\GpuPerfHelperIntervalSeconds = GetGadgetState(#GadgetGpuPerfHelperInterval)
   gSettings\UsePowerControl  = GetGadgetState(#GadgetUsePowerControl)
   gSettings\AutoStartWithApp = GetGadgetState(#GadgetAutoStart)
   gSettings\KeepSettingsOnReinstall = GetGadgetState(#GadgetKeepSettings)
@@ -1807,6 +1859,8 @@ Procedure PushSettingsToGui()
   UpdateGadgetStateIfNeeded(#GadgetAutoEnabled, gSettings\AutoEnabled)
   UpdateGadgetStateIfNeeded(#GadgetAutoDetectGame, gSettings\AutoDetectGame)
   UpdateGadgetStateIfNeeded(#GadgetUseWindows, gSettings\UseWindows)
+  UpdateGadgetStateIfNeeded(#GadgetUseGpuPerfHelper, gSettings\UseGpuPerfHelper)
+  UpdateGadgetStateIfNeeded(#GadgetGpuPerfHelperInterval, gSettings\GpuPerfHelperIntervalSeconds)
   UpdateGadgetStateIfNeeded(#GadgetUsePowerControl, gSettings\UsePowerControl)
   UpdateGadgetStateIfNeeded(#GadgetAutoStart, gSettings\AutoStartWithApp)
   UpdateGadgetStateIfNeeded(#GadgetKeepSettings, gSettings\KeepSettingsOnReinstall)
@@ -2935,7 +2989,7 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
     Next
   EndIf
 
-  If #UseWindowsGpuPerfTelemetry And *reading\gpuLoadValid = #False And ExpandWindowsCounterPaths("\GPU Engine(*)\Utilization Percentage", counterPaths())
+  If ShouldUseWindowsGpuPerfTelemetry() And *reading\gpuLoadValid = #False And ExpandWindowsCounterPaths("\GPU Engine(*)\Utilization Percentage", counterPaths())
     ForEach counterPaths()
       If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
         AddElement(counters())
@@ -2946,7 +3000,7 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
     Next
   EndIf
 
-  If #UseWindowsGpuPerfTelemetry And *reading\gpuMemoryValid = #False And ExpandWindowsCounterPaths("\GPU Adapter Memory(*)\Dedicated Usage", counterPaths())
+  If ShouldUseWindowsGpuPerfTelemetry() And *reading\gpuMemoryValid = #False And ExpandWindowsCounterPaths("\GPU Adapter Memory(*)\Dedicated Usage", counterPaths())
     ForEach counterPaths()
       If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
         AddElement(counters())
@@ -3216,6 +3270,7 @@ Procedure.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading,
 
   If useWindows
     windowsReady = ReadWindowsTelemetry(*windows)
+    ApplySimulatedGpuLoadFromPower(*windows)
     ApplyTelemetryLatch(*windows, @gWindowsTelemetryLatch)
     windowsReady = HasUsableTelemetry(*windows)
     If windowsReady
@@ -3326,43 +3381,32 @@ Procedure StopWindowsPerfHelper()
 EndProcedure
 
 Procedure.i WindowsPerfHelperIntervalMs()
-  Protected pollSeconds.i
-  Protected intervalMs.i
+  Protected intervalSeconds.i
 
   LockMutex(gStateMutex)
-  pollSeconds = gSettings\PollSeconds
+  intervalSeconds = gSettings\GpuPerfHelperIntervalSeconds
   UnlockMutex(gStateMutex)
 
-  If pollSeconds < 1
-    pollSeconds = 1
+  If intervalSeconds < 5
+    intervalSeconds = 5
   EndIf
+  ProcedureReturn ClampInt(intervalSeconds * 1000, 5000, 120000)
+EndProcedure
 
-  intervalMs = ClampInt(pollSeconds * 1000, 500, 30000)
-  If intervalMs < 15000
-    intervalMs = 15000
-  EndIf
+Procedure.i ShouldUseWindowsGpuPerfTelemetry()
+  Protected useWindows.i
+  Protected useGpuPerfHelper.i
 
-  ProcedureReturn intervalMs
+  LockMutex(gStateMutex)
+  useWindows = gSettings\UseWindows
+  useGpuPerfHelper = gSettings\UseGpuPerfHelper
+  UnlockMutex(gStateMutex)
+
+  ProcedureReturn Bool(useWindows And useGpuPerfHelper)
 EndProcedure
 
 Procedure.i ShouldUseWindowsPerfHelper()
-  If #UseWindowsGpuPerfTelemetry = #False
-    ProcedureReturn #False
-  EndIf
-
-  Protected powerSource.i
-  Protected autoBatteryPlan.i
-
-  LockMutex(gStateMutex)
-  powerSource = gState\PowerSource
-  autoBatteryPlan = gSettings\AutoBatteryPlan
-  UnlockMutex(gStateMutex)
-
-  If powerSource = #PowerSourceBattery And autoBatteryPlan
-    ProcedureReturn #False
-  EndIf
-
-  ProcedureReturn #True
+  ProcedureReturn ShouldUseWindowsGpuPerfTelemetry()
 EndProcedure
 
 Procedure DrainWindowsPerfHelperOutput()
@@ -6329,11 +6373,14 @@ Procedure.i CreateMainWindow(showWindow.i)
   CheckBoxGadget(#GadgetKeepSettings, 372, 114, 220, 24, "Keep settings on reinstall")
   TextGadget(#PB_Any, 372, 150, 280, 34, "Start in tray keeps PowerPilot hidden until you open it from the tray." + #CRLF$ + "Keep settings preserves your saved config across reinstalls.")
 
-  FrameGadget(#PB_Any, 18, 220, 660, 156, "Telemetry")
-  TextGadget(#PB_Any, 34, 248, 610, 42, "Leave Windows enabled to use Windows for temperature, CPU power, GPU power, GPU load, GPU memory, and GPU device names whenever Windows exposes them." + #CRLF$ + "If Windows cannot provide a usable temperature, PowerPilot can still fall back to a generic thermal-zone reading.")
+  FrameGadget(#PB_Any, 18, 220, 660, 220, "Telemetry")
+  TextGadget(#PB_Any, 34, 248, 610, 42, "Leave Windows enabled to use Windows for temperature, CPU power, GPU power, and lower-cost telemetry whenever Windows exposes it." + #CRLF$ + "The GPU perf helper adds GPU load and memory, but can cause visible package-power polling spikes.")
   CheckBoxGadget(#GadgetUseWindows, 34, 302, 185, 24, "Use Windows telemetry")
   ButtonGadget(#GadgetWindowsInfo, 222, 296, 24, 24, "i")
-  TextGadget(#PB_Any, 34, 334, 610, 26, "Disable Windows telemetry only for troubleshooting. Fallback temperature alone gives PowerPilot much less detail to work with.")
+  CheckBoxGadget(#GadgetUseGpuPerfHelper, 34, 332, 220, 24, "Use GPU perf helper")
+  TextGadget(#PB_Any, 34, 364, 154, 20, "Helper interval (sec):")
+  SpinGadget(#GadgetGpuPerfHelperInterval, 194, 360, 72, 25, 5, 120, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 398, 610, 28, "Disable Windows telemetry only for troubleshooting. Disable the GPU perf helper to keep GPU load/memory unavailable without turning off temperature and power readings.")
   AppendRuntimeLog("CreateMainWindow: Automation tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Control")
@@ -6578,6 +6625,12 @@ Procedure HandleManualAction(action.i)
     Case #GadgetUseWindows
       SelectPrimaryTelemetrySource(GetGadgetState(#GadgetUseWindows))
       ApplyLiveCheckboxSettings("Windows telemetry setting updated.")
+
+    Case #GadgetUseGpuPerfHelper
+      ApplyLiveCheckboxSettings("GPU perf helper setting updated.")
+
+    Case #GadgetGpuPerfHelperInterval
+      ApplyLiveCheckboxSettings("GPU perf helper interval updated.")
 
     Case #GadgetUsePowerControl
       ApplyLiveCheckboxSettings("CPU power control setting updated.")
