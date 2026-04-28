@@ -1905,6 +1905,18 @@ Procedure.s RunPowerCfgCapture(arguments$)
   ProcedureReturn RunCapture("powercfg", arguments$)
 EndProcedure
 
+Procedure CleanupDetachedWindowsPerfHelpers()
+  Protected script$
+
+  script$ = "$currentPid = " + Str(GetCurrentProcessId_()) + "; " +
+            "Get-CimInstance Win32_Process -Filter " + QuoteArgument("Name = 'PowerPilotWindowsPerfHelper.exe'") + " | ForEach-Object { " +
+            "$parent = Get-Process -Id $_.ParentProcessId -ErrorAction SilentlyContinue; " +
+            "if ($null -eq $parent -or ($parent.ProcessName -ne 'PowerPilot_V1.0' -and $_.ParentProcessId -ne $currentPid)) { " +
+            "Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }"
+
+  RunExitCode("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + QuoteArgument(script$))
+EndProcedure
+
 Procedure.i RunPowerCfgElevated(arguments$)
   Protected psCommand$
 
@@ -3325,6 +3337,22 @@ Procedure.i WindowsPerfHelperIntervalMs()
   ProcedureReturn ClampInt(pollSeconds * 1000, 500, 10000)
 EndProcedure
 
+Procedure.i ShouldUseWindowsPerfHelper()
+  Protected powerSource.i
+  Protected autoBatteryPlan.i
+
+  LockMutex(gStateMutex)
+  powerSource = gState\PowerSource
+  autoBatteryPlan = gSettings\AutoBatteryPlan
+  UnlockMutex(gStateMutex)
+
+  If powerSource = #PowerSourceBattery And autoBatteryPlan
+    ProcedureReturn #False
+  EndIf
+
+  ProcedureReturn #True
+EndProcedure
+
 Procedure DrainWindowsPerfHelperOutput()
   Protected line$
 
@@ -3384,7 +3412,7 @@ Procedure.i EnsureWindowsPerfHelper()
     ProcedureReturn #False
   EndIf
 
-  gWindowsPerfHelperHandle = RunProgram(helper$, "--stream --interval-ms " + Str(desiredIntervalMs), GetPathPart(helper$), #PB_Program_Open | #PB_Program_Read | #PB_Program_Hide)
+  gWindowsPerfHelperHandle = RunProgram(helper$, "--stream --interval-ms " + Str(desiredIntervalMs) + " --parent-pid " + Str(GetCurrentProcessId_()), GetPathPart(helper$), #PB_Program_Open | #PB_Program_Read | #PB_Program_Hide)
   If gWindowsPerfHelperHandle = 0
     ProcedureReturn #False
   EndIf
@@ -3404,6 +3432,11 @@ Procedure.i ReadWindowsPerfStreamTelemetry(*reading.TempReading)
   Protected kind$
   Protected sensor$
   Protected value$
+
+  If ShouldUseWindowsPerfHelper() = #False
+    StopWindowsPerfHelper()
+    ProcedureReturn #False
+  EndIf
 
   freshnessMs = ClampInt(WindowsPerfHelperIntervalMs() * 3, 1500, 12000)
 
@@ -4255,6 +4288,12 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
   CopySettings(@settings)
   pollSeconds = settings\PollSeconds
   powerSource = DetectPowerSource()
+
+  LockMutex(gStateMutex)
+  previousPowerSource = gState\PowerSource
+  gState\PowerSource = powerSource
+  UnlockMutex(gStateMutex)
+
   CaptureTelemetrySnapshot(@reading, @windows, @fallback)
   CopyTempReading(@controlReading, @reading)
   ApplyTelemetryAveraging(@controlReading, settings\GameCoolAverageSeconds * 1000)
@@ -4267,10 +4306,6 @@ Procedure.i AutoGameCoolStep(announceKeep.i = #False)
   If currentPlan$ = #PlanVisible$
     currentPlan$ = GetCurrentManagedPlan()
   EndIf
-
-  LockMutex(gStateMutex)
-  previousPowerSource = gState\PowerSource
-  UnlockMutex(gStateMutex)
 
   If currentPlan$ = ""
     LockMutex(gStateMutex)
@@ -6708,6 +6743,7 @@ Procedure RunGui(showWindow.i)
 EndProcedure
 
 gStateMutex = CreateMutex()
+CleanupDetachedWindowsPerfHelpers()
 LoadSettings()
 InitializePlanDefinitions()
 

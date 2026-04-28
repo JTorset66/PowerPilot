@@ -1,6 +1,6 @@
 ﻿# Latest Build
 
-Generated: 2026-04-23 01:11:29 +08:00
+Generated: 2026-04-28 17:19:49 +02:00
 
 ## Result
 
@@ -10,19 +10,17 @@ Generated: 2026-04-23 01:11:29 +08:00
 ## Artifacts
 
 - build\PowerPilot_V1.0.exe
-  - Size: 772,096 bytes
-  - Last write time: 2026-04-23 01:11:22
-  - SHA-256: 35A87382642533A8FE236FB68CA63861858148B309CCC3053BE1B9285EF71736
+  - Size: 773,632 bytes
+  - Last write time: 2026-04-28 17:19:38
+  - SHA-256: C85FDD675CCBF3BC26EA7EBA495780D41264242C562BA10F2AEF6E3DF4CCB083
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,418,922 bytes
-  - Last write time: 2026-04-23 01:11:29
-  - SHA-256: AFF81959FF229D58CDD06EEDCD8DC63326F36EBEC93C7BC2BCBF43BAA4F471C0
+  - Size: 2,419,064 bytes
+  - Last write time: 2026-04-28 17:19:49
+  - SHA-256: 735B6B1E00A647AFA735A1675C5A79C5CA5BDA0E581469D6A0757E1B48409933
 
 ## Snapshot
 
-- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-23_01-11-04.zip
-- Created: 2026-04-23 01:11:04
-- Source files captured: 728
+- Snapshot was skipped for this run.
 
 ## Retention defaults
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Diagnostics;
 using System.IO;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -17,6 +18,18 @@ internal static class WindowsPerfRefresherHelper
         public dynamic MemoryItem;
         public string[] GpuDevices;
         public int GpuDeviceRefreshTick;
+        public int CaptureCount;
+
+        public void Dispose()
+        {
+            ReleaseComObjectQuietly(MemoryItem);
+            ReleaseComObjectQuietly(EngineItem);
+            ReleaseComObjectQuietly(Refresher);
+            MemoryItem = null;
+            EngineItem = null;
+            Refresher = null;
+            GpuDevices = null;
+        }
     }
 
     private sealed class Sample
@@ -37,8 +50,10 @@ internal static class WindowsPerfRefresherHelper
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     private const int CrSuccess = 0;
     private const int CrBufferSmall = 26;
-    private const int GpuDeviceRefreshIntervalMs = 3000;
+    private const int GpuDeviceRefreshIntervalMs = 60000;
     private const int MaxParentDepth = 12;
+    private const int ContextRecycleSamples = 120;
+    private const long ContextRecyclePrivateBytes = 128L * 1024L * 1024L;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct DevPropKey
@@ -105,6 +120,63 @@ internal static class WindowsPerfRefresherHelper
         }
 
         return 1000;
+    }
+
+    private static int ParseParentPid(string[] args)
+    {
+        int parentPid;
+
+        if (args == null)
+            return 0;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (!string.Equals(args[i], "--parent-pid", StringComparison.OrdinalIgnoreCase) || i + 1 >= args.Length)
+                continue;
+
+            if (int.TryParse(args[i + 1], NumberStyles.Integer, Invariant, out parentPid))
+                return Math.Max(0, parentPid);
+        }
+
+        return 0;
+    }
+
+    private static bool ParentStillRunning(int parentPid)
+    {
+        if (parentPid <= 0)
+            return true;
+
+        try
+        {
+            using (var process = Process.GetProcessById(parentPid))
+                return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void ReleaseComObjectQuietly(object value)
+    {
+        if (value == null)
+            return;
+
+        try
+        {
+            if (Marshal.IsComObject(value))
+                Marshal.FinalReleaseComObject(value);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void CollectGarbageAfterComRelease()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
     }
 
     private static string Sanitize(string text)
@@ -458,20 +530,37 @@ internal static class WindowsPerfRefresherHelper
 
     private static void CaptureGpuLoad(RefresherContext context, Sample sample)
     {
-        foreach (dynamic engine in (IEnumerable)context.EngineItem.ObjectSet)
+        object objectSet = null;
+
+        try
         {
-            var name = ReadString(engine, "Name");
-            if (!IsRelevantEngine(name))
-                continue;
-
-            sample.GpuLoadSeen = true;
-            var utilization = ReadDouble(engine, "UtilizationPercentage");
-
-            if (utilization >= sample.GpuLoadPct)
+            objectSet = context.EngineItem.ObjectSet;
+            foreach (object engine in (IEnumerable)objectSet)
             {
-                sample.GpuLoadPct = utilization;
-                sample.GpuLoadSensor = "Windows WMI performance / " + Sanitize(name);
+                try
+                {
+                    var name = ReadString(engine, "Name");
+                    if (!IsRelevantEngine(name))
+                        continue;
+
+                    sample.GpuLoadSeen = true;
+                    var utilization = ReadDouble(engine, "UtilizationPercentage");
+
+                    if (utilization >= sample.GpuLoadPct)
+                    {
+                        sample.GpuLoadPct = utilization;
+                        sample.GpuLoadSensor = "Windows WMI performance / " + Sanitize(name);
+                    }
+                }
+                finally
+                {
+                    ReleaseComObjectQuietly(engine);
+                }
             }
+        }
+        finally
+        {
+            ReleaseComObjectQuietly(objectSet);
         }
     }
 
@@ -508,16 +597,33 @@ internal static class WindowsPerfRefresherHelper
 
     private static void CaptureGpuMemory(RefresherContext context, Sample sample)
     {
-        foreach (dynamic adapter in (IEnumerable)context.MemoryItem.ObjectSet)
-        {
-            var name = Sanitize(ReadString(adapter, "Name"));
-            var dedicatedUsage = ReadDouble(adapter, "DedicatedUsage");
-            var sharedUsage = ReadDouble(adapter, "SharedUsage");
+        object objectSet = null;
 
-            sample.GpuMemorySeen = true;
-            ConsiderMemory(sample, "Windows WMI performance / " + name + " / Dedicated Usage", dedicatedUsage, 2);
-            ConsiderMemory(sample, "Windows WMI performance / " + name + " / Shared Usage", sharedUsage, 1);
-            ConsiderSharedMemory(sample, "Windows WMI performance / " + name + " / Shared Usage", sharedUsage);
+        try
+        {
+            objectSet = context.MemoryItem.ObjectSet;
+            foreach (object adapter in (IEnumerable)objectSet)
+            {
+                try
+                {
+                    var name = Sanitize(ReadString(adapter, "Name"));
+                    var dedicatedUsage = ReadDouble(adapter, "DedicatedUsage");
+                    var sharedUsage = ReadDouble(adapter, "SharedUsage");
+
+                    sample.GpuMemorySeen = true;
+                    ConsiderMemory(sample, "Windows WMI performance / " + name + " / Dedicated Usage", dedicatedUsage, 2);
+                    ConsiderMemory(sample, "Windows WMI performance / " + name + " / Shared Usage", sharedUsage, 1);
+                    ConsiderSharedMemory(sample, "Windows WMI performance / " + name + " / Shared Usage", sharedUsage);
+                }
+                finally
+                {
+                    ReleaseComObjectQuietly(adapter);
+                }
+            }
+        }
+        finally
+        {
+            ReleaseComObjectQuietly(objectSet);
         }
     }
 
@@ -563,7 +669,37 @@ internal static class WindowsPerfRefresherHelper
         return (sample.GpuLoadSeen || sample.GpuMemorySeen) ? 0 : 1;
     }
 
-    private static int RunStream(int intervalMs)
+    private static bool ShouldRecycleContext(RefresherContext context)
+    {
+        if (context == null)
+            return false;
+
+        if (context.CaptureCount >= ContextRecycleSamples)
+            return true;
+
+        try
+        {
+            using (var process = Process.GetCurrentProcess())
+                return process.PrivateMemorySize64 >= ContextRecyclePrivateBytes;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void DisposeContext(ref RefresherContext context)
+    {
+        if (context != null)
+        {
+            context.Dispose();
+            context = null;
+        }
+
+        CollectGarbageAfterComRelease();
+    }
+
+    private static int RunStream(int intervalMs, int parentPid)
     {
         RefresherContext context = null;
 
@@ -571,11 +707,19 @@ internal static class WindowsPerfRefresherHelper
         {
             try
             {
+                if (!ParentStillRunning(parentPid))
+                    return 0;
+
                 if (context == null)
                     context = CreateContext();
 
                 if (context != null)
+                {
                     EmitBlock(CaptureSample(context));
+                    context.CaptureCount++;
+                    if (ShouldRecycleContext(context))
+                        DisposeContext(ref context);
+                }
 
                 Thread.Sleep(intervalMs);
             }
@@ -585,7 +729,7 @@ internal static class WindowsPerfRefresherHelper
             }
             catch
             {
-                context = null;
+                DisposeContext(ref context);
                 Thread.Sleep(Math.Min(intervalMs, 1000));
             }
         }
@@ -595,8 +739,9 @@ internal static class WindowsPerfRefresherHelper
     private static int Main(string[] args)
     {
         var intervalMs = ParseIntervalMs(args);
+        var parentPid = ParseParentPid(args);
         if (HasArg(args, "--stream"))
-            return RunStream(intervalMs);
+            return RunStream(intervalMs, parentPid);
 
         try
         {
