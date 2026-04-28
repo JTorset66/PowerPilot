@@ -182,13 +182,14 @@ if (Test-Path $resolvedLog) {
 }
 
 $runStarted = Get-Date
+$quotedLogPath = '"' + $resolvedLog + '"'
 $arguments = @(
     "/VERYSILENT",
     "/SUPPRESSMSGBOXES",
     "/NORESTART",
     "/CLOSEAPPLICATIONS",
     "/FORCECLOSEAPPLICATIONS",
-    "/LOG=$resolvedLog"
+    "/LOG=$quotedLogPath"
 )
 
 $startParams = @{

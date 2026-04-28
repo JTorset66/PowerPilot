@@ -1,6 +1,6 @@
 ﻿# Latest Build
 
-Generated: 2026-04-28 17:47:35 +02:00
+Generated: 2026-04-29 00:20:35 +02:00
 
 ## Result
 
@@ -10,18 +10,18 @@ Generated: 2026-04-28 17:47:35 +02:00
 ## Artifacts
 
 - build\PowerPilot_V1.0.exe
-  - Size: 776,192 bytes
-  - Last write time: 2026-04-28 17:47:29
-  - SHA-256: AE8D4D878E44932F12996E83D2A8370F7E62020082A6779F38E02DFA933B8CDF
+  - Size: 756,224 bytes
+  - Last write time: 2026-04-29 00:20:27
+  - SHA-256: C586D57A190AF359A17142ED8DC2D891EC4DB28F6DDF21CBC6D064ACFB1BFAD3
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,419,590 bytes
-  - Last write time: 2026-04-28 17:47:35
-  - SHA-256: A34546179750CD538F31423C405A9A6735BB23EB21D87E082FE3B865EAA039DB
+  - Size: 2,396,131 bytes
+  - Last write time: 2026-04-29 00:20:35
+  - SHA-256: 0A67E1A4C3FFC409CD26B87D9CE2D69A07FB5A07F7C06C95EDE5C8C374C08DBA
 
 ## Snapshot
 
-- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-28_17-47-15.zip
-- Created: 2026-04-28 17:47:15
+- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-29_00-20-09.zip
+- Created: 2026-04-29 00:20:09
 - Source files captured: 728
 
 ## Retention defaults
@@ -36,6 +36,7 @@ Generated: 2026-04-28 17:47:35 +02:00
 
 ## Feature reminders
 
-- Control includes a saved Cool avg (sec) setting for Auto Cool averaging.
+- Auto Cool uses CPU package power while a Cool plan is active, and temperature only when entering Cool plans from Full Power.
+- Windows battery Power mode should be Balanced or Best performance so Best power efficiency does not cap the available Auto Cool range.
 - Manual Override includes Reset Display for graphics-path recovery.
-- Auto Cool now uses sustained GPU load as its trigger before applying the Cool tiers.
+- Graphics power and graphics workload readings are not used for Auto Cool decisions.

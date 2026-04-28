@@ -23,6 +23,7 @@ OutputBaseFilename=PowerPilot_V1.0_Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=powerpilot.ico
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -33,6 +34,12 @@ CloseApplicationsFilter={#AppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Messages]
+WelcomeLabel1=Welcome to PowerPilot
+WelcomeLabel2=PowerPilot installs a tray utility for local Windows power-plan control, CPU package power telemetry, and temperature-aware cooling.%n%nSetup will refresh the PowerPilot plans, install the Windows telemetry helpers, and start PowerPilot in the tray when it finishes.
+FinishedHeadingLabel=PowerPilot is ready
+FinishedLabelNoIcons=Setup has installed PowerPilot and queued the tray app to start. Open PowerPilot from the desktop shortcut or the tray icon to review Auto Cool, Thermal Steps, and Plan Manager settings.
 
 [Files]
 Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -68,6 +75,9 @@ const
   UninstallRegSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{88D96927-5B26-4DF8-8EE0-3BF9A49E56E3}_is1';
   LegacyBrokenRegSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{88D96927-5B26-4DF8-8EE0-3BF9A49E56E3}_is1';
 
+var
+  OverviewPage: TWizardPage;
+
 function GetCurrentProcessId(): Cardinal;
   external 'GetCurrentProcessId@kernel32.dll stdcall';
 
@@ -79,6 +89,40 @@ end;
 function MaintenanceMode: Boolean;
 begin
   Result := ExpandConstant('{param:maintenance|0}') = '1';
+end;
+
+procedure AddOverviewText(const Caption: string; Top, Height, FontSize: Integer; Bold: Boolean);
+var
+  Text: TNewStaticText;
+begin
+  Text := TNewStaticText.Create(OverviewPage);
+  Text.Parent := OverviewPage.Surface;
+  Text.AutoSize := False;
+  Text.WordWrap := True;
+  Text.Caption := Caption;
+  Text.SetBounds(ScaleX(0), ScaleY(Top), OverviewPage.SurfaceWidth, ScaleY(Height));
+  Text.Font.Size := FontSize;
+  if Bold then
+    Text.Font.Style := [fsBold];
+end;
+
+procedure InitializeWizard;
+begin
+  OverviewPage :=
+    CreateCustomPage(
+      wpWelcome,
+      'What PowerPilot will set up',
+      'A quick summary before Windows power settings are refreshed.'
+    );
+
+  AddOverviewText('PowerPilot runs locally from the tray and manages only this PC.', 0, 28, 10, True);
+  AddOverviewText('Setup installs the app, a desktop shortcut, and small Windows telemetry helpers for temperature and CPU package power readings.', 38, 52, 9, False);
+  AddOverviewText('During install:', 104, 24, 10, True);
+  AddOverviewText('- any running PowerPilot process is closed safely' + #13 +
+                  '- PowerPilot-owned power plans are removed and recreated' + #13 +
+                  '- startup is enabled so the tray controller is available after sign-in', 134, 76, 9, False);
+  AddOverviewText('Auto Cool behavior:', 226, 24, 10, True);
+  AddOverviewText('Full Power enters Cool control by temperature, then CPU package power chooses the cooling level. The Thermal Steps page lets you tune both hot and return temperatures.', 256, 64, 9, False);
 end;
 
 function QueryUninstallValue(const ValueName: string; var Value: string): Boolean;

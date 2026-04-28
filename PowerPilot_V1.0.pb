@@ -152,10 +152,15 @@ Enumeration 200
   #GadgetPowerHysteresisSpin
   #GadgetAutoCoolAverage
   #GadgetThresholdFull24
+  #GadgetReturnFull24
   #GadgetThreshold2421
+  #GadgetReturn2421
   #GadgetThreshold2118
+  #GadgetReturn2118
   #GadgetThreshold1815
+  #GadgetReturn1815
   #GadgetThreshold1512
+  #GadgetReturn1512
   #GadgetPlanList
   #GadgetPlanEditorName
   #GadgetPlanEditorPreset
@@ -237,10 +242,15 @@ Structure AppSettings
   CpuPowerTarget.i
   AutoCoolAverageSeconds.i
   ThresholdFull24.i
+  ReturnFull24.i
   Threshold2421.i
+  Return2421.i
   Threshold2118.i
+  Return2118.i
   Threshold1815.i
+  Return1815.i
   Threshold1512.i
+  Return1512.i
   LastPluggedPlan.s
   CurrentManagedPlan.s
 EndStructure
@@ -1353,7 +1363,7 @@ Procedure.s BuildWindowsInfoText()
   text$ + "PowerPilot reads temperature and CPU package power from Windows." + #LF$
   text$ + "If Windows temperature is missing, PowerPilot can use a basic ACPI fallback temperature sensor." + #LF$ + #LF$
   text$ + "How Auto Cool decides:" + #LF$
-  text$ + "- Full Power uses temperature to enter a Cool plan." + #LF$
+  text$ + "- Full Power uses temperature to enter CPU package power control." + #LF$
   text$ + "- Cool 12W through 24W use CPU package power first." + #LF$
   text$ + "- Temperature can still force a cooler plan as a safety limit." + #LF$ + #LF$
   text$ + "The GPU helper is only for GPU names and VRAM display." + #LF$ + #LF$
@@ -1373,11 +1383,16 @@ Procedure ApplyMainWindowToolTips()
   GadgetToolTip(#GadgetHysteresisSpin, "Temperature drop required before Auto Cool steps back to a faster plan.")
   GadgetToolTip(#GadgetPowerHysteresisSpin, "CPU-power drop required before Auto Cool steps back to a faster Cool plan.")
   GadgetToolTip(#GadgetAutoCoolAverage, "Seconds of readings to average for Auto Cool and the dashboard.")
-  GadgetToolTip(#GadgetThresholdFull24, "Temperature where Full Power can enter Cool 24W.")
+  GadgetToolTip(#GadgetThresholdFull24, "Temperature where Full Power enters CPU-package-power control at Cool 24W or cooler.")
+  GadgetToolTip(#GadgetReturnFull24, "Temperature where Cool 24W can return to Full Power.")
   GadgetToolTip(#GadgetThreshold2421, "Temperature where Cool 24W can step down to Cool 21W.")
+  GadgetToolTip(#GadgetReturn2421, "Temperature where Cool 21W can return to Cool 24W.")
   GadgetToolTip(#GadgetThreshold2118, "Temperature where Cool 21W can step down to Cool 18W.")
+  GadgetToolTip(#GadgetReturn2118, "Temperature where Cool 18W can return to Cool 21W.")
   GadgetToolTip(#GadgetThreshold1815, "Temperature where Cool 18W can step down to Cool 15W.")
+  GadgetToolTip(#GadgetReturn1815, "Temperature where Cool 15W can return to Cool 18W.")
   GadgetToolTip(#GadgetThreshold1512, "Temperature where Cool 15W can step down to Cool 12W.")
+  GadgetToolTip(#GadgetReturn1512, "Temperature where Cool 12W can return to Cool 15W.")
   GadgetToolTip(#GadgetPlanList, "Checked plans stay installed in Windows. Select a row to edit it.")
   GadgetToolTip(#GadgetPlanEditorName, "Name for a custom plan. Built-in plan names cannot be changed.")
   GadgetToolTip(#GadgetPlanEditorSummary, "Short purpose text shown in the Installed Plans table.")
@@ -1421,10 +1436,15 @@ Procedure ApplyDefaultSettings()
   gSettings\CpuPowerTarget   = #DefaultCpuPowerTarget
   gSettings\AutoCoolAverageSeconds = #DefaultAutoCoolAverageSeconds
   gSettings\ThresholdFull24  = 65
+  gSettings\ReturnFull24     = 60
   gSettings\Threshold2421    = 72
+  gSettings\Return2421       = 67
   gSettings\Threshold2118    = 78
+  gSettings\Return2118       = 73
   gSettings\Threshold1815    = 84
+  gSettings\Return1815       = 79
   gSettings\Threshold1512    = 90
+  gSettings\Return1512       = 85
   gSettings\LastPluggedPlan  = #PlanPlugged$
   gSettings\CurrentManagedPlan = #PlanPlugged$
 EndProcedure
@@ -1440,6 +1460,11 @@ Procedure NormalizeSettings()
   gSettings\Threshold2118    = ClampInt(gSettings\Threshold2118, gSettings\Threshold2421 + 1, 110)
   gSettings\Threshold1815    = ClampInt(gSettings\Threshold1815, gSettings\Threshold2118 + 1, 115)
   gSettings\Threshold1512    = ClampInt(gSettings\Threshold1512, gSettings\Threshold1815 + 1, 120)
+  gSettings\ReturnFull24     = ClampInt(gSettings\ReturnFull24, 30, gSettings\ThresholdFull24 - 1)
+  gSettings\Return2421       = ClampInt(gSettings\Return2421, gSettings\ReturnFull24 + 1, gSettings\Threshold2421 - 1)
+  gSettings\Return2118       = ClampInt(gSettings\Return2118, gSettings\Return2421 + 1, gSettings\Threshold2118 - 1)
+  gSettings\Return1815       = ClampInt(gSettings\Return1815, gSettings\Return2118 + 1, gSettings\Threshold1815 - 1)
+  gSettings\Return1512       = ClampInt(gSettings\Return1512, gSettings\Return1815 + 1, gSettings\Threshold1512 - 1)
   gSettings\LastPluggedPlan  = NormalizeRememberedPluggedPlan(gSettings\LastPluggedPlan)
   gSettings\CurrentManagedPlan = NormalizeManagedPlan(gSettings\CurrentManagedPlan)
 EndProcedure
@@ -1464,6 +1489,11 @@ Procedure LoadSettings()
     gSettings\Threshold2118    = ReadPreferenceInteger("Threshold2118", gSettings\Threshold2118)
     gSettings\Threshold1815    = ReadPreferenceInteger("Threshold1815", gSettings\Threshold1815)
     gSettings\Threshold1512    = ReadPreferenceInteger("Threshold1512", gSettings\Threshold1512)
+    gSettings\ReturnFull24     = ReadPreferenceInteger("ReturnFull24", gSettings\ThresholdFull24 - gSettings\Hysteresis)
+    gSettings\Return2421       = ReadPreferenceInteger("Return2421", gSettings\Threshold2421 - gSettings\Hysteresis)
+    gSettings\Return2118       = ReadPreferenceInteger("Return2118", gSettings\Threshold2118 - gSettings\Hysteresis)
+    gSettings\Return1815       = ReadPreferenceInteger("Return1815", gSettings\Threshold1815 - gSettings\Hysteresis)
+    gSettings\Return1512       = ReadPreferenceInteger("Return1512", gSettings\Threshold1512 - gSettings\Hysteresis)
     gSettings\LastPluggedPlan  = ReadPreferenceString("LastPluggedPlan", gSettings\LastPluggedPlan)
     gSettings\CurrentManagedPlan = ReadPreferenceString("CurrentManagedPlan", gSettings\CurrentManagedPlan)
     ClosePreferences()
@@ -1492,6 +1522,11 @@ Procedure SaveSettings()
     WritePreferenceInteger("Threshold2118", gSettings\Threshold2118)
     WritePreferenceInteger("Threshold1815", gSettings\Threshold1815)
     WritePreferenceInteger("Threshold1512", gSettings\Threshold1512)
+    WritePreferenceInteger("ReturnFull24", gSettings\ReturnFull24)
+    WritePreferenceInteger("Return2421", gSettings\Return2421)
+    WritePreferenceInteger("Return2118", gSettings\Return2118)
+    WritePreferenceInteger("Return1815", gSettings\Return1815)
+    WritePreferenceInteger("Return1512", gSettings\Return1512)
     WritePreferenceString("LastPluggedPlan", gSettings\LastPluggedPlan)
     WritePreferenceString("CurrentManagedPlan", gSettings\CurrentManagedPlan)
     ClosePreferences()
@@ -1509,10 +1544,15 @@ Procedure PullSettingsFromGui()
   If IsGadget(#GadgetPowerHysteresisSpin) : gSettings\PowerHysteresis = GetGadgetState(#GadgetPowerHysteresisSpin) : EndIf
   If IsGadget(#GadgetAutoCoolAverage) : gSettings\AutoCoolAverageSeconds = GetGadgetState(#GadgetAutoCoolAverage) : EndIf
   If IsGadget(#GadgetThresholdFull24) : gSettings\ThresholdFull24 = GetGadgetState(#GadgetThresholdFull24) : EndIf
+  If IsGadget(#GadgetReturnFull24) : gSettings\ReturnFull24 = GetGadgetState(#GadgetReturnFull24) : EndIf
   If IsGadget(#GadgetThreshold2421) : gSettings\Threshold2421 = GetGadgetState(#GadgetThreshold2421) : EndIf
+  If IsGadget(#GadgetReturn2421) : gSettings\Return2421 = GetGadgetState(#GadgetReturn2421) : EndIf
   If IsGadget(#GadgetThreshold2118) : gSettings\Threshold2118 = GetGadgetState(#GadgetThreshold2118) : EndIf
+  If IsGadget(#GadgetReturn2118) : gSettings\Return2118 = GetGadgetState(#GadgetReturn2118) : EndIf
   If IsGadget(#GadgetThreshold1815) : gSettings\Threshold1815 = GetGadgetState(#GadgetThreshold1815) : EndIf
+  If IsGadget(#GadgetReturn1815) : gSettings\Return1815 = GetGadgetState(#GadgetReturn1815) : EndIf
   If IsGadget(#GadgetThreshold1512) : gSettings\Threshold1512 = GetGadgetState(#GadgetThreshold1512) : EndIf
+  If IsGadget(#GadgetReturn1512) : gSettings\Return1512 = GetGadgetState(#GadgetReturn1512) : EndIf
   NormalizeSettings()
 EndProcedure
 
@@ -1530,10 +1570,15 @@ Procedure PushSettingsToGui()
   UpdateGadgetStateIfNeeded(#GadgetPowerHysteresisSpin, gSettings\PowerHysteresis)
   UpdateGadgetStateIfNeeded(#GadgetAutoCoolAverage, gSettings\AutoCoolAverageSeconds)
   UpdateGadgetStateIfNeeded(#GadgetThresholdFull24, gSettings\ThresholdFull24)
+  UpdateGadgetStateIfNeeded(#GadgetReturnFull24, gSettings\ReturnFull24)
   UpdateGadgetStateIfNeeded(#GadgetThreshold2421, gSettings\Threshold2421)
+  UpdateGadgetStateIfNeeded(#GadgetReturn2421, gSettings\Return2421)
   UpdateGadgetStateIfNeeded(#GadgetThreshold2118, gSettings\Threshold2118)
+  UpdateGadgetStateIfNeeded(#GadgetReturn2118, gSettings\Return2118)
   UpdateGadgetStateIfNeeded(#GadgetThreshold1815, gSettings\Threshold1815)
+  UpdateGadgetStateIfNeeded(#GadgetReturn1815, gSettings\Return1815)
   UpdateGadgetStateIfNeeded(#GadgetThreshold1512, gSettings\Threshold1512)
+  UpdateGadgetStateIfNeeded(#GadgetReturn1512, gSettings\Return1512)
   UpdateTelemetryControlState()
 EndProcedure
 
@@ -3331,7 +3376,7 @@ Procedure.s BuildDependencyInstructions()
   text$ + #LF$
   text$ + "How Auto Cool Works" + #LF$
   text$ + "PowerPilot reads Windows telemetry first." + #LF$
-  text$ + "Full Power uses Windows temperature to enter Cool 24W." + #LF$
+  text$ + "Full Power uses Windows temperature to enter CPU package power control." + #LF$
   text$ + "Cool 12W through Cool 24W use Windows CPU package power first." + #LF$
   text$ + "Temperature can still force a cooler plan if the system gets hot." + #LF$
   text$ + "GPU names and VRAM are shown for information only." + #LF$
@@ -3397,7 +3442,7 @@ Procedure.s BuildMainStatusText(*reading.TempReading, autoEnabled.i)
     If status\WindowsTelemetryReady
       If autoEnabled
         If *reading\cpuPackageValid
-          ProcedureReturn "Auto Cool is active. Cool plans use CPU package power; Full Power uses temperature."
+          ProcedureReturn "Auto Cool is active. Full Power enters Cool control by temperature; Cool plans use CPU package power."
         EndIf
         ProcedureReturn "Auto Cool is active. CPU power is missing, so temperature is controlling."
       EndIf
@@ -3523,10 +3568,15 @@ Procedure CopySettings(*settings.AppSettings)
   *settings\CpuPowerTarget = gSettings\CpuPowerTarget
   *settings\AutoCoolAverageSeconds = gSettings\AutoCoolAverageSeconds
   *settings\ThresholdFull24 = gSettings\ThresholdFull24
+  *settings\ReturnFull24 = gSettings\ReturnFull24
   *settings\Threshold2421 = gSettings\Threshold2421
+  *settings\Return2421 = gSettings\Return2421
   *settings\Threshold2118 = gSettings\Threshold2118
+  *settings\Return2118 = gSettings\Return2118
   *settings\Threshold1815 = gSettings\Threshold1815
+  *settings\Return1815 = gSettings\Return1815
   *settings\Threshold1512 = gSettings\Threshold1512
+  *settings\Return1512 = gSettings\Return1512
   *settings\LastPluggedPlan = gSettings\LastPluggedPlan
   *settings\CurrentManagedPlan = gSettings\CurrentManagedPlan
   UnlockMutex(gStateMutex)
@@ -3662,8 +3712,6 @@ Procedure.i CleanupSettingsData()
 EndProcedure
 
 Procedure.s DecideTempDrivenPlan(tempC.d, currentPlan$, *settings.AppSettings)
-  Protected h.i = *settings\Hysteresis
-
   Select currentPlan$
     Case ""
       If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanCool12$ : EndIf
@@ -3679,26 +3727,26 @@ Procedure.s DecideTempDrivenPlan(tempC.d, currentPlan$, *settings.AppSettings)
 
     Case #PlanCool24$
       If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanCool21$ : EndIf
-      If tempC <= *settings\ThresholdFull24 - h : ProcedureReturn #PlanFull$ : EndIf
+      If tempC <= *settings\ReturnFull24 : ProcedureReturn #PlanFull$ : EndIf
       ProcedureReturn #PlanCool24$
 
     Case #PlanCool21$
       If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanCool18$ : EndIf
-      If tempC <= *settings\Threshold2421 - h : ProcedureReturn #PlanCool24$ : EndIf
+      If tempC <= *settings\Return2421 : ProcedureReturn #PlanCool24$ : EndIf
       ProcedureReturn #PlanCool21$
 
     Case #PlanCool18$
       If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanCool15$ : EndIf
-      If tempC <= *settings\Threshold2118 - h : ProcedureReturn #PlanCool21$ : EndIf
+      If tempC <= *settings\Return2118 : ProcedureReturn #PlanCool21$ : EndIf
       ProcedureReturn #PlanCool18$
 
     Case #PlanCool15$
       If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanCool12$ : EndIf
-      If tempC <= *settings\Threshold1815 - h : ProcedureReturn #PlanCool18$ : EndIf
+      If tempC <= *settings\Return1815 : ProcedureReturn #PlanCool18$ : EndIf
       ProcedureReturn #PlanCool15$
 
     Case #PlanCool12$
-      If tempC <= *settings\Threshold1512 - h : ProcedureReturn #PlanCool15$ : EndIf
+      If tempC <= *settings\Return1512 : ProcedureReturn #PlanCool15$ : EndIf
       ProcedureReturn #PlanCool12$
   EndSelect
 
@@ -3708,6 +3756,7 @@ EndProcedure
 Procedure.s DecideAutoPlanSnapshot(*reading.TempReading, currentPlan$, *settings.AppSettings)
   Protected currentLevel.i = PlanLevelFromName(currentPlan$)
   Protected desiredLevel.i = currentLevel
+  Protected cpuControlLevel.i = currentLevel
   Protected tempPlan$
   Protected tempLevel.i
   Protected powerError.d
@@ -3719,7 +3768,12 @@ Procedure.s DecideAutoPlanSnapshot(*reading.TempReading, currentPlan$, *settings
     desiredLevel = 5
   EndIf
 
-  If IsAutoCoolPlanName(currentPlan$) And *reading\cpuPackageValid
+  If currentPlan$ = #PlanFull$ And *reading\valid And *reading\celsius >= *settings\ThresholdFull24
+    desiredLevel = PlanLevelFromName(#PlanCool24$)
+    cpuControlLevel = desiredLevel
+  EndIf
+
+  If (IsAutoCoolPlanName(currentPlan$) Or (currentPlan$ = #PlanFull$ And desiredLevel < PlanLevelFromName(#PlanFull$))) And *reading\cpuPackageValid
     thresholdW = *settings\PowerHysteresis
     If thresholdW < 1.0
       thresholdW = 1.0
@@ -3729,9 +3783,9 @@ Procedure.s DecideAutoPlanSnapshot(*reading.TempReading, currentPlan$, *settings
     cpuPowerIntegrator = ClampDouble((cpuPowerIntegrator * 0.55) + powerError, -3.0, 3.0)
 
     If powerError >= 1.0 Or cpuPowerIntegrator >= 1.2
-      desiredLevel = currentLevel - 1
+      desiredLevel = cpuControlLevel - 1
     ElseIf powerError <= -1.0 Or cpuPowerIntegrator <= -1.2
-      desiredLevel = currentLevel + 1
+      desiredLevel = cpuControlLevel + 1
     EndIf
 
     If *reading\valid
@@ -5590,7 +5644,7 @@ Procedure.i CreateMainWindow(showWindow.i)
   AppendRuntimeLog("CreateMainWindow: Automation tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Control")
-  TextGadget(#PB_Any, 18, 12, 780, 36, "Tune how quickly Auto Cool reacts." + #CRLF$ + "Full Power enters Cool by temperature. Cool plans adjust by CPU package power first.")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Tune how quickly Auto Cool reacts." + #CRLF$ + "Full Power enters CPU package power control by temperature.")
   FrameGadget(#PB_Any, 18, 54, 360, 174, "Timing")
   TextGadget(#PB_Any, 34, 86, 170, 20, "Refresh every (sec):")
   SpinGadget(#GadgetPollSpin, 248, 82, 72, 25, 1, 60, #PB_Spin_Numeric)
@@ -5602,7 +5656,7 @@ Procedure.i CreateMainWindow(showWindow.i)
   SpinGadget(#GadgetAutoCoolAverage, 248, 172, 72, 25, 1, 60, #PB_Spin_Numeric)
 
   FrameGadget(#PB_Any, 392, 54, 406, 174, "Decision Rule")
-  TextGadget(#PB_Any, 410, 86, 360, 92, "From Full Power: temperature chooses when to enter Cool 24W." + #CRLF$ + "Inside Cool plans: CPU package power chooses the level." + #CRLF$ + "High temperature can still force a lower-power Cool plan.")
+  TextGadget(#PB_Any, 410, 86, 360, 92, "From Full Power: temperature starts Cool control." + #CRLF$ + "CPU package power can immediately choose a cooler level." + #CRLF$ + "High temperature can still force a lower-power Cool plan.")
 
   FrameGadget(#PB_Any, 18, 252, 780, 128, "Tuning Notes")
   TextGadget(#PB_Any, 34, 280, 740, 72, "Shorter refresh and smaller gaps react faster." + #CRLF$ + "Longer refresh and larger gaps switch plans less often." + #CRLF$ + "Use smoother settings if plan changes feel too busy.")
@@ -5610,23 +5664,30 @@ Procedure.i CreateMainWindow(showWindow.i)
 
   AddGadgetItem(#GadgetMainPanel, -1, "Thermal Steps")
   TextGadget(#PB_Any, 18, 12, 780, 36, "Set the temperature safety limits." + #CRLF$ + "Higher temperature means PowerPilot can move to a lower-power Cool plan.")
-  FrameGadget(#PB_Any, 18, 54, 780, 186, "Temperature Safety Limits")
-  TextGadget(#PB_Any, 34, 86, 190, 20, "Full Power -> 24W (C):")
-  SpinGadget(#GadgetThresholdFull24, 250, 82, 72, 25, 45, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 116, 190, 20, "24W -> 21W (C):")
-  SpinGadget(#GadgetThreshold2421, 250, 112, 72, 25, 46, 105, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 146, 190, 20, "21W -> 18W (C):")
-  SpinGadget(#GadgetThreshold2118, 250, 142, 72, 25, 47, 110, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 176, 190, 20, "18W -> 15W (C):")
-  SpinGadget(#GadgetThreshold1815, 250, 172, 72, 25, 48, 115, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 206, 190, 20, "15W -> 12W (C):")
-  SpinGadget(#GadgetThreshold1512, 250, 202, 72, 25, 49, 120, #PB_Spin_Numeric)
+  FrameGadget(#PB_Any, 18, 54, 780, 216, "Temperature Safety Limits")
+  TextGadget(#PB_Any, 250, 82, 88, 20, "Hot at C")
+  TextGadget(#PB_Any, 360, 82, 96, 20, "Return at C")
+  TextGadget(#PB_Any, 34, 116, 190, 20, "Full Power -> 24W:")
+  SpinGadget(#GadgetThresholdFull24, 250, 112, 72, 25, 45, 100, #PB_Spin_Numeric)
+  SpinGadget(#GadgetReturnFull24, 360, 112, 72, 25, 30, 99, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 146, 190, 20, "24W -> 21W:")
+  SpinGadget(#GadgetThreshold2421, 250, 142, 72, 25, 46, 105, #PB_Spin_Numeric)
+  SpinGadget(#GadgetReturn2421, 360, 142, 72, 25, 31, 104, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 176, 190, 20, "21W -> 18W:")
+  SpinGadget(#GadgetThreshold2118, 250, 172, 72, 25, 47, 110, #PB_Spin_Numeric)
+  SpinGadget(#GadgetReturn2118, 360, 172, 72, 25, 32, 109, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 206, 190, 20, "18W -> 15W:")
+  SpinGadget(#GadgetThreshold1815, 250, 202, 72, 25, 48, 115, #PB_Spin_Numeric)
+  SpinGadget(#GadgetReturn1815, 360, 202, 72, 25, 33, 114, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 236, 190, 20, "15W -> 12W:")
+  SpinGadget(#GadgetThreshold1512, 250, 232, 72, 25, 49, 120, #PB_Spin_Numeric)
+  SpinGadget(#GadgetReturn1512, 360, 232, 72, 25, 34, 119, #PB_Spin_Numeric)
 
-  FrameGadget(#PB_Any, 18, 252, 780, 84, "How This Is Used")
-  TextGadget(#PB_Any, 34, 278, 740, 28, "When temperature crosses a limit, PowerPilot can move down to the next Cool plan." + #CRLF$ + "When temperature drops below the gap, it can move back up.")
+  FrameGadget(#PB_Any, 18, 282, 780, 84, "How This Is Used")
+  TextGadget(#PB_Any, 34, 308, 740, 28, "Hot at C moves to the next lower-power plan." + #CRLF$ + "Return at C moves back to Full Power or the previous Cool plan.")
 
-  FrameGadget(#PB_Any, 18, 348, 780, 88, "Choosing Values")
-  TextGadget(#PB_Any, 34, 374, 740, 34, "Lower numbers cool sooner." + #CRLF$ + "Higher numbers keep more performance, but allow more heat.")
+  FrameGadget(#PB_Any, 18, 378, 780, 88, "Choosing Values")
+  TextGadget(#PB_Any, 34, 404, 740, 34, "Lower hot numbers cool sooner." + #CRLF$ + "Lower return numbers wait for more cooling before stepping back up.")
   AppendRuntimeLog("CreateMainWindow: Thermal Steps tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Plan Manager")
