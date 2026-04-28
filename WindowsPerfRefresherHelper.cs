@@ -22,9 +22,9 @@ internal static class WindowsPerfRefresherHelper
 
         public void Dispose()
         {
-            ReleaseComObjectQuietly(MemoryItem);
-            ReleaseComObjectQuietly(EngineItem);
-            ReleaseComObjectQuietly(Refresher);
+            ReleaseComObjectQuietly((object)MemoryItem);
+            ReleaseComObjectQuietly((object)EngineItem);
+            ReleaseComObjectQuietly((object)Refresher);
             MemoryItem = null;
             EngineItem = null;
             Refresher = null;

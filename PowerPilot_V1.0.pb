@@ -12,6 +12,8 @@
 #CustomPlansFileName$ = "custom_plans.tsv"
 #TrayTooltip$        = #AppFullName$
 
+#UseWindowsGpuPerfTelemetry = #False
+
 #PowerSourceUnknown = 0
 #PowerSourceBattery = 1
 #PowerSourcePlugged = 2
@@ -2933,7 +2935,7 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
     Next
   EndIf
 
-  If *reading\gpuLoadValid = #False And ExpandWindowsCounterPaths("\GPU Engine(*)\Utilization Percentage", counterPaths())
+  If #UseWindowsGpuPerfTelemetry And *reading\gpuLoadValid = #False And ExpandWindowsCounterPaths("\GPU Engine(*)\Utilization Percentage", counterPaths())
     ForEach counterPaths()
       If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
         AddElement(counters())
@@ -2944,7 +2946,7 @@ Procedure.i ReadWindowsTelemetry(*reading.TempReading)
     Next
   EndIf
 
-  If *reading\gpuMemoryValid = #False And ExpandWindowsCounterPaths("\GPU Adapter Memory(*)\Dedicated Usage", counterPaths())
+  If #UseWindowsGpuPerfTelemetry And *reading\gpuMemoryValid = #False And ExpandWindowsCounterPaths("\GPU Adapter Memory(*)\Dedicated Usage", counterPaths())
     ForEach counterPaths()
       If PdhAddEnglishCounterW(queryHandle, counterPaths(), 0, @counterHandle) = 0
         AddElement(counters())
@@ -3325,6 +3327,7 @@ EndProcedure
 
 Procedure.i WindowsPerfHelperIntervalMs()
   Protected pollSeconds.i
+  Protected intervalMs.i
 
   LockMutex(gStateMutex)
   pollSeconds = gSettings\PollSeconds
@@ -3334,10 +3337,19 @@ Procedure.i WindowsPerfHelperIntervalMs()
     pollSeconds = 1
   EndIf
 
-  ProcedureReturn ClampInt(pollSeconds * 1000, 500, 10000)
+  intervalMs = ClampInt(pollSeconds * 1000, 500, 30000)
+  If intervalMs < 15000
+    intervalMs = 15000
+  EndIf
+
+  ProcedureReturn intervalMs
 EndProcedure
 
 Procedure.i ShouldUseWindowsPerfHelper()
+  If #UseWindowsGpuPerfTelemetry = #False
+    ProcedureReturn #False
+  EndIf
+
   Protected powerSource.i
   Protected autoBatteryPlan.i
 
