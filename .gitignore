@@ -1,0 +1,12 @@
+build/
+SNAPSHOTS/
+_compare_old/
+_debug_appdata_current/
+_debug_appdata_current2/
+third_party/ADLX-SDK/
+*.exe
+*.obj
+*.sha256
+*.log
+*.tmp
+*.bak
