@@ -1,7 +1,7 @@
-﻿EnableExplicit
+EnableExplicit
 
 ; PowerPilot v1.0
-; Windows tray utility for custom power plans and CPU-power-first Auto Cool control.
+; Windows tray utility for behavior profiles and target-based automatic cap control.
 
 #AppName$            = "PowerPilot"
 #AppVersion$         = "1.0"
@@ -9,11 +9,14 @@
 #AppRunKey$          = "PowerPilot"
 #SettingsFolderName$ = "PowerPilot"
 #SettingsFileName$   = "settings.ini"
-#CustomPlansFileName$ = "custom_plans.tsv"
 #TrayTooltip$        = #AppFullName$
 
 #SlowGpuPerfHelperIntervalSeconds = 60
-#DefaultCpuPowerTarget = 28
+#AmdAdlxHelperPollSeconds = 5
+#AmdAdlxAvailableProbeSeconds = 60
+#AmdAdlxUnavailableProbeSeconds = 30
+#AmdAdlxControlMinimumIntervalMs = 15000
+#AmdAdlxRecoveryIntervalMs = 45000
 
 #PowerSourceUnknown = 0
 #PowerSourceBattery = 1
@@ -22,23 +25,10 @@
 #PlanPrefixNew$   = "PowerPilot "
 #PlanPrefixOld$   = "Codex "
 #PlanVisible$     = "PowerPilot"
-#PlanBattery$     = "PowerPilot Battery Saver"
-#PlanPlugged$     = "PowerPilot Plugged In"
-#PlanCool12$      = "PowerPilot Cool 12W"
-#PlanCool15$      = "PowerPilot Cool 15W"
-#PlanCool18$      = "PowerPilot Cool 18W"
-#PlanCool21$      = "PowerPilot Cool 21W"
-#PlanCool24$      = "PowerPilot Cool 24W"
-#PlanFull$        = "PowerPilot Full Power"
-
-#LegacyPlanBattery$ = "Codex Battery Saver"
-#LegacyPlanPlugged$ = "Codex Plugged In"
-#LegacyPlanCool12$  = "Codex GameCool 12W"
-#LegacyPlanCool15$  = "Codex GameCool 15W"
-#LegacyPlanCool18$  = "Codex GameCool 18W"
-#LegacyPlanCool21$  = "Codex GameCool 21W"
-#LegacyPlanCool24$  = "Codex GameCool 24W"
-#LegacyPlanFull$    = "Codex Full Power"
+#PlanBattery$     = "PowerPilot Battery"
+#PlanPlugged$     = "PowerPilot Balanced"
+#PlanQuiet$       = "PowerPilot Quiet"
+#PlanFull$        = "PowerPilot Maximum"
 
 #FILE_MAP_READ    = $0004
 #HKEY_LOCAL_MACHINE = $80000002
@@ -85,7 +75,11 @@
 #TimerUiRefresh   = 1
 #UiRefreshMs      = 500
 #UiLogLineCount   = 8
-#DefaultAutoCoolAverageSeconds = 10 ; Auto Cool control and the main telemetry display use this average window by default.
+#DefaultAutoControlAverageSeconds = 6 ; Dashboard smoothing. Auto Control uses a shorter bounded response window.
+#AutoControlResponseAverageMaxMs = 2000
+#AutoControlApplyIntervalMs = 1500
+#MinimumDynamicCpuCapPercent = 5
+#MinimumDynamicCpuMHz = 400
 #TelemetryHistorySize = 24
 #TelemetryLatchGracePolls = 3
 #TelemetryLatchMinimumMs = 15000
@@ -121,14 +115,14 @@ Enumeration 200
   #GadgetOverviewCpuPowerValue
   #GadgetOverviewPowerValue
   #GadgetOverviewPlanValue
-  #GadgetOverviewGameStateValue
+  #GadgetOverviewControlStateValue
   #GadgetSourceValue
   #GadgetSensorValue
   #GadgetTempValue
   #GadgetCpuPowerValue
   #GadgetGpuMemoryValue
   #GadgetPowerValue
-  #GadgetGameStateValue
+  #GadgetControlStateValue
   #GadgetPlanValue
   #GadgetLiveBlendSourceMix
   #GadgetLiveBlendTempSensor
@@ -137,30 +131,29 @@ Enumeration 200
   #GadgetLiveBlendGpuMemory
   #GadgetLiveBlendPowerSource
   #GadgetLiveBlendActivePlan
-  #GadgetLiveBlendGameState
+  #GadgetLiveBlendControlState
   #GadgetLiveFallbackStatus
   #GadgetActionValue
   #GadgetOverviewHardwareDetails
   #GadgetAutoEnabled
   #GadgetUseWindows
+  #GadgetAmdAdlxEnabled
   #GadgetWindowsInfo
   #GadgetAutoStart
   #GadgetKeepSettings
   #GadgetAutoBatteryPlan
   #GadgetPollSpin
   #GadgetHysteresisSpin
-  #GadgetPowerHysteresisSpin
-  #GadgetAutoCoolAverage
-  #GadgetThresholdFull24
-  #GadgetReturnFull24
-  #GadgetThreshold2421
-  #GadgetReturn2421
-  #GadgetThreshold2118
-  #GadgetReturn2118
-  #GadgetThreshold1815
-  #GadgetReturn1815
-  #GadgetThreshold1512
-  #GadgetReturn1512
+  #GadgetControlDeadbandSpin
+  #GadgetAutoControlAverage
+  #GadgetPowerTargetEnabled
+  #GadgetPowerTargetWatts
+  #GadgetTempTargetEnabled
+  #GadgetTempTargetC
+  #GadgetMinCpuCap
+  #GadgetMinCpuMHz
+  #GadgetMaxCpuMHz
+  #GadgetControllerStatus
   #GadgetPlanList
   #GadgetPlanEditorName
   #GadgetPlanEditorPreset
@@ -181,6 +174,11 @@ Enumeration 200
   #GadgetPlanDcCooling
   #GadgetPlanRefreshAll
   #GadgetPlanRemoveAll
+  #GadgetAmdAdlxStatus
+  #GadgetAmdAdlxGpuName
+  #GadgetAmdAdlxFeatures
+  #GadgetAmdAdlxMetrics
+  #GadgetAmdAdlxRestore
   #GadgetPlanCombo
   #GadgetActivatePlan
   #GadgetAutoOnce
@@ -236,23 +234,52 @@ Structure AppSettings
   AutoStartWithApp.i
   KeepSettingsOnReinstall.i
   AutoBatteryPlan.i
+  AmdAdlxEnabled.i
+  PowerTargetEnabled.i
+  TemperatureTargetEnabled.i
+  PowerTargetWatts.i
+  TemperatureTargetC.i
+  ControlDeadband.i
+  MinCpuCapPercent.i
+  MinCpuMHz.i
+  MaxCpuMHz.i
   PollSeconds.i
   Hysteresis.i
-  PowerHysteresis.i
-  CpuPowerTarget.i
-  AutoCoolAverageSeconds.i
-  ThresholdFull24.i
-  ReturnFull24.i
-  Threshold2421.i
-  Return2421.i
-  Threshold2118.i
-  Return2118.i
-  Threshold1815.i
-  Return1815.i
-  Threshold1512.i
-  Return1512.i
+  AutoControlAverageSeconds.i
   LastPluggedPlan.s
   CurrentManagedPlan.s
+EndStructure
+
+Structure AmdAdlxState
+  Probed.i
+  Available.i
+  SdkCompiled.i
+  AmdGpuPresent.i
+  Enabled.i
+  GpuName.s
+  StatusText.s
+  FeatureText.s
+  MetricsText.s
+  MetricsValid.i
+  UsageValid.i
+  UsagePercent.d
+  ClockValid.i
+  ClockMhz.i
+  PowerValid.i
+  PowerWatts.d
+  TemperatureValid.i
+  TemperatureC.d
+  GfxMaxSupported.i
+  PowerLimitSupported.i
+  TdcLimitSupported.i
+  LastProbeTick.q
+  LastMetricsTick.q
+  LastControlTick.q
+  LastRecoverTick.q
+  LastDiscreteGpuConnected.i
+  LastGpuHardwareText.s
+  ControlIntegral.d
+  HasChangedSettings.i
 EndStructure
 
 Structure RuntimeState
@@ -267,6 +294,15 @@ Structure RuntimeState
   StopWorker.i
   WorkerRunning.i
   ImmediateRefresh.i
+EndStructure
+
+Structure DynamicControlState
+  Active.i
+  CpuCapPercent.i
+  CpuCapMhz.i
+  Integral.d
+  LastApplyTick.q
+  StatusText.s
 EndStructure
 
 Structure DependencyStatus
@@ -324,6 +360,8 @@ Prototype.i PdhCloseQueryProto(hQuery.i)
 
 Global gSettings.AppSettings
 Global gState.RuntimeState
+Global gAmdAdlx.AmdAdlxState
+Global gDynamicControl.DynamicControlState
 Global gWorkerThread.i
 Global gStateMutex.i
 Global gTrayStart.i
@@ -347,7 +385,6 @@ Global gManagedPlansExistCacheValid.i
 Global gManagedPlansExistCacheValue.i
 Global gManualOverrideUntil.i
 Global gSelectedPlanName$
-Global gEditingNewPlan.i
 Global gCachedCpuName$
 Global gInstalledMemoryBytes.q
 Global NewList gPlanDefs.PlanDefinition()
@@ -410,6 +447,7 @@ Declare.s ExtractHardwareNameFromSensor(sensorText$)
 Declare.s BuildTelemetrySourceDisplay(*reading.TempReading)
 Declare.s CurrentGpuHardwareDisplay(*reading.TempReading)
 Declare.s BuildGpuDeviceSummary(*reading.TempReading, *windows.TempReading)
+Declare.i ActiveDiscreteGpuConnected(*reading.TempReading)
 Declare.s CachedCpuName()
 Declare.s FormatGpuTelemetryValue(valid.i, valueText$, sensorText$, deviceList$)
 Declare.i IsStartupGpuHelperSnapshotSensor(sensorText$)
@@ -419,13 +457,18 @@ Declare.i HasUsableTelemetry(*reading.TempReading)
 Declare.i HasVisibleTelemetry(*reading.TempReading)
 Declare.i CaptureTelemetrySnapshot(*reading.TempReading, *windows.TempReading, *fallback.TempReading)
 Declare.s FindBundledWindowsPerfHelper()
+Declare.s FindBundledAmdAdlxHelper()
 Declare.i ReadWindowsPerfStreamTelemetry(*reading.TempReading)
+Declare ProbeAmdAdlx(announce.i = #False)
+Declare MaintainAmdAdlxAutoProbe(*reading.TempReading, force.i = #False)
+Declare ReadAmdAdlxMetrics(force.i = #False)
+Declare ApplyAmdAdlxControl(*reading.TempReading, targetW.i, *settings.AppSettings)
+Declare RestoreAmdAdlxSettings(announce.i = #True)
 Declare.i ShouldUseWindowsPerfHelper()
-Declare.i IsAutoCoolPlanName(planName$)
 Declare.s ResolveIdleRememberedPluggedPlan(*settings.AppSettings)
 Declare StopWindowsPerfHelper()
 Declare ResetTelemetrySmoothing()
-Declare ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
+Declare ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i, recordSample.i = #True)
 Procedure.s AppDataRoot()
   Protected path$ = GetEnvironmentVariable("APPDATA")
   If path$ = ""
@@ -440,10 +483,6 @@ EndProcedure
 
 Procedure.s SettingsPath()
   ProcedureReturn SettingsDirectory() + "\" + #SettingsFileName$
-EndProcedure
-
-Procedure.s CustomPlansPath()
-  ProcedureReturn SettingsDirectory() + "\" + #CustomPlansFileName$
 EndProcedure
 
 Procedure.s CleanPlanText(text$)
@@ -471,7 +510,7 @@ Procedure ResetTelemetrySmoothing()
   gGpuMemoryLastSensor$ = ""
 EndProcedure
 
-Procedure ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
+Procedure ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i, recordSample.i = #True)
   Protected nowTick.q = ElapsedMilliseconds()
   Protected averageTotal.d
   Protected averageCount.i
@@ -483,24 +522,24 @@ Procedure ApplyTelemetryAveraging(*reading.TempReading, averageWindowMs.i)
     averageWindowMs = 60000
   EndIf
 
-  If *reading\valid
+  If recordSample And *reading\valid
     gTempSampleTick(gTempSampleIndex) = nowTick
     gTempSampleValue(gTempSampleIndex) = *reading\celsius
     gTempLastSensor$ = *reading\sensor
     gTempSampleIndex = (gTempSampleIndex + 1) % #TelemetryHistorySize
   EndIf
-  If *reading\valid
+  If recordSample And *reading\valid
     gTempLastSource$ = *reading\source
   EndIf
 
-  If *reading\cpuPackageValid
+  If recordSample And *reading\cpuPackageValid
     gCpuPowerSampleTick(gCpuPowerSampleIndex) = nowTick
     gCpuPowerSampleValue(gCpuPowerSampleIndex) = *reading\cpuPackageWatts
     gCpuPowerLastSensor$ = *reading\cpuPackageSensor
     gCpuPowerSampleIndex = (gCpuPowerSampleIndex + 1) % #TelemetryHistorySize
   EndIf
 
-  If *reading\gpuMemoryValid And IsStartupGpuHelperSnapshotSensor(*reading\gpuMemorySensor) = #False
+  If recordSample And *reading\gpuMemoryValid And IsStartupGpuHelperSnapshotSensor(*reading\gpuMemorySensor) = #False
     gGpuMemorySampleTick(gGpuMemorySampleIndex) = nowTick
     gGpuMemorySampleValue(gGpuMemorySampleIndex) = *reading\gpuMemoryMb
     gGpuMemoryLastSensor$ = *reading\gpuMemorySensor
@@ -587,14 +626,10 @@ EndProcedure
 
 Procedure ResetBuiltInPlanDefinitions()
   ClearList(gPlanDefs())
-  AddPlanDefinition(#PlanBattery$, #True, #True, "Battery plan: lowest drain on battery. Boost is off and CPU demand is capped.", 65, 0, 90, 2800, 0, 95, 0, 65, 1800, 0)
-  AddPlanDefinition(#PlanPlugged$, #True, #True, "Plugged-in daily plan: balanced speed, heat, and fan noise.", 15, 1, 100, 0, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanCool12$, #True, #True, "Cool 12W: strongest CPU limit for high power draw or high temperature.", 85, 0, 45, 1800, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanCool15$, #True, #True, "Cool 15W: strong cooling with a little more speed than 12W.", 75, 0, 55, 2200, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanCool18$, #True, #True, "Cool 18W: middle cooling level for normal Auto Cool use.", 65, 0, 65, 2600, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanCool21$, #True, #True, "Cool 21W: light cooling when only a small reduction is needed.", 55, 0, 75, 3000, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanCool24$, #True, #True, "Cool 24W: mild cooling, closest to Full Power.", 45, 0, 85, 3400, 1, 80, 0, 85, 2500, 0)
-  AddPlanDefinition(#PlanFull$, #True, #True, "Full Power: maximum plugged-in performance and boost.", 5, 2, 100, 0, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanFull$, #True, #True, "Maximum profile: full plugged-in performance behavior.", 5, 2, 100, 0, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanPlugged$, #True, #True, "Balanced profile: old 24W behavior, calmer plugged-in response.", 60, 0, 70, 2800, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanQuiet$, #True, #True, "Quiet profile: old 15W behavior, reduced boost and fan pressure.", 90, 0, 35, 1600, 1, 80, 0, 85, 2500, 0)
+  AddPlanDefinition(#PlanBattery$, #True, #True, "Battery profile: lowest drain on battery. Boost is off and CPU demand is capped.", 65, 0, 90, 2800, 0, 95, 0, 65, 1800, 0)
 EndProcedure
 
 Procedure.i FindPlanDefinition(planName$)
@@ -607,93 +642,8 @@ Procedure.i FindPlanDefinition(planName$)
   ProcedureReturn #False
 EndProcedure
 
-Procedure.s SanitizeCustomPlanName(planName$)
-  planName$ = CleanPlanText(planName$)
-  If planName$ = ""
-    ProcedureReturn ""
-  EndIf
-  If planName$ = #PlanVisible$
-    ProcedureReturn ""
-  EndIf
-  If Left(planName$, Len(#PlanPrefixNew$)) <> #PlanPrefixNew$
-    planName$ = #PlanPrefixNew$ + planName$
-  EndIf
-  ProcedureReturn planName$
-EndProcedure
-
-Procedure SaveCustomPlanDefinitions()
-  Protected file.i
-  Protected line$
-
-  EnsureSettingsDirectory()
-  file = CreateFile(#PB_Any, CustomPlansPath())
-  If file = 0
-    ProcedureReturn
-  EndIf
-
-  ForEach gPlanDefs()
-    If gPlanDefs()\BuiltIn = #False
-      line$ = CleanPlanText(gPlanDefs()\Name) + #TAB$ +
-              CleanPlanText(gPlanDefs()\Description) + #TAB$ +
-              Str(gPlanDefs()\AcEpp) + #TAB$ +
-              Str(gPlanDefs()\AcBoostMode) + #TAB$ +
-              Str(gPlanDefs()\AcMaxState) + #TAB$ +
-              Str(gPlanDefs()\AcFreqMHz) + #TAB$ +
-              Str(gPlanDefs()\AcCooling) + #TAB$ +
-              Str(gPlanDefs()\DcEpp) + #TAB$ +
-              Str(gPlanDefs()\DcBoostMode) + #TAB$ +
-              Str(gPlanDefs()\DcMaxState) + #TAB$ +
-              Str(gPlanDefs()\DcFreqMHz) + #TAB$ +
-              Str(gPlanDefs()\DcCooling)
-      WriteStringN(file, line$)
-    EndIf
-  Next
-
-  CloseFile(file)
-EndProcedure
-
-Procedure LoadCustomPlanDefinitions()
-  Protected file.i
-  Protected line$
-  Protected planName$
-  Protected description$
-
-  If FileSize(CustomPlansPath()) <= 0
-    ProcedureReturn
-  EndIf
-
-  file = ReadFile(#PB_Any, CustomPlansPath())
-  If file = 0
-    ProcedureReturn
-  EndIf
-
-  While Eof(file) = 0
-    line$ = ReadString(file)
-    If CountString(line$, #TAB$) >= 11
-      planName$ = SanitizeCustomPlanName(StringField(line$, 1, #TAB$))
-      description$ = CleanPlanText(StringField(line$, 2, #TAB$))
-      If planName$ <> "" And FindPlanDefinition(planName$) = #False
-        AddPlanDefinition(planName$, #False, #False, description$,
-                          Val(StringField(line$, 3, #TAB$)),
-                          Val(StringField(line$, 4, #TAB$)),
-                          Val(StringField(line$, 5, #TAB$)),
-                          Val(StringField(line$, 6, #TAB$)),
-                          Val(StringField(line$, 7, #TAB$)),
-                          Val(StringField(line$, 8, #TAB$)),
-                          Val(StringField(line$, 9, #TAB$)),
-                          Val(StringField(line$, 10, #TAB$)),
-                          Val(StringField(line$, 11, #TAB$)),
-                          Val(StringField(line$, 12, #TAB$)))
-      EndIf
-    EndIf
-  Wend
-
-  CloseFile(file)
-EndProcedure
-
 Procedure InitializePlanDefinitions()
   ResetBuiltInPlanDefinitions()
-  LoadCustomPlanDefinitions()
 EndProcedure
 
 Procedure.s InstalledIconPath()
@@ -1201,19 +1151,13 @@ Procedure.i IsRememberedPluggedPlanName(planName$)
   Protected builtInAllowed.i
 
   Select planName$
-    Case #PlanPlugged$, #PlanCool12$, #PlanCool15$, #PlanCool18$, #PlanCool21$, #PlanCool24$, #PlanFull$
+    Case #PlanPlugged$, #PlanQuiet$, #PlanFull$
       builtInAllowed = #True
   EndSelect
 
   If builtInAllowed
     ProcedureReturn #True
   EndIf
-
-  ForEach gPlanDefs()
-    If gPlanDefs()\Name = planName$ And gPlanDefs()\BuiltIn = #False And PlanDefinitionInstalled(planName$)
-      ProcedureReturn #True
-    EndIf
-  Next
 
   ProcedureReturn #False
 EndProcedure
@@ -1238,23 +1182,8 @@ Procedure.s NormalizeRememberedPluggedPlan(planName$)
   ProcedureReturn #PlanPlugged$
 EndProcedure
 
-Procedure.i IsAutoCoolPlanName(planName$)
-  Select planName$
-    Case #PlanCool12$, #PlanCool15$, #PlanCool18$, #PlanCool21$, #PlanCool24$
-      ProcedureReturn #True
-  EndSelect
-
-  ProcedureReturn #False
-EndProcedure
-
 Procedure.s ResolveIdleRememberedPluggedPlan(*settings.AppSettings)
-  Protected plan$ = NormalizeRememberedPluggedPlan(*settings\LastPluggedPlan)
-
-  If *settings\AutoEnabled And IsAutoCoolPlanName(plan$)
-    ProcedureReturn #PlanFull$
-  EndIf
-
-  ProcedureReturn plan$
+  ProcedureReturn NormalizeRememberedPluggedPlan(*settings\LastPluggedPlan)
 EndProcedure
 
 Procedure.s NormalizeManagedPlan(planName$)
@@ -1263,33 +1192,6 @@ Procedure.s NormalizeManagedPlan(planName$)
   EndIf
 
   ProcedureReturn #PlanPlugged$
-EndProcedure
-
-Procedure.i PlanLevelFromName(planName$)
-  Select planName$
-    Case #PlanCool12$ : ProcedureReturn 0
-    Case #PlanCool15$ : ProcedureReturn 1
-    Case #PlanCool18$ : ProcedureReturn 2
-    Case #PlanCool21$ : ProcedureReturn 3
-    Case #PlanCool24$ : ProcedureReturn 4
-    Case #PlanFull$   : ProcedureReturn 5
-    Case #PlanPlugged$
-      ProcedureReturn 5
-  EndSelect
-
-  ProcedureReturn 5
-EndProcedure
-
-Procedure.s PlanNameFromLevel(level.i)
-  Select ClampInt(level, 0, 5)
-    Case 0 : ProcedureReturn #PlanCool12$
-    Case 1 : ProcedureReturn #PlanCool15$
-    Case 2 : ProcedureReturn #PlanCool18$
-    Case 3 : ProcedureReturn #PlanCool21$
-    Case 4 : ProcedureReturn #PlanCool24$
-  EndSelect
-
-  ProcedureReturn #PlanFull$
 EndProcedure
 
 Procedure.i HasPowerTelemetry(*reading.TempReading)
@@ -1325,35 +1227,32 @@ Procedure.i NeedsMoreTelemetry(*reading.TempReading)
 EndProcedure
 
 Procedure.i HasControlTelemetry(*reading.TempReading, *settings.AppSettings)
-  If *reading\valid
+  If *settings\TemperatureTargetEnabled And *reading\valid
     ProcedureReturn #True
   EndIf
 
-  If HasPowerTelemetry(*reading)
+  If *settings\PowerTargetEnabled And HasPowerTelemetry(*reading)
     ProcedureReturn #True
   EndIf
 
   ProcedureReturn #False
 EndProcedure
 
-Procedure.s BuildGameStateText(*reading.TempReading, *settings.AppSettings)
+Procedure.s BuildControlStateText(*reading.TempReading, *settings.AppSettings)
   If *settings\AutoBatteryPlan
     If gState\PowerSource = #PowerSourceBattery
-      ProcedureReturn "On battery: keeping Battery Saver active."
+      ProcedureReturn "On battery: keeping Battery profile active."
     EndIf
   EndIf
 
   If *settings\AutoEnabled
-    If *reading\cpuPackageValid
-      ProcedureReturn "Auto Cool is using CPU package power on Cool plans."
+    If *settings\PowerTargetEnabled Or *settings\TemperatureTargetEnabled
+      ProcedureReturn "Auto Control uses enabled targets; profiles only set Windows behavior."
     EndIf
-    If *reading\valid
-      ProcedureReturn "Auto Cool is using temperature until CPU power is available."
-    EndIf
-    ProcedureReturn "Auto Cool is waiting for CPU power or temperature."
+    ProcedureReturn "Auto Control is on, but no target is enabled."
   EndIf
 
-  ProcedureReturn "Auto Cool is off."
+  ProcedureReturn "Auto Control is off."
 EndProcedure
 
 Procedure.s BuildWindowsInfoText()
@@ -1362,39 +1261,37 @@ Procedure.s BuildWindowsInfoText()
   text$ + "Windows telemetry is the normal data source." + #LF$ + #LF$
   text$ + "PowerPilot reads temperature and CPU package power from Windows." + #LF$
   text$ + "If Windows temperature is missing, PowerPilot can use a basic ACPI fallback temperature sensor." + #LF$ + #LF$
-  text$ + "How Auto Cool decides:" + #LF$
-  text$ + "- Full Power uses temperature to enter CPU package power control." + #LF$
-  text$ + "- Cool 12W through 24W use CPU package power first." + #LF$
-  text$ + "- Temperature can still force a cooler plan as a safety limit." + #LF$ + #LF$
-  text$ + "The GPU helper is only for GPU names and VRAM display." + #LF$ + #LF$
-  text$ + "Battery note: set Windows Power mode to Balanced or Best performance. Best power efficiency can cap the system before PowerPilot gets the full Auto Cool range."
+  text$ + "How Auto Control decides:" + #LF$
+  text$ + "- Profiles set Windows behavior only: Maximum, Balanced, Quiet, and Battery." + #LF$
+  text$ + "- Auto Control applies temporary CPU caps from enabled power or temperature targets." + #LF$
+  text$ + "- Selecting a profile does not change target settings." + #LF$ + #LF$
+  text$ + "AMD ADLX GPU-side control is optional and used only when enabled and supported." + #LF$ + #LF$
+  text$ + "Battery note: set Windows Power mode to Balanced or Best performance. Best power efficiency can cap the system before PowerPilot gets the full Auto Control range."
 
   ProcedureReturn text$
 EndProcedure
 
 Procedure ApplyMainWindowToolTips()
-  GadgetToolTip(#GadgetAutoEnabled, "Turn Auto Cool on or off. Auto Cool changes PowerPilot plans from live readings.")
+  GadgetToolTip(#GadgetAutoEnabled, "Turn target-based Auto Control on or off.")
   GadgetToolTip(#GadgetUseWindows, "Use Windows temperature, CPU package power, GPU names, and VRAM readings.")
-  GadgetToolTip(#GadgetWindowsInfo, "Show where readings come from and how Auto Cool uses them.")
+  GadgetToolTip(#GadgetAmdAdlxEnabled, "Allow optional AMD ADLX GPU-side controls when package power looks GPU-driven.")
+  GadgetToolTip(#GadgetWindowsInfo, "Show where readings come from and how Auto Control uses them.")
   GadgetToolTip(#GadgetAutoStart, "Start PowerPilot with Windows and keep it hidden in the tray.")
   GadgetToolTip(#GadgetKeepSettings, "Keep your saved settings when installing a newer version.")
-  GadgetToolTip(#GadgetAutoBatteryPlan, "On battery, keep Battery Saver active. Plugged in, let Auto Cool choose plans.")
+  GadgetToolTip(#GadgetAutoBatteryPlan, "On battery, keep the Battery profile active. Plugged in, restore the selected behavior profile.")
   GadgetToolTip(#GadgetPollSpin, "How often PowerPilot refreshes temperature and CPU-power readings.")
-  GadgetToolTip(#GadgetHysteresisSpin, "Temperature drop required before Auto Cool steps back to a faster plan.")
-  GadgetToolTip(#GadgetPowerHysteresisSpin, "CPU-power drop required before Auto Cool steps back to a faster Cool plan.")
-  GadgetToolTip(#GadgetAutoCoolAverage, "Seconds of readings to average for Auto Cool and the dashboard.")
-  GadgetToolTip(#GadgetThresholdFull24, "Temperature where Full Power enters CPU-package-power control at Cool 24W or cooler.")
-  GadgetToolTip(#GadgetReturnFull24, "Temperature where Cool 24W can return to Full Power.")
-  GadgetToolTip(#GadgetThreshold2421, "Temperature where Cool 24W can step down to Cool 21W.")
-  GadgetToolTip(#GadgetReturn2421, "Temperature where Cool 21W can return to Cool 24W.")
-  GadgetToolTip(#GadgetThreshold2118, "Temperature where Cool 21W can step down to Cool 18W.")
-  GadgetToolTip(#GadgetReturn2118, "Temperature where Cool 18W can return to Cool 21W.")
-  GadgetToolTip(#GadgetThreshold1815, "Temperature where Cool 18W can step down to Cool 15W.")
-  GadgetToolTip(#GadgetReturn1815, "Temperature where Cool 15W can return to Cool 18W.")
-  GadgetToolTip(#GadgetThreshold1512, "Temperature where Cool 15W can step down to Cool 12W.")
-  GadgetToolTip(#GadgetReturn1512, "Temperature where Cool 12W can return to Cool 15W.")
+  GadgetToolTip(#GadgetHysteresisSpin, "Reserved temperature tolerance used by status messages.")
+  GadgetToolTip(#GadgetControlDeadbandSpin, "Package-power deadband before the PI controller changes caps.")
+  GadgetToolTip(#GadgetAutoControlAverage, "Seconds of readings to smooth the dashboard. Auto Control uses a short bounded response window.")
+  GadgetToolTip(#GadgetPowerTargetEnabled, "Enable package-power target control.")
+  GadgetToolTip(#GadgetPowerTargetWatts, "Package-power target in watts.")
+  GadgetToolTip(#GadgetTempTargetEnabled, "Enable single temperature target control.")
+  GadgetToolTip(#GadgetTempTargetC, "Soft temperature target in degrees C.")
+  GadgetToolTip(#GadgetMinCpuCap, "Lowest temporary CPU percentage cap Auto Control may apply. Low values can starve GPU-heavy package load.")
+  GadgetToolTip(#GadgetMinCpuMHz, "Lowest temporary CPU MHz cap Auto Control may apply. Low values can starve GPU-heavy package load.")
+  GadgetToolTip(#GadgetMaxCpuMHz, "Reference CPU MHz used when converting cap percentage to a frequency cap.")
   GadgetToolTip(#GadgetPlanList, "Checked plans stay installed in Windows. Select a row to edit it.")
-  GadgetToolTip(#GadgetPlanEditorName, "Name for a custom plan. Built-in plan names cannot be changed.")
+  GadgetToolTip(#GadgetPlanEditorName, "Built-in profile name.")
   GadgetToolTip(#GadgetPlanEditorSummary, "Short purpose text shown in the Installed Plans table.")
   GadgetToolTip(#GadgetPlanEditorPreset, "Load a built-in plan as a starting point for this editor.")
   GadgetToolTip(#GadgetPlanEditorLoadPreset, "Copy the selected preset into the editor. This does not save yet.")
@@ -1409,13 +1306,14 @@ Procedure ApplyMainWindowToolTips()
   GadgetToolTip(#GadgetPlanAcCooling, "Plugged-in cooling policy. Active favors fans; Passive limits CPU first.")
   GadgetToolTip(#GadgetPlanDcCooling, "Battery cooling policy. Passive is usually quieter and cooler.")
   GadgetToolTip(#GadgetPlanEditorSave, "Save this plan. If installed, its Windows plan is updated too.")
-  GadgetToolTip(#GadgetPlanEditorNew, "Start a new custom plan from the selected preset.")
-  GadgetToolTip(#GadgetPlanEditorDelete, "Delete this custom plan and remove it from Windows.")
+  GadgetToolTip(#GadgetPlanEditorNew, "Custom profiles are disabled; PowerPilot uses four profiles.")
+  GadgetToolTip(#GadgetPlanEditorDelete, "Built-in profiles are kept; use Remove Managed to clean Windows profiles.")
   GadgetToolTip(#GadgetPlanRefreshAll, "Create or refresh the PowerPilot plans in Windows.")
   GadgetToolTip(#GadgetPlanRemoveAll, "Remove all PowerPilot-managed plans from Windows.")
+  GadgetToolTip(#GadgetAmdAdlxRestore, "Restore only AMD driver settings changed by the ADLX helper.")
   GadgetToolTip(#GadgetPlanCombo, "Pick a plan to activate manually.")
   GadgetToolTip(#GadgetActivatePlan, "Activate the selected plan now.")
-  GadgetToolTip(#GadgetAutoOnce, "Make one Auto Cool decision now without changing settings.")
+  GadgetToolTip(#GadgetAutoOnce, "Make one Auto Control decision now without changing settings.")
   GadgetToolTip(#GadgetResetDisplay, "Ask Windows to reset the display path using Win+Ctrl+Shift+B.")
   GadgetToolTip(#GadgetDependencies, "Open reading-source and plan-status help.")
   GadgetToolTip(#GadgetSaveSettings, "Save the current settings.")
@@ -1430,21 +1328,18 @@ Procedure ApplyDefaultSettings()
   gSettings\AutoStartWithApp = #True
   gSettings\KeepSettingsOnReinstall = #False
   gSettings\AutoBatteryPlan  = #True
+  gSettings\AmdAdlxEnabled   = #False
+  gSettings\PowerTargetEnabled = #True
+  gSettings\TemperatureTargetEnabled = #False
+  gSettings\PowerTargetWatts = 24
+  gSettings\TemperatureTargetC = 80
+  gSettings\ControlDeadband = 2
+  gSettings\MinCpuCapPercent = #MinimumDynamicCpuCapPercent
+  gSettings\MinCpuMHz = #MinimumDynamicCpuMHz
+  gSettings\MaxCpuMHz = 4200
   gSettings\PollSeconds      = 5
   gSettings\Hysteresis       = 5
-  gSettings\PowerHysteresis  = 8
-  gSettings\CpuPowerTarget   = #DefaultCpuPowerTarget
-  gSettings\AutoCoolAverageSeconds = #DefaultAutoCoolAverageSeconds
-  gSettings\ThresholdFull24  = 65
-  gSettings\ReturnFull24     = 60
-  gSettings\Threshold2421    = 72
-  gSettings\Return2421       = 67
-  gSettings\Threshold2118    = 78
-  gSettings\Return2118       = 73
-  gSettings\Threshold1815    = 84
-  gSettings\Return1815       = 79
-  gSettings\Threshold1512    = 90
-  gSettings\Return1512       = 85
+  gSettings\AutoControlAverageSeconds = #DefaultAutoControlAverageSeconds
   gSettings\LastPluggedPlan  = #PlanPlugged$
   gSettings\CurrentManagedPlan = #PlanPlugged$
 EndProcedure
@@ -1452,19 +1347,16 @@ EndProcedure
 Procedure NormalizeSettings()
   gSettings\PollSeconds      = ClampInt(gSettings\PollSeconds, 1, 60)
   gSettings\Hysteresis       = ClampInt(gSettings\Hysteresis, 1, 20)
-  gSettings\PowerHysteresis  = ClampInt(gSettings\PowerHysteresis, 1, 30)
-  gSettings\CpuPowerTarget   = ClampInt(gSettings\CpuPowerTarget, 5, 120)
-  gSettings\AutoCoolAverageSeconds = ClampInt(gSettings\AutoCoolAverageSeconds, 1, 60)
-  gSettings\ThresholdFull24  = ClampInt(gSettings\ThresholdFull24, 45, 100)
-  gSettings\Threshold2421    = ClampInt(gSettings\Threshold2421, gSettings\ThresholdFull24 + 1, 105)
-  gSettings\Threshold2118    = ClampInt(gSettings\Threshold2118, gSettings\Threshold2421 + 1, 110)
-  gSettings\Threshold1815    = ClampInt(gSettings\Threshold1815, gSettings\Threshold2118 + 1, 115)
-  gSettings\Threshold1512    = ClampInt(gSettings\Threshold1512, gSettings\Threshold1815 + 1, 120)
-  gSettings\ReturnFull24     = ClampInt(gSettings\ReturnFull24, 30, gSettings\ThresholdFull24 - 1)
-  gSettings\Return2421       = ClampInt(gSettings\Return2421, gSettings\ReturnFull24 + 1, gSettings\Threshold2421 - 1)
-  gSettings\Return2118       = ClampInt(gSettings\Return2118, gSettings\Return2421 + 1, gSettings\Threshold2118 - 1)
-  gSettings\Return1815       = ClampInt(gSettings\Return1815, gSettings\Return2118 + 1, gSettings\Threshold1815 - 1)
-  gSettings\Return1512       = ClampInt(gSettings\Return1512, gSettings\Return1815 + 1, gSettings\Threshold1512 - 1)
+  gSettings\AutoControlAverageSeconds = ClampInt(gSettings\AutoControlAverageSeconds, 1, 60)
+  gSettings\AmdAdlxEnabled   = Bool(gSettings\AmdAdlxEnabled)
+  gSettings\PowerTargetEnabled = Bool(gSettings\PowerTargetEnabled)
+  gSettings\TemperatureTargetEnabled = Bool(gSettings\TemperatureTargetEnabled)
+  gSettings\PowerTargetWatts = ClampInt(gSettings\PowerTargetWatts, 5, 80)
+  gSettings\TemperatureTargetC = ClampInt(gSettings\TemperatureTargetC, 45, 100)
+  gSettings\ControlDeadband = ClampInt(gSettings\ControlDeadband, 1, 15)
+  gSettings\MinCpuCapPercent = ClampInt(gSettings\MinCpuCapPercent, #MinimumDynamicCpuCapPercent, 100)
+  gSettings\MinCpuMHz = ClampInt(gSettings\MinCpuMHz, #MinimumDynamicCpuMHz, 5000)
+  gSettings\MaxCpuMHz = ClampInt(gSettings\MaxCpuMHz, gSettings\MinCpuMHz, 6000)
   gSettings\LastPluggedPlan  = NormalizeRememberedPluggedPlan(gSettings\LastPluggedPlan)
   gSettings\CurrentManagedPlan = NormalizeManagedPlan(gSettings\CurrentManagedPlan)
 EndProcedure
@@ -1479,21 +1371,18 @@ Procedure LoadSettings()
     gSettings\AutoStartWithApp = ReadPreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     gSettings\KeepSettingsOnReinstall = ReadPreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
     gSettings\AutoBatteryPlan  = ReadPreferenceInteger("AutoBatteryPlan", gSettings\AutoBatteryPlan)
+    gSettings\AmdAdlxEnabled   = ReadPreferenceInteger("AmdAdlxEnabled", gSettings\AmdAdlxEnabled)
+    gSettings\PowerTargetEnabled = ReadPreferenceInteger("PowerTargetEnabled", gSettings\PowerTargetEnabled)
+    gSettings\TemperatureTargetEnabled = ReadPreferenceInteger("TemperatureTargetEnabled", gSettings\TemperatureTargetEnabled)
+    gSettings\PowerTargetWatts = ReadPreferenceInteger("PowerTargetWatts", gSettings\PowerTargetWatts)
+    gSettings\TemperatureTargetC = ReadPreferenceInteger("TemperatureTargetC", gSettings\TemperatureTargetC)
+    gSettings\ControlDeadband = ReadPreferenceInteger("ControlDeadband", gSettings\ControlDeadband)
+    gSettings\MinCpuCapPercent = ReadPreferenceInteger("MinCpuCapPercent", gSettings\MinCpuCapPercent)
+    gSettings\MinCpuMHz = ReadPreferenceInteger("MinCpuMHz", gSettings\MinCpuMHz)
+    gSettings\MaxCpuMHz = ReadPreferenceInteger("MaxCpuMHz", gSettings\MaxCpuMHz)
     gSettings\PollSeconds      = ReadPreferenceInteger("PollSeconds", gSettings\PollSeconds)
     gSettings\Hysteresis       = ReadPreferenceInteger("Hysteresis", gSettings\Hysteresis)
-    gSettings\PowerHysteresis  = ReadPreferenceInteger("PowerHysteresis", gSettings\PowerHysteresis)
-    gSettings\CpuPowerTarget   = ReadPreferenceInteger("CpuPowerTarget", gSettings\CpuPowerTarget)
-    gSettings\AutoCoolAverageSeconds = ReadPreferenceInteger("AutoCoolAverageSeconds", ReadPreferenceInteger("GameCoolAverageSeconds", gSettings\AutoCoolAverageSeconds))
-    gSettings\ThresholdFull24  = ReadPreferenceInteger("ThresholdFull24", gSettings\ThresholdFull24)
-    gSettings\Threshold2421    = ReadPreferenceInteger("Threshold2421", gSettings\Threshold2421)
-    gSettings\Threshold2118    = ReadPreferenceInteger("Threshold2118", gSettings\Threshold2118)
-    gSettings\Threshold1815    = ReadPreferenceInteger("Threshold1815", gSettings\Threshold1815)
-    gSettings\Threshold1512    = ReadPreferenceInteger("Threshold1512", gSettings\Threshold1512)
-    gSettings\ReturnFull24     = ReadPreferenceInteger("ReturnFull24", gSettings\ThresholdFull24 - gSettings\Hysteresis)
-    gSettings\Return2421       = ReadPreferenceInteger("Return2421", gSettings\Threshold2421 - gSettings\Hysteresis)
-    gSettings\Return2118       = ReadPreferenceInteger("Return2118", gSettings\Threshold2118 - gSettings\Hysteresis)
-    gSettings\Return1815       = ReadPreferenceInteger("Return1815", gSettings\Threshold1815 - gSettings\Hysteresis)
-    gSettings\Return1512       = ReadPreferenceInteger("Return1512", gSettings\Threshold1512 - gSettings\Hysteresis)
+    gSettings\AutoControlAverageSeconds = ReadPreferenceInteger("AutoControlAverageSeconds", gSettings\AutoControlAverageSeconds)
     gSettings\LastPluggedPlan  = ReadPreferenceString("LastPluggedPlan", gSettings\LastPluggedPlan)
     gSettings\CurrentManagedPlan = ReadPreferenceString("CurrentManagedPlan", gSettings\CurrentManagedPlan)
     ClosePreferences()
@@ -1512,21 +1401,18 @@ Procedure SaveSettings()
     WritePreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     WritePreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
     WritePreferenceInteger("AutoBatteryPlan", gSettings\AutoBatteryPlan)
+    WritePreferenceInteger("AmdAdlxEnabled", gSettings\AmdAdlxEnabled)
+    WritePreferenceInteger("PowerTargetEnabled", gSettings\PowerTargetEnabled)
+    WritePreferenceInteger("TemperatureTargetEnabled", gSettings\TemperatureTargetEnabled)
+    WritePreferenceInteger("PowerTargetWatts", gSettings\PowerTargetWatts)
+    WritePreferenceInteger("TemperatureTargetC", gSettings\TemperatureTargetC)
+    WritePreferenceInteger("ControlDeadband", gSettings\ControlDeadband)
+    WritePreferenceInteger("MinCpuCapPercent", gSettings\MinCpuCapPercent)
+    WritePreferenceInteger("MinCpuMHz", gSettings\MinCpuMHz)
+    WritePreferenceInteger("MaxCpuMHz", gSettings\MaxCpuMHz)
     WritePreferenceInteger("PollSeconds", gSettings\PollSeconds)
     WritePreferenceInteger("Hysteresis", gSettings\Hysteresis)
-    WritePreferenceInteger("PowerHysteresis", gSettings\PowerHysteresis)
-    WritePreferenceInteger("CpuPowerTarget", gSettings\CpuPowerTarget)
-    WritePreferenceInteger("AutoCoolAverageSeconds", gSettings\AutoCoolAverageSeconds)
-    WritePreferenceInteger("ThresholdFull24", gSettings\ThresholdFull24)
-    WritePreferenceInteger("Threshold2421", gSettings\Threshold2421)
-    WritePreferenceInteger("Threshold2118", gSettings\Threshold2118)
-    WritePreferenceInteger("Threshold1815", gSettings\Threshold1815)
-    WritePreferenceInteger("Threshold1512", gSettings\Threshold1512)
-    WritePreferenceInteger("ReturnFull24", gSettings\ReturnFull24)
-    WritePreferenceInteger("Return2421", gSettings\Return2421)
-    WritePreferenceInteger("Return2118", gSettings\Return2118)
-    WritePreferenceInteger("Return1815", gSettings\Return1815)
-    WritePreferenceInteger("Return1512", gSettings\Return1512)
+    WritePreferenceInteger("AutoControlAverageSeconds", gSettings\AutoControlAverageSeconds)
     WritePreferenceString("LastPluggedPlan", gSettings\LastPluggedPlan)
     WritePreferenceString("CurrentManagedPlan", gSettings\CurrentManagedPlan)
     ClosePreferences()
@@ -1539,20 +1425,18 @@ Procedure PullSettingsFromGui()
   If IsGadget(#GadgetAutoStart) : gSettings\AutoStartWithApp = GetGadgetState(#GadgetAutoStart) : EndIf
   If IsGadget(#GadgetKeepSettings) : gSettings\KeepSettingsOnReinstall = GetGadgetState(#GadgetKeepSettings) : EndIf
   If IsGadget(#GadgetAutoBatteryPlan) : gSettings\AutoBatteryPlan = GetGadgetState(#GadgetAutoBatteryPlan) : EndIf
+  If IsGadget(#GadgetAmdAdlxEnabled) : gSettings\AmdAdlxEnabled = GetGadgetState(#GadgetAmdAdlxEnabled) : EndIf
+  If IsGadget(#GadgetPowerTargetEnabled) : gSettings\PowerTargetEnabled = GetGadgetState(#GadgetPowerTargetEnabled) : EndIf
+  If IsGadget(#GadgetTempTargetEnabled) : gSettings\TemperatureTargetEnabled = GetGadgetState(#GadgetTempTargetEnabled) : EndIf
+  If IsGadget(#GadgetPowerTargetWatts) : gSettings\PowerTargetWatts = GetGadgetState(#GadgetPowerTargetWatts) : EndIf
+  If IsGadget(#GadgetTempTargetC) : gSettings\TemperatureTargetC = GetGadgetState(#GadgetTempTargetC) : EndIf
+  If IsGadget(#GadgetControlDeadbandSpin) : gSettings\ControlDeadband = GetGadgetState(#GadgetControlDeadbandSpin) : EndIf
+  If IsGadget(#GadgetMinCpuCap) : gSettings\MinCpuCapPercent = GetGadgetState(#GadgetMinCpuCap) : EndIf
+  If IsGadget(#GadgetMinCpuMHz) : gSettings\MinCpuMHz = GetGadgetState(#GadgetMinCpuMHz) : EndIf
+  If IsGadget(#GadgetMaxCpuMHz) : gSettings\MaxCpuMHz = GetGadgetState(#GadgetMaxCpuMHz) : EndIf
   If IsGadget(#GadgetPollSpin) : gSettings\PollSeconds = GetGadgetState(#GadgetPollSpin) : EndIf
   If IsGadget(#GadgetHysteresisSpin) : gSettings\Hysteresis = GetGadgetState(#GadgetHysteresisSpin) : EndIf
-  If IsGadget(#GadgetPowerHysteresisSpin) : gSettings\PowerHysteresis = GetGadgetState(#GadgetPowerHysteresisSpin) : EndIf
-  If IsGadget(#GadgetAutoCoolAverage) : gSettings\AutoCoolAverageSeconds = GetGadgetState(#GadgetAutoCoolAverage) : EndIf
-  If IsGadget(#GadgetThresholdFull24) : gSettings\ThresholdFull24 = GetGadgetState(#GadgetThresholdFull24) : EndIf
-  If IsGadget(#GadgetReturnFull24) : gSettings\ReturnFull24 = GetGadgetState(#GadgetReturnFull24) : EndIf
-  If IsGadget(#GadgetThreshold2421) : gSettings\Threshold2421 = GetGadgetState(#GadgetThreshold2421) : EndIf
-  If IsGadget(#GadgetReturn2421) : gSettings\Return2421 = GetGadgetState(#GadgetReturn2421) : EndIf
-  If IsGadget(#GadgetThreshold2118) : gSettings\Threshold2118 = GetGadgetState(#GadgetThreshold2118) : EndIf
-  If IsGadget(#GadgetReturn2118) : gSettings\Return2118 = GetGadgetState(#GadgetReturn2118) : EndIf
-  If IsGadget(#GadgetThreshold1815) : gSettings\Threshold1815 = GetGadgetState(#GadgetThreshold1815) : EndIf
-  If IsGadget(#GadgetReturn1815) : gSettings\Return1815 = GetGadgetState(#GadgetReturn1815) : EndIf
-  If IsGadget(#GadgetThreshold1512) : gSettings\Threshold1512 = GetGadgetState(#GadgetThreshold1512) : EndIf
-  If IsGadget(#GadgetReturn1512) : gSettings\Return1512 = GetGadgetState(#GadgetReturn1512) : EndIf
+  If IsGadget(#GadgetAutoControlAverage) : gSettings\AutoControlAverageSeconds = GetGadgetState(#GadgetAutoControlAverage) : EndIf
   NormalizeSettings()
 EndProcedure
 
@@ -1565,20 +1449,18 @@ Procedure PushSettingsToGui()
   UpdateGadgetStateIfNeeded(#GadgetAutoStart, gSettings\AutoStartWithApp)
   UpdateGadgetStateIfNeeded(#GadgetKeepSettings, gSettings\KeepSettingsOnReinstall)
   UpdateGadgetStateIfNeeded(#GadgetAutoBatteryPlan, gSettings\AutoBatteryPlan)
+  UpdateGadgetStateIfNeeded(#GadgetAmdAdlxEnabled, gSettings\AmdAdlxEnabled)
+  UpdateGadgetStateIfNeeded(#GadgetPowerTargetEnabled, gSettings\PowerTargetEnabled)
+  UpdateGadgetStateIfNeeded(#GadgetTempTargetEnabled, gSettings\TemperatureTargetEnabled)
+  UpdateGadgetStateIfNeeded(#GadgetPowerTargetWatts, gSettings\PowerTargetWatts)
+  UpdateGadgetStateIfNeeded(#GadgetTempTargetC, gSettings\TemperatureTargetC)
+  UpdateGadgetStateIfNeeded(#GadgetControlDeadbandSpin, gSettings\ControlDeadband)
+  UpdateGadgetStateIfNeeded(#GadgetMinCpuCap, gSettings\MinCpuCapPercent)
+  UpdateGadgetStateIfNeeded(#GadgetMinCpuMHz, gSettings\MinCpuMHz)
+  UpdateGadgetStateIfNeeded(#GadgetMaxCpuMHz, gSettings\MaxCpuMHz)
   UpdateGadgetStateIfNeeded(#GadgetPollSpin, gSettings\PollSeconds)
   UpdateGadgetStateIfNeeded(#GadgetHysteresisSpin, gSettings\Hysteresis)
-  UpdateGadgetStateIfNeeded(#GadgetPowerHysteresisSpin, gSettings\PowerHysteresis)
-  UpdateGadgetStateIfNeeded(#GadgetAutoCoolAverage, gSettings\AutoCoolAverageSeconds)
-  UpdateGadgetStateIfNeeded(#GadgetThresholdFull24, gSettings\ThresholdFull24)
-  UpdateGadgetStateIfNeeded(#GadgetReturnFull24, gSettings\ReturnFull24)
-  UpdateGadgetStateIfNeeded(#GadgetThreshold2421, gSettings\Threshold2421)
-  UpdateGadgetStateIfNeeded(#GadgetReturn2421, gSettings\Return2421)
-  UpdateGadgetStateIfNeeded(#GadgetThreshold2118, gSettings\Threshold2118)
-  UpdateGadgetStateIfNeeded(#GadgetReturn2118, gSettings\Return2118)
-  UpdateGadgetStateIfNeeded(#GadgetThreshold1815, gSettings\Threshold1815)
-  UpdateGadgetStateIfNeeded(#GadgetReturn1815, gSettings\Return1815)
-  UpdateGadgetStateIfNeeded(#GadgetThreshold1512, gSettings\Threshold1512)
-  UpdateGadgetStateIfNeeded(#GadgetReturn1512, gSettings\Return1512)
+  UpdateGadgetStateIfNeeded(#GadgetAutoControlAverage, gSettings\AutoControlAverageSeconds)
   UpdateTelemetryControlState()
 EndProcedure
 
@@ -1660,6 +1542,505 @@ EndProcedure
 
 Procedure.s RunPowerCfgCapture(arguments$)
   ProcedureReturn RunCapture("powercfg", arguments$)
+EndProcedure
+
+Procedure.s FindBundledAmdAdlxHelper()
+  Protected helper$
+
+  helper$ = GetPathPart(ProgramFilename()) + "PowerPilotAmdAdlxHelper.exe"
+  If FileSize(helper$) > 0
+    ProcedureReturn helper$
+  EndIf
+
+  helper$ = GetCurrentDirectory() + "build\PowerPilotAmdAdlxHelper.exe"
+  If FileSize(helper$) > 0
+    ProcedureReturn helper$
+  EndIf
+
+  helper$ = GetCurrentDirectory() + "PowerPilotAmdAdlxHelper.exe"
+  If FileSize(helper$) > 0
+    ProcedureReturn helper$
+  EndIf
+
+  ProcedureReturn ""
+EndProcedure
+
+Procedure.s JsonStringValue(json$, key$)
+  Protected token$ = Chr(34) + key$ + Chr(34) + ":"
+  Protected pos.i = FindString(json$, token$, 1)
+  Protected start.i
+  Protected i.i
+  Protected c$
+  Protected value$
+  Protected escaped.i
+
+  If pos = 0
+    ProcedureReturn ""
+  EndIf
+
+  start = pos + Len(token$)
+  While start <= Len(json$) And Mid(json$, start, 1) = " "
+    start + 1
+  Wend
+  If Mid(json$, start, 1) <> Chr(34)
+    ProcedureReturn ""
+  EndIf
+  start + 1
+
+  For i = start To Len(json$)
+    c$ = Mid(json$, i, 1)
+    If escaped
+      Select c$
+        Case "n" : value$ + #LF$
+        Case "r" : value$ + #CR$
+        Case "t" : value$ + #TAB$
+        Default : value$ + c$
+      EndSelect
+      escaped = #False
+    ElseIf c$ = "\"
+      escaped = #True
+    ElseIf c$ = Chr(34)
+      ProcedureReturn value$
+    Else
+      value$ + c$
+    EndIf
+  Next
+
+  ProcedureReturn value$
+EndProcedure
+
+Procedure.i JsonBoolValue(json$, key$)
+  Protected token$ = Chr(34) + key$ + Chr(34) + ":"
+  Protected pos.i = FindString(json$, token$, 1)
+  Protected value$
+
+  If pos = 0
+    ProcedureReturn #False
+  EndIf
+
+  value$ = LCase(Trim(Mid(json$, pos + Len(token$), 5)))
+  ProcedureReturn Bool(Left(value$, 4) = "true")
+EndProcedure
+
+Procedure.d JsonNumberValue(json$, key$)
+  Protected token$ = Chr(34) + key$ + Chr(34) + ":"
+  Protected pos.i = FindString(json$, token$, 1)
+  Protected start.i
+  Protected i.i
+  Protected c$
+  Protected value$
+
+  If pos = 0
+    ProcedureReturn 0.0
+  EndIf
+
+  start = pos + Len(token$)
+  For i = start To Len(json$)
+    c$ = Mid(json$, i, 1)
+    If FindString("0123456789.-", c$, 1)
+      value$ + c$
+    ElseIf value$ <> ""
+      Break
+    EndIf
+  Next
+
+  ProcedureReturn ValD(value$)
+EndProcedure
+
+Procedure.s RunAmdAdlxHelper(arguments$)
+  Protected helper$ = FindBundledAmdAdlxHelper()
+  Protected output$
+
+  If helper$ = ""
+    AppendRuntimeLog("AMD ADLX helper missing for command: " + arguments$)
+    ProcedureReturn ""
+  EndIf
+
+  AppendRuntimeLog("AMD ADLX helper call: " + arguments$)
+  output$ = RunCapture(helper$, arguments$, GetPathPart(helper$))
+  If Trim(output$) = ""
+    AppendRuntimeLog("AMD ADLX helper returned no output for: " + arguments$)
+  ElseIf JsonBoolValue(output$, "ok") = #False
+    AppendRuntimeLog("AMD ADLX helper error: " + FirstLine(output$))
+  EndIf
+
+  ProcedureReturn output$
+EndProcedure
+
+Procedure.s AmdAdlxSupportedFeatureText()
+  Protected text$
+
+  If gAmdAdlx\GfxMaxSupported : text$ = MergeLineLists(text$, "GPU max frequency") : EndIf
+  If gAmdAdlx\PowerLimitSupported : text$ = MergeLineLists(text$, "GPU power limit") : EndIf
+  If gAmdAdlx\TdcLimitSupported : text$ = MergeLineLists(text$, "GPU TDC limit") : EndIf
+
+  If text$ = ""
+    ProcedureReturn "Metrics only; no ADLX power/frequency controls exposed."
+  EndIf
+
+  ProcedureReturn ReplaceString(text$, #LF$, ", ")
+EndProcedure
+
+Procedure.i IsGenericAmdGpuDisplayName(name$)
+  Protected lowered$ = LCase(Trim(name$))
+
+  ProcedureReturn Bool(lowered$ = "amd radeon graphics" Or lowered$ = "radeon graphics" Or lowered$ = "amd radeon(tm) graphics" Or lowered$ = "radeon(tm) graphics")
+EndProcedure
+
+Procedure.s CleanGpuDisplayName(name$)
+  Protected cleaned$ = Trim(name$)
+
+  cleaned$ = ReplaceString(cleaned$, "[iGPU]", "")
+  cleaned$ = ReplaceString(cleaned$, "[dGPU]", "")
+  cleaned$ = ReplaceString(cleaned$, "[eGPU]", "")
+  While FindString(cleaned$, "  ", 1)
+    cleaned$ = ReplaceString(cleaned$, "  ", " ")
+  Wend
+
+  ProcedureReturn Trim(cleaned$)
+EndProcedure
+
+Procedure.s PreferResolvedAmdGpuName(adlxName$, detectedGpuText$)
+  Protected candidate$
+  Protected normalized$
+  Protected lineCount.i
+  Protected i.i
+
+  If IsGenericAmdGpuDisplayName(adlxName$) = #False
+    ProcedureReturn adlxName$
+  EndIf
+
+  normalized$ = ReplaceString(detectedGpuText$, ", ", #LF$)
+  lineCount = CountString(normalized$, #LF$) + 1
+  For i = 1 To lineCount
+    candidate$ = CleanGpuDisplayName(StringField(normalized$, i, #LF$))
+    If candidate$ <> "" And IsGenericAmdGpuDisplayName(candidate$) = #False
+      If FindString(LCase(candidate$), "amd ", 1) Or FindString(LCase(candidate$), "radeon", 1)
+        ProcedureReturn candidate$
+      EndIf
+    EndIf
+  Next
+
+  ProcedureReturn adlxName$
+EndProcedure
+
+Procedure UpdateAmdAdlxStatusFromJson(output$)
+  gAmdAdlx\Probed = #True
+  gAmdAdlx\Available = JsonBoolValue(output$, "available")
+  gAmdAdlx\SdkCompiled = JsonBoolValue(output$, "sdk_compiled")
+  gAmdAdlx\AmdGpuPresent = JsonBoolValue(output$, "amd_gpu_present")
+  gAmdAdlx\GpuName = JsonStringValue(output$, "name")
+  gAmdAdlx\GfxMaxSupported = JsonBoolValue(output$, "gfx_max")
+  gAmdAdlx\PowerLimitSupported = JsonBoolValue(output$, "power_limit")
+  gAmdAdlx\TdcLimitSupported = JsonBoolValue(output$, "tdc_limit")
+
+  If gAmdAdlx\Available
+    gAmdAdlx\StatusText = "Available"
+  ElseIf FindBundledAmdAdlxHelper() = ""
+    gAmdAdlx\StatusText = "Helper not installed"
+  ElseIf gAmdAdlx\SdkCompiled = #False
+    gAmdAdlx\StatusText = "Helper built without ADLX SDK"
+  Else
+    gAmdAdlx\StatusText = "Unavailable"
+  EndIf
+
+  gAmdAdlx\FeatureText = AmdAdlxSupportedFeatureText()
+EndProcedure
+
+Procedure ProbeAmdAdlx(announce.i = #False)
+  Protected output$ = RunAmdAdlxHelper("probe")
+
+  If output$ <> ""
+    UpdateAmdAdlxStatusFromJson(output$)
+  Else
+    gAmdAdlx\Probed = #True
+    gAmdAdlx\Available = #False
+    gAmdAdlx\StatusText = "Helper unavailable"
+    gAmdAdlx\FeatureText = "No ADLX helper response."
+  EndIf
+
+  gAmdAdlx\LastProbeTick = ElapsedMilliseconds()
+  If announce
+    If gAmdAdlx\Available
+      LogAction("AMD ADLX probe: available. Features: " + gAmdAdlx\FeatureText)
+    Else
+      LogAction("AMD ADLX probe: " + gAmdAdlx\StatusText)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure ReadAmdAdlxMetrics(force.i = #False)
+  Protected nowTick.q = ElapsedMilliseconds()
+  Protected output$
+
+  If gAmdAdlx\Available = #False
+    If gAmdAdlx\Probed = #False Or nowTick - gAmdAdlx\LastProbeTick > 60000
+      ProbeAmdAdlx(#False)
+    EndIf
+    ProcedureReturn
+  EndIf
+
+  If force = #False And nowTick - gAmdAdlx\LastMetricsTick < #AmdAdlxHelperPollSeconds * 1000
+    ProcedureReturn
+  EndIf
+
+  output$ = RunAmdAdlxHelper("metrics")
+  gAmdAdlx\LastMetricsTick = nowTick
+  If output$ = "" Or JsonBoolValue(output$, "ok") = #False
+    gAmdAdlx\MetricsValid = #False
+    gAmdAdlx\MetricsText = "Metrics unavailable"
+    ProcedureReturn
+  EndIf
+
+  gAmdAdlx\MetricsValid = #True
+  gAmdAdlx\UsageValid = JsonBoolValue(output$, "usage_valid")
+  gAmdAdlx\UsagePercent = JsonNumberValue(output$, "usage_percent")
+  gAmdAdlx\ClockValid = JsonBoolValue(output$, "clock_valid")
+  gAmdAdlx\ClockMhz = Int(JsonNumberValue(output$, "clock_mhz"))
+  gAmdAdlx\PowerValid = JsonBoolValue(output$, "power_valid")
+  gAmdAdlx\PowerWatts = JsonNumberValue(output$, "power_w")
+  gAmdAdlx\TemperatureValid = JsonBoolValue(output$, "temperature_valid")
+  gAmdAdlx\TemperatureC = JsonNumberValue(output$, "temperature_c")
+
+  gAmdAdlx\MetricsText = ""
+  If gAmdAdlx\UsageValid : gAmdAdlx\MetricsText + "Usage " + StrD(gAmdAdlx\UsagePercent, 0) + "%" : EndIf
+  If gAmdAdlx\ClockValid
+    If gAmdAdlx\MetricsText <> "" : gAmdAdlx\MetricsText + ", " : EndIf
+    gAmdAdlx\MetricsText + Str(gAmdAdlx\ClockMhz) + " MHz"
+  EndIf
+  If gAmdAdlx\PowerValid
+    If gAmdAdlx\MetricsText <> "" : gAmdAdlx\MetricsText + ", " : EndIf
+    gAmdAdlx\MetricsText + StrD(gAmdAdlx\PowerWatts, 1) + " W"
+  EndIf
+  If gAmdAdlx\TemperatureValid
+    If gAmdAdlx\MetricsText <> "" : gAmdAdlx\MetricsText + ", " : EndIf
+    gAmdAdlx\MetricsText + StrD(gAmdAdlx\TemperatureC, 1) + " C"
+  EndIf
+  If gAmdAdlx\MetricsText = "" : gAmdAdlx\MetricsText = "No supported metrics exposed" : EndIf
+EndProcedure
+
+Procedure MaintainAmdAdlxAutoProbe(*reading.TempReading, force.i = #False)
+  Protected nowTick.q = ElapsedMilliseconds()
+  Protected intervalMs.q
+  Protected discreteConnected.i
+  Protected hardwareText$
+  Protected previousAvailable.i
+  Protected previousGpuName$
+  Protected hardwareChanged.i
+
+  hardwareText$ = CurrentGpuHardwareDisplay(*reading)
+  discreteConnected = ActiveDiscreteGpuConnected(*reading)
+  hardwareChanged = Bool(gAmdAdlx\LastGpuHardwareText <> hardwareText$ Or gAmdAdlx\LastDiscreteGpuConnected <> discreteConnected)
+
+  If gAmdAdlx\Available
+    intervalMs = #AmdAdlxAvailableProbeSeconds * 1000
+  Else
+    intervalMs = #AmdAdlxUnavailableProbeSeconds * 1000
+  EndIf
+
+  If force Or gAmdAdlx\Probed = #False Or hardwareChanged Or nowTick - gAmdAdlx\LastProbeTick >= intervalMs
+    previousAvailable = gAmdAdlx\Available
+    previousGpuName$ = gAmdAdlx\GpuName
+    ProbeAmdAdlx(#False)
+    If gAmdAdlx\GpuName <> ""
+      gAmdAdlx\GpuName = PreferResolvedAmdGpuName(gAmdAdlx\GpuName, hardwareText$)
+    EndIf
+
+    If gAmdAdlx\Available
+      If force Or previousAvailable = #False
+        LogAction("AMD ADLX detected automatically. Features: " + gAmdAdlx\FeatureText)
+      ElseIf previousGpuName$ <> gAmdAdlx\GpuName
+        LogAction("AMD ADLX GPU changed: " + gAmdAdlx\GpuName)
+      ElseIf hardwareChanged And discreteConnected
+        LogAction("Discrete GPU detected by Windows. AMD ADLX support refreshed.")
+      EndIf
+    ElseIf force
+      LogAction("AMD ADLX automatic probe: " + gAmdAdlx\StatusText)
+    EndIf
+
+    gAmdAdlx\LastGpuHardwareText = hardwareText$
+    gAmdAdlx\LastDiscreteGpuConnected = discreteConnected
+  EndIf
+
+  If gAmdAdlx\Available
+    ReadAmdAdlxMetrics(#False)
+  EndIf
+EndProcedure
+
+Procedure.i ApplyAmdAdlxDriverPowerLimit(powerError.d, severeOvershoot.i)
+  Protected output$
+  Protected currentLimit.i
+  Protected minLimit.i
+  Protected maxLimit.i
+  Protected desiredLimit.i
+  Protected stepSize.i
+
+  If gAmdAdlx\PowerLimitSupported = #False
+    ProcedureReturn #False
+  EndIf
+
+  output$ = RunAmdAdlxHelper("power_get")
+  If JsonBoolValue(output$, "ok") = #False
+    ProcedureReturn #False
+  EndIf
+
+  currentLimit = Int(JsonNumberValue(output$, "power_limit"))
+  minLimit = Int(JsonNumberValue(output$, "min"))
+  maxLimit = Int(JsonNumberValue(output$, "max"))
+  If maxLimit <= minLimit
+    ProcedureReturn #False
+  EndIf
+
+  stepSize = ClampInt(Int(powerError), 1, 10)
+  If severeOvershoot
+    stepSize = ClampInt(stepSize * 2, 2, 20)
+  EndIf
+  desiredLimit = ClampInt(currentLimit - stepSize, minLimit, maxLimit)
+  If desiredLimit >= currentLimit
+    ProcedureReturn #False
+  EndIf
+
+  output$ = RunAmdAdlxHelper("power_set " + Str(desiredLimit))
+  ProcedureReturn JsonBoolValue(output$, "ok")
+EndProcedure
+
+Procedure.i ApplyAmdAdlxGpuFrequencyLimit(powerError.d, severeOvershoot.i)
+  Protected output$
+  Protected currentMhz.i
+  Protected minMhz.i
+  Protected maxMhz.i
+  Protected desiredMhz.i
+  Protected stepMhz.i
+
+  If gAmdAdlx\GfxMaxSupported = #False
+    ProcedureReturn #False
+  EndIf
+
+  output$ = RunAmdAdlxHelper("gfx_get")
+  If JsonBoolValue(output$, "ok") = #False
+    ProcedureReturn #False
+  EndIf
+
+  currentMhz = Int(JsonNumberValue(output$, "max_mhz"))
+  minMhz = Int(JsonNumberValue(output$, "min"))
+  maxMhz = Int(JsonNumberValue(output$, "max"))
+  If maxMhz <= minMhz Or currentMhz <= 0
+    ProcedureReturn #False
+  EndIf
+
+  stepMhz = ClampInt(Int(powerError * 35.0), 75, 350)
+  If severeOvershoot
+    stepMhz = ClampInt(stepMhz * 2, 150, 700)
+  EndIf
+  desiredMhz = ClampInt(currentMhz - stepMhz, minMhz, maxMhz)
+  If desiredMhz >= currentMhz
+    ProcedureReturn #False
+  EndIf
+
+  output$ = RunAmdAdlxHelper("gfx_set_max " + Str(desiredMhz))
+  ProcedureReturn JsonBoolValue(output$, "ok")
+EndProcedure
+
+Procedure.i ApplyAmdAdlxPackagePowerActuator(powerError.d, severeOvershoot.i)
+  Protected ok.i
+
+  If ApplyAmdAdlxDriverPowerLimit(powerError, severeOvershoot)
+    ok = #True
+  EndIf
+  If (ok = #False Or severeOvershoot) And ApplyAmdAdlxGpuFrequencyLimit(powerError, severeOvershoot)
+    ok = #True
+  EndIf
+
+  ProcedureReturn ok
+EndProcedure
+
+Procedure ApplyAmdAdlxControl(*reading.TempReading, targetW.i, *settings.AppSettings)
+  Protected nowTick.q = ElapsedMilliseconds()
+  Protected powerError.d
+  Protected severeOvershoot.i
+  Static lastTraceTick.q
+
+  If *settings\AmdAdlxEnabled = #False Or *reading\cpuPackageValid = #False
+    If nowTick - lastTraceTick > 30000
+      AppendRuntimeLog("AMD ADLX control skipped: enabled=" + Str(*settings\AmdAdlxEnabled) + ", package_valid=" + Str(*reading\cpuPackageValid) + ".")
+      lastTraceTick = nowTick
+    EndIf
+    ProcedureReturn
+  EndIf
+
+  If gAmdAdlx\Available = #False
+    If gAmdAdlx\Probed = #False
+      ProbeAmdAdlx(#False)
+    EndIf
+    ProcedureReturn
+  EndIf
+
+  If gAmdAdlx\GfxMaxSupported = #False And gAmdAdlx\PowerLimitSupported = #False
+    ProcedureReturn
+  EndIf
+
+  ReadAmdAdlxMetrics(#True)
+  If targetW <= 0
+    If nowTick - lastTraceTick > 30000
+      AppendRuntimeLog("AMD ADLX control skipped: no watt target.")
+      lastTraceTick = nowTick
+    EndIf
+    ProcedureReturn
+  EndIf
+
+  powerError = *reading\cpuPackageWatts - targetW
+  If nowTick - lastTraceTick > 30000
+    AppendRuntimeLog("AMD ADLX control eval: package=" + StrD(*reading\cpuPackageWatts, 1) + " W, target=" + Str(targetW) + " W, error=" + StrD(powerError, 1) + " W, features=" + gAmdAdlx\FeatureText)
+    lastTraceTick = nowTick
+  EndIf
+
+  If powerError < *settings\ControlDeadband
+    ProcedureReturn
+  EndIf
+
+  severeOvershoot = Bool(powerError >= *settings\ControlDeadband * 3.0)
+
+  If powerError >= *settings\ControlDeadband
+    If nowTick - gAmdAdlx\LastControlTick < #AmdAdlxControlMinimumIntervalMs
+      ProcedureReturn
+    EndIf
+    gAmdAdlx\ControlIntegral = ClampDouble((gAmdAdlx\ControlIntegral * 0.80) + powerError, -30.0, 30.0)
+    If ApplyAmdAdlxPackagePowerActuator(powerError + (gAmdAdlx\ControlIntegral * 0.25), severeOvershoot)
+      gAmdAdlx\HasChangedSettings = #True
+      gAmdAdlx\LastControlTick = nowTick
+      If severeOvershoot
+        LogAction("AMD ADLX GPU-side power/frequency limit reduced because package power remains above " + Str(targetW) + " W.")
+      Else
+        LogAction("AMD ADLX GPU-side power/frequency limit reduced by package-power controller.")
+      EndIf
+    EndIf
+  ElseIf powerError <= -*settings\ControlDeadband And gAmdAdlx\HasChangedSettings
+    If nowTick - gAmdAdlx\LastRecoverTick < #AmdAdlxRecoveryIntervalMs
+      ProcedureReturn
+    EndIf
+    gAmdAdlx\ControlIntegral = ClampDouble((gAmdAdlx\ControlIntegral * 0.50) + powerError, -30.0, 30.0)
+    RestoreAmdAdlxSettings(#False)
+    gAmdAdlx\ControlIntegral = 0.0
+    gAmdAdlx\HasChangedSettings = #False
+    LogAction("AMD ADLX power/frequency settings restored after sustained lower package power.")
+    gAmdAdlx\LastRecoverTick = nowTick
+  Else
+    gAmdAdlx\ControlIntegral * 0.90
+  EndIf
+EndProcedure
+
+Procedure RestoreAmdAdlxSettings(announce.i = #True)
+  Protected output$ = RunAmdAdlxHelper("restore")
+
+  If JsonBoolValue(output$, "ok")
+    gAmdAdlx\HasChangedSettings = #False
+    gAmdAdlx\ControlIntegral = 0.0
+    If announce
+      LogAction("AMD ADLX helper restored settings it changed.")
+    EndIf
+  ElseIf announce
+    LogAction("AMD ADLX restore failed or no ADLX runtime is available.")
+  EndIf
 EndProcedure
 
 Procedure CleanupDetachedWindowsPerfHelpers()
@@ -2008,6 +2389,14 @@ Procedure.i DerivedPlanSchedulingPolicy(epp.i, boostMode.i, maxState.i, freqMHz.
   ProcedureReturn 5
 EndProcedure
 
+Procedure.i DerivedPlanAutonomousMode(epp.i, boostMode.i, maxState.i, freqMHz.i)
+  If boostMode = 0 Or maxState < 95 Or freqMHz > 0 Or epp >= 50
+    ProcedureReturn 0
+  EndIf
+
+  ProcedureReturn 1
+EndProcedure
+
 Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   Protected dcMinState.i
   Protected acMinState.i
@@ -2027,6 +2416,8 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   Protected acLatencyHintPerf.i
   Protected dcSchedulingPolicy.i
   Protected acSchedulingPolicy.i
+  Protected dcAutonomousMode.i
+  Protected acAutonomousMode.i
 
   If *plan = 0
     ProcedureReturn #False
@@ -2050,6 +2441,8 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   acLatencyHintPerf = DerivedPlanLatencyHintPerf(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
   dcSchedulingPolicy = DerivedPlanSchedulingPolicy(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
   acSchedulingPolicy = DerivedPlanSchedulingPolicy(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
+  dcAutonomousMode = DerivedPlanAutonomousMode(*plan\DcEpp, *plan\DcBoostMode, *plan\DcMaxState, *plan\DcFreqMHz)
+  acAutonomousMode = DerivedPlanAutonomousMode(*plan\AcEpp, *plan\AcBoostMode, *plan\AcMaxState, *plan\AcFreqMHz)
 
   ; These processor knobs are optional so older systems can still accept the
   ; base plan even if a specific alias is absent. The existing EPP/boost/cooling
@@ -2080,7 +2473,7 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "LATENCYHINTPERF2", acLatencyHintPerf)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SCHEDPOLICY", acSchedulingPolicy)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SHORTSCHEDPOLICY", acSchedulingPolicy)
-  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFAUTONOMOUS", 1)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFAUTONOMOUS", acAutonomousMode)
 
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFEPP1", *plan\DcEpp)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFEPP2", *plan\DcEpp)
@@ -2108,7 +2501,7 @@ Procedure.i ApplyAdvancedProcessorTuning(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "LATENCYHINTPERF2", dcLatencyHintPerf)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SCHEDPOLICY", dcSchedulingPolicy)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SHORTSCHEDPOLICY", dcSchedulingPolicy)
-  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFAUTONOMOUS", 1)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFAUTONOMOUS", dcAutonomousMode)
 
   ProcedureReturn #True
 EndProcedure
@@ -2303,14 +2696,10 @@ Procedure PopulatePlanPresetCombo()
   EndIf
 
   ClearGadgetItems(#GadgetPlanEditorPreset)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanBattery$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanPlugged$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool12$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool15$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool18$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool21$)
-  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanCool24$)
   AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanFull$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanPlugged$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanQuiet$)
+  AddGadgetItem(#GadgetPlanEditorPreset, -1, #PlanBattery$)
   UpdateGadgetStateIfNeeded(#GadgetPlanEditorPreset, 0)
 EndProcedure
 
@@ -2332,7 +2721,7 @@ Procedure RefreshPlanList()
       If gPlanDefs()\BuiltIn
         typeText$ = "Built-in"
       Else
-        typeText$ = "Custom"
+        typeText$ = "Saved"
       EndIf
       AddGadgetItem(#GadgetPlanList, -1, gPlanDefs()\Name + #LF$ + typeText$ + #LF$ + gPlanDefs()\Description)
       If PlanDefinitionInstalled(gPlanDefs()\Name)
@@ -2391,7 +2780,6 @@ Procedure RefreshPlanEditor()
       UpdateGadgetStateIfNeeded(#GadgetPlanDcCooling, gPlanDefs()\DcCooling)
       UpdateGadgetDisabledIfNeeded(#GadgetPlanEditorDelete, Bool(gPlanDefs()\BuiltIn))
       UpdateGadgetDisabledIfNeeded(#GadgetPlanEditorName, Bool(gPlanDefs()\BuiltIn))
-      gEditingNewPlan = #False
       Break
     EndIf
   Next
@@ -2416,43 +2804,17 @@ Procedure LoadPlanEditorFromPreset(planName$)
   Next
 EndProcedure
 
-Procedure StartNewPlanFromPreset()
-  Protected presetName$
-  Protected state.i
-
-  state = GetGadgetState(#GadgetPlanEditorPreset)
-  If state >= 0
-    presetName$ = GetGadgetItemText(#GadgetPlanEditorPreset, state)
-  EndIf
-  If presetName$ = ""
-    presetName$ = #PlanPlugged$
-  EndIf
-
-  gSelectedPlanName$ = ""
-  gEditingNewPlan = #True
-  UpdateTextGadgetIfNeeded(#GadgetPlanEditorName, #PlanPrefixNew$ + "Custom")
-  LoadPlanEditorFromPreset(presetName$)
-  UpdateGadgetDisabledIfNeeded(#GadgetPlanEditorDelete, #True)
-  UpdateGadgetDisabledIfNeeded(#GadgetPlanEditorName, #False)
-  LogAction("New plan editor loaded from " + presetName$)
-EndProcedure
-
 Procedure SavePlanEditorDefinition()
   Protected targetName$
   Protected existingGuid$
-  Protected oldName$
 
-  targetName$ = SanitizeCustomPlanName(GetGadgetText(#GadgetPlanEditorName))
-  If gEditingNewPlan = #False And gSelectedPlanName$ <> ""
-    targetName$ = gSelectedPlanName$
-  EndIf
+  targetName$ = gSelectedPlanName$
 
   If targetName$ = ""
-    LogAction("Plan name cannot be empty.")
+    LogAction("Select a profile before saving.")
     ProcedureReturn
   EndIf
 
-  oldName$ = gSelectedPlanName$
   ForEach gPlanDefs()
     If gPlanDefs()\Name = targetName$
       gPlanDefs()\Description = CleanPlanText(GetGadgetText(#GadgetPlanEditorSummary))
@@ -2466,7 +2828,6 @@ Procedure SavePlanEditorDefinition()
       gPlanDefs()\DcMaxState = GetGadgetState(#GadgetPlanDcState)
       gPlanDefs()\DcFreqMHz = GetGadgetState(#GadgetPlanDcFreq)
       gPlanDefs()\DcCooling = GetGadgetState(#GadgetPlanDcCooling)
-      SaveCustomPlanDefinitions()
       existingGuid$ = GetSchemeGuidByName(targetName$)
       If existingGuid$ <> ""
         ConfigureScheme(targetName$, existingGuid$)
@@ -2479,54 +2840,6 @@ Procedure SavePlanEditorDefinition()
       ProcedureReturn
     EndIf
   Next
-
-  AddPlanDefinition(targetName$, #False, #False, GetGadgetText(#GadgetPlanEditorSummary),
-                    GetGadgetState(#GadgetPlanAcEpp),
-                    GetGadgetState(#GadgetPlanAcBoost),
-                    GetGadgetState(#GadgetPlanAcState),
-                    GetGadgetState(#GadgetPlanAcFreq),
-                    GetGadgetState(#GadgetPlanAcCooling),
-                    GetGadgetState(#GadgetPlanDcEpp),
-                    GetGadgetState(#GadgetPlanDcBoost),
-                    GetGadgetState(#GadgetPlanDcState),
-                    GetGadgetState(#GadgetPlanDcFreq),
-                    GetGadgetState(#GadgetPlanDcCooling))
-  SaveCustomPlanDefinitions()
-  gSelectedPlanName$ = targetName$
-  gEditingNewPlan = #False
-  RefreshPlanList()
-  PopulatePlanCombo()
-  RefreshPlanEditor()
-  LogAction("Saved new custom plan " + targetName$)
-EndProcedure
-
-Procedure DeleteSelectedCustomPlan()
-  Protected name$
-
-  name$ = gSelectedPlanName$
-  If name$ = ""
-    ProcedureReturn
-  EndIf
-
-  ForEach gPlanDefs()
-    If gPlanDefs()\Name = name$
-      If gPlanDefs()\BuiltIn
-        LogAction("Built-in plans cannot be deleted.")
-        ProcedureReturn
-      EndIf
-      DeleteElement(gPlanDefs())
-      Break
-    EndIf
-  Next
-
-  RemoveManagedPlanByName(name$)
-  SaveCustomPlanDefinitions()
-  gSelectedPlanName$ = ""
-  gEditingNewPlan = #False
-  RefreshPlanList()
-  PopulatePlanCombo()
-  RefreshPlanEditor()
-  LogAction("Deleted custom plan " + name$)
 EndProcedure
 
 Procedure.i CreateManagedPlans()
@@ -2537,7 +2850,7 @@ Procedure.i CreateManagedPlans()
   If visibleGuid$ = "" : LogAction("Failed to create " + #PlanVisible$) : ProcedureReturn #False : EndIf
 
   ForEach gPlanDefs()
-    If gPlanDefs()\DefaultInstalled Or gPlanDefs()\BuiltIn = #False
+    If gPlanDefs()\DefaultInstalled
       schemeGuid$ = EnsureScheme(gPlanDefs()\Name)
       If schemeGuid$ = "" : LogAction("Failed to create " + gPlanDefs()\Name) : ProcedureReturn #False : EndIf
       If ConfigureScheme(gPlanDefs()\Name, schemeGuid$) = #False : LogAction("Failed to configure " + gPlanDefs()\Name) : ProcedureReturn #False : EndIf
@@ -2546,7 +2859,7 @@ Procedure.i CreateManagedPlans()
 
   If ConfigureScheme(GetCurrentManagedPlan(), visibleGuid$) = #False : LogAction("Failed to configure " + #PlanVisible$) : ProcedureReturn #False : EndIf
   InvalidateManagedPlansCache()
-  LogAction("Custom PowerPilot plans are present.")
+  LogAction("PowerPilot behavior profiles are present.")
   ProcedureReturn #True
 EndProcedure
 
@@ -2570,11 +2883,11 @@ Procedure.i CleanupManagedPlans()
   result$ = RunCapture("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + QuoteArgument(script$))
   If FindString(result$, "OK", 1)
     InvalidateManagedPlansCache()
-    LogAction("Managed custom plans removed.")
+    LogAction("Managed PowerPilot profiles removed.")
     ProcedureReturn #True
   EndIf
 
-  LogAction("Failed to remove managed custom plans.")
+  LogAction("Failed to remove managed PowerPilot profiles.")
   ProcedureReturn #False
 EndProcedure
 
@@ -2582,15 +2895,13 @@ Procedure.i ActivatePlanByName(planName$, allowElevation.i = #False)
   Protected guid$
   Protected activeTargetPlan$
   Protected result.i
+  Protected oldPlan$
+  Protected oldGuid$
 
   If IsSelectableManagedPlanName(planName$)
     RememberCurrentManagedPlan(planName$, #True)
 
-    If SyncVisibleScheme(planName$) = #False
-      ProcedureReturn #False
-    EndIf
-
-    activeTargetPlan$ = #PlanVisible$
+    activeTargetPlan$ = planName$
   Else
     activeTargetPlan$ = planName$
   EndIf
@@ -2602,12 +2913,28 @@ Procedure.i ActivatePlanByName(planName$, allowElevation.i = #False)
     ProcedureReturn #False
   EndIf
 
+  If gDynamicControl\Active
+    oldPlan$ = GetActiveSchemeName()
+    If oldPlan$ = #PlanVisible$
+      oldPlan$ = GetCurrentManagedPlan()
+    EndIf
+    oldGuid$ = GetActiveSchemeGuid()
+    If oldGuid$ <> "" And IsSelectableManagedPlanName(oldPlan$)
+      ConfigureScheme(oldPlan$, oldGuid$)
+    EndIf
+  EndIf
+
   result = RunPowerCfg("/SETACTIVE " + guid$)
   If result <> 0 And allowElevation
     result = RunPowerCfgElevated("/SETACTIVE " + guid$)
   EndIf
 
   If result = 0
+    gDynamicControl\Active = #False
+    gDynamicControl\CpuCapPercent = 100
+    gDynamicControl\CpuCapMhz = 0
+    gDynamicControl\Integral = 0.0
+    gDynamicControl\StatusText = "Selected profile active; no temporary cap applied."
     LockMutex(gStateMutex)
     If IsSelectableManagedPlanName(planName$)
       gState\ActivePlan = planName$
@@ -3335,7 +3662,7 @@ Procedure.s BuildDependencySummary()
   CopyCachedDependencyStatus(@status)
 
   If status\ManagedPlansReady = #False
-    ProcedureReturn "Plans are missing. Create PowerPilot plans once before using Auto Cool."
+    ProcedureReturn "Profiles are missing. Create PowerPilot profiles once before using Auto Control."
   EndIf
 
   If status\WindowsTelemetryReady
@@ -3374,15 +3701,14 @@ Procedure.s BuildDependencyInstructions()
   EndIf
 
   text$ + #LF$
-  text$ + "How Auto Cool Works" + #LF$
+  text$ + "How Auto Control Works" + #LF$
   text$ + "PowerPilot reads Windows telemetry first." + #LF$
-  text$ + "Full Power uses Windows temperature to enter CPU package power control." + #LF$
-  text$ + "Cool 12W through Cool 24W use Windows CPU package power first." + #LF$
-  text$ + "Temperature can still force a cooler plan if the system gets hot." + #LF$
-  text$ + "GPU names and VRAM are shown for information only." + #LF$
-  text$ + "Dashboard values use the average window from the Control tab." + #LF$
-  text$ + "On battery, PowerPilot can hold Battery Saver instead of running Auto Cool." + #LF$
-  text$ + "Battery note: set Windows Power mode to Balanced or Best performance. Best power efficiency can cap the system before PowerPilot gets the full Auto Cool range." + #LF$
+  text$ + "Profiles set Windows behavior only: Maximum, Balanced, Quiet, and Battery." + #LF$
+  text$ + "Enabled power and temperature targets apply temporary CPU caps through a bounded PI-style controller." + #LF$
+  text$ + "ADLX GPU controls are used only when AMD exposes real power or frequency tuning." + #LF$
+  text$ + "Dashboard values use the average window from the Auto Tuning tab." + #LF$
+  text$ + "On battery, PowerPilot can hold the Battery profile instead of running Auto Control." + #LF$
+  text$ + "Battery note: set Windows Power mode to Balanced or Best performance. Best power efficiency can cap the system before PowerPilot gets the full control range." + #LF$
 
   text$ + #LF$
   text$ + "Reading Priority" + #LF$
@@ -3397,34 +3723,34 @@ Procedure.s BuildDependencyInstructions()
   text$ + #LF$
   text$ + "What To Do Next" + #LF$
   If status\WindowsTelemetryReady
-    text$ + "- Telemetry is working. Auto Cool can run." + #LF$
+    text$ + "- Telemetry is working. Auto Control can run." + #LF$
   Else
-    text$ + "- Windows telemetry is not working. Auto Cool can only use ACPI fallback temperature if it exists." + #LF$
+    text$ + "- Windows telemetry is not working. Auto Control can only use ACPI fallback temperature if it exists." + #LF$
   EndIf
 
   If status\WindowsPowerReady = #False
-    text$ + "- CPU package power is missing. Cool plans will use temperature until CPU power appears." + #LF$
+    text$ + "- CPU package power is missing. Power target control will wait until CPU power appears." + #LF$
   EndIf
 
   If status\WindowsEnabled And status\WindowsGpuReady = #False
-    text$ + "- GPU names or VRAM are missing. Auto Cool does not need them." + #LF$
+    text$ + "- GPU names or VRAM are missing. Auto Control does not need them." + #LF$
   EndIf
 
   If status\FallbackAvailable And status\WindowsTelemetryReady = #False
     text$ + "- ACPI fallback temperature is available. It is less specific than Windows telemetry." + #LF$
   ElseIf status\FallbackAvailable = #False And status\WindowsTelemetryReady = #False
-    text$ + "- No usable reading is available, so Auto Cool will stay paused." + #LF$
+    text$ + "- No usable reading is available, so Auto Control will stay paused." + #LF$
   EndIf
 
   If status\ManagedPlansReady = #False
-    text$ + "- Open Plan Manager and click Create Defaults to install the PowerPilot plans." + #LF$
+    text$ + "- Open Profiles and click Create Defaults to install the PowerPilot profiles." + #LF$
   Else
-    text$ + "- The PowerPilot plans are installed." + #LF$
+    text$ + "- The PowerPilot profiles are installed." + #LF$
   EndIf
 
   text$ + #LF$
   text$ + "Short Version" + #LF$
-  text$ + "Use Windows telemetry. Use Balanced or Best performance on battery. Auto Cool uses CPU package power on Cool plans and temperature from Full Power." + #LF$
+  text$ + "Use Windows telemetry. Profiles choose behavior. Auto Control uses independent power and temperature targets." + #LF$
 
   ProcedureReturn text$
 EndProcedure
@@ -3435,32 +3761,32 @@ Procedure.s BuildMainStatusText(*reading.TempReading, autoEnabled.i)
   CopyCachedDependencyStatus(@status)
 
   If autoEnabled And status\ManagedPlansReady = #False
-    ProcedureReturn "PowerPilot plans are missing. Open Plan Manager and click Create Defaults."
+    ProcedureReturn "PowerPilot profiles are missing. Open Profiles and click Create Defaults."
   EndIf
 
   If HasControlTelemetry(*reading, @gSettings)
     If status\WindowsTelemetryReady
       If autoEnabled
-        If *reading\cpuPackageValid
-          ProcedureReturn "Auto Cool is active. Full Power enters Cool control by temperature; Cool plans use CPU package power."
+        If gSettings\PowerTargetEnabled Or gSettings\TemperatureTargetEnabled
+          ProcedureReturn "Auto Control is active. " + gDynamicControl\StatusText
         EndIf
-        ProcedureReturn "Auto Cool is active. CPU power is missing, so temperature is controlling."
+        ProcedureReturn "Auto Control is on, but no target is enabled."
       EndIf
 
-      ProcedureReturn "Telemetry is working. Auto Cool is off."
+      ProcedureReturn "Telemetry is working. Auto Control is off."
     EndIf
     If Left(*reading\source, 4) = "ACPI" Or FindString(UCase(*reading\source), "FALLBACK", 1)
       If autoEnabled
-      ProcedureReturn "ACPI fallback temperature is active. Auto Cool can only use temperature."
+      ProcedureReturn "ACPI fallback temperature is active. Temperature target control can run."
       EndIf
-      ProcedureReturn "ACPI fallback temperature is active. Auto Cool is off."
+      ProcedureReturn "ACPI fallback temperature is active. Auto Control is off."
     EndIf
 
     If autoEnabled
-      ProcedureReturn "Auto Cool is on and waiting for CPU power or temperature."
+      ProcedureReturn "Auto Control is on and waiting for enabled target telemetry."
     EndIf
 
-    ProcedureReturn "Auto Cool is off."
+    ProcedureReturn "Auto Control is off."
   EndIf
 
   If status\WindowsEnabled And status\WindowsTelemetryReady = #False
@@ -3471,10 +3797,10 @@ Procedure.s BuildMainStatusText(*reading.TempReading, autoEnabled.i)
   EndIf
 
   If autoEnabled
-    ProcedureReturn "Auto Cool is on."
+    ProcedureReturn "Auto Control is on."
   EndIf
 
-  ProcedureReturn "Auto Cool is off."
+  ProcedureReturn "Auto Control is off."
 EndProcedure
 
 Procedure.i DependencyAlertNeeded()
@@ -3562,21 +3888,18 @@ Procedure CopySettings(*settings.AppSettings)
   *settings\AutoStartWithApp = gSettings\AutoStartWithApp
   *settings\KeepSettingsOnReinstall = gSettings\KeepSettingsOnReinstall
   *settings\AutoBatteryPlan = gSettings\AutoBatteryPlan
+  *settings\AmdAdlxEnabled = gSettings\AmdAdlxEnabled
+  *settings\PowerTargetEnabled = gSettings\PowerTargetEnabled
+  *settings\TemperatureTargetEnabled = gSettings\TemperatureTargetEnabled
+  *settings\PowerTargetWatts = gSettings\PowerTargetWatts
+  *settings\TemperatureTargetC = gSettings\TemperatureTargetC
+  *settings\ControlDeadband = gSettings\ControlDeadband
+  *settings\MinCpuCapPercent = gSettings\MinCpuCapPercent
+  *settings\MinCpuMHz = gSettings\MinCpuMHz
+  *settings\MaxCpuMHz = gSettings\MaxCpuMHz
   *settings\PollSeconds = gSettings\PollSeconds
   *settings\Hysteresis = gSettings\Hysteresis
-  *settings\PowerHysteresis = gSettings\PowerHysteresis
-  *settings\CpuPowerTarget = gSettings\CpuPowerTarget
-  *settings\AutoCoolAverageSeconds = gSettings\AutoCoolAverageSeconds
-  *settings\ThresholdFull24 = gSettings\ThresholdFull24
-  *settings\ReturnFull24 = gSettings\ReturnFull24
-  *settings\Threshold2421 = gSettings\Threshold2421
-  *settings\Return2421 = gSettings\Return2421
-  *settings\Threshold2118 = gSettings\Threshold2118
-  *settings\Return2118 = gSettings\Return2118
-  *settings\Threshold1815 = gSettings\Threshold1815
-  *settings\Return1815 = gSettings\Return1815
-  *settings\Threshold1512 = gSettings\Threshold1512
-  *settings\Return1512 = gSettings\Return1512
+  *settings\AutoControlAverageSeconds = gSettings\AutoControlAverageSeconds
   *settings\LastPluggedPlan = gSettings\LastPluggedPlan
   *settings\CurrentManagedPlan = gSettings\CurrentManagedPlan
   UnlockMutex(gStateMutex)
@@ -3639,8 +3962,10 @@ EndProcedure
 Procedure EnsureVisiblePlanActive(allowElevation.i = #False)
   Protected activePlan$ = GetActiveSchemeName()
 
-  If IsSelectableManagedPlanName(activePlan$)
-    ActivatePlanByName(activePlan$, allowElevation)
+  If activePlan$ = #PlanVisible$
+    ActivatePlanByName(GetCurrentManagedPlan(), allowElevation)
+  ElseIf IsSelectableManagedPlanName(activePlan$)
+    RememberCurrentManagedPlan(activePlan$, #True)
   EndIf
 EndProcedure
 
@@ -3648,11 +3973,7 @@ Procedure.i ManagedPlansExist()
   If GetSchemeGuidByName(#PlanVisible$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanBattery$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanPlugged$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanCool12$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanCool15$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanCool18$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanCool21$) = "" : ProcedureReturn #False : EndIf
-  If GetSchemeGuidByName(#PlanCool24$) = "" : ProcedureReturn #False : EndIf
+  If GetSchemeGuidByName(#PlanQuiet$) = "" : ProcedureReturn #False : EndIf
   If GetSchemeGuidByName(#PlanFull$) = "" : ProcedureReturn #False : EndIf
   ProcedureReturn #True
 EndProcedure
@@ -3711,104 +4032,194 @@ Procedure.i CleanupSettingsData()
   ProcedureReturn #True
 EndProcedure
 
-Procedure.s DecideTempDrivenPlan(tempC.d, currentPlan$, *settings.AppSettings)
-  Select currentPlan$
-    Case ""
-      If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanCool12$ : EndIf
-      If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanCool15$ : EndIf
-      If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanCool18$ : EndIf
-      If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanCool21$ : EndIf
-      If tempC >= *settings\ThresholdFull24 : ProcedureReturn #PlanCool24$ : EndIf
-      ProcedureReturn #PlanFull$
+Procedure.i DynamicCpuMhzForCap(capPercent.i, *settings.AppSettings)
+  Protected percentRange.i
+  Protected scaledPercent.d
 
-    Case #PlanFull$
-      If tempC >= *settings\ThresholdFull24 : ProcedureReturn #PlanCool24$ : EndIf
-      ProcedureReturn #PlanFull$
+  If capPercent >= 99
+    ProcedureReturn 0
+  EndIf
 
-    Case #PlanCool24$
-      If tempC >= *settings\Threshold2421 : ProcedureReturn #PlanCool21$ : EndIf
-      If tempC <= *settings\ReturnFull24 : ProcedureReturn #PlanFull$ : EndIf
-      ProcedureReturn #PlanCool24$
+  If capPercent <= *settings\MinCpuCapPercent
+    ProcedureReturn *settings\MinCpuMHz
+  EndIf
 
-    Case #PlanCool21$
-      If tempC >= *settings\Threshold2118 : ProcedureReturn #PlanCool18$ : EndIf
-      If tempC <= *settings\Return2421 : ProcedureReturn #PlanCool24$ : EndIf
-      ProcedureReturn #PlanCool21$
+  percentRange = 100 - *settings\MinCpuCapPercent
+  If percentRange <= 0
+    ProcedureReturn *settings\MinCpuMHz
+  EndIf
 
-    Case #PlanCool18$
-      If tempC >= *settings\Threshold1815 : ProcedureReturn #PlanCool15$ : EndIf
-      If tempC <= *settings\Return2118 : ProcedureReturn #PlanCool21$ : EndIf
-      ProcedureReturn #PlanCool18$
-
-    Case #PlanCool15$
-      If tempC >= *settings\Threshold1512 : ProcedureReturn #PlanCool12$ : EndIf
-      If tempC <= *settings\Return1815 : ProcedureReturn #PlanCool18$ : EndIf
-      ProcedureReturn #PlanCool15$
-
-    Case #PlanCool12$
-      If tempC <= *settings\Return1512 : ProcedureReturn #PlanCool15$ : EndIf
-      ProcedureReturn #PlanCool12$
-  EndSelect
-
-  ProcedureReturn #PlanFull$
+  scaledPercent = (capPercent - *settings\MinCpuCapPercent) * 1.0 / percentRange
+  ProcedureReturn ClampInt(*settings\MinCpuMHz + Int((*settings\MaxCpuMHz - *settings\MinCpuMHz) * scaledPercent), *settings\MinCpuMHz, *settings\MaxCpuMHz)
 EndProcedure
 
-Procedure.s DecideAutoPlanSnapshot(*reading.TempReading, currentPlan$, *settings.AppSettings)
-  Protected currentLevel.i = PlanLevelFromName(currentPlan$)
-  Protected desiredLevel.i = currentLevel
-  Protected cpuControlLevel.i = currentLevel
-  Protected tempPlan$
-  Protected tempLevel.i
-  Protected powerError.d
-  Protected thresholdW.d
-  Static cpuPowerIntegrator.d
+Procedure.i ApplyDynamicCpuCap(activePlan$, capPercent.i, *settings.AppSettings)
+  Protected schemeGuid$ = GetActiveSchemeGuid()
+  Protected capMhz.i
 
-  If currentPlan$ = ""
-    currentLevel = 5
-    desiredLevel = 5
+  If schemeGuid$ = ""
+    ProcedureReturn #False
   EndIf
 
-  If currentPlan$ = #PlanFull$ And *reading\valid And *reading\celsius >= *settings\ThresholdFull24
-    desiredLevel = PlanLevelFromName(#PlanCool24$)
-    cpuControlLevel = desiredLevel
+  capPercent = ClampInt(capPercent, *settings\MinCpuCapPercent, 100)
+  capMhz = DynamicCpuMhzForCap(capPercent, *settings)
+
+  If capPercent >= 99
+    If IsSelectableManagedPlanName(activePlan$)
+      If ConfigureScheme(activePlan$, schemeGuid$) = #False
+        ProcedureReturn #False
+      EndIf
+    Else
+      If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX", 100) <> 0 : ProcedureReturn #False : EndIf
+      If SetFrequencyCaps(schemeGuid$, #True, 0) = #False : ProcedureReturn #False : EndIf
+    EndIf
+  Else
+    If SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX", capPercent) <> 0 : ProcedureReturn #False : EndIf
+    If TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX1", capPercent) = #False : ProcedureReturn #False : EndIf
+    If TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX2", capPercent) = #False : ProcedureReturn #False : EndIf
+    If SetFrequencyCaps(schemeGuid$, #True, capMhz) = #False : ProcedureReturn #False : EndIf
   EndIf
 
-  If (IsAutoCoolPlanName(currentPlan$) Or (currentPlan$ = #PlanFull$ And desiredLevel < PlanLevelFromName(#PlanFull$))) And *reading\cpuPackageValid
-    thresholdW = *settings\PowerHysteresis
-    If thresholdW < 1.0
-      thresholdW = 1.0
+  gDynamicControl\CpuCapPercent = capPercent
+  gDynamicControl\CpuCapMhz = capMhz
+  gDynamicControl\Active = Bool(capPercent < 99)
+  gDynamicControl\LastApplyTick = ElapsedMilliseconds()
+  ProcedureReturn #True
+EndProcedure
+
+Procedure RestoreDynamicCpuCap(activePlan$, *settings.AppSettings)
+  If gDynamicControl\Active Or gDynamicControl\CpuCapPercent > 0
+    If ApplyDynamicCpuCap(activePlan$, 100, *settings)
+      gDynamicControl\Integral = 0.0
+      gDynamicControl\StatusText = "Controller relaxed; profile settings restored."
+      LogAction("Temporary CPU cap restored to selected profile.")
     EndIf
+  EndIf
+EndProcedure
 
-    powerError = (*reading\cpuPackageWatts - *settings\CpuPowerTarget) / thresholdW
-    cpuPowerIntegrator = ClampDouble((cpuPowerIntegrator * 0.55) + powerError, -3.0, 3.0)
+Procedure ApplyTargetController(*reading.TempReading, currentPlan$, *settings.AppSettings, announceKeep.i = #False)
+  Protected nowTick.q = ElapsedMilliseconds()
+  Protected powerError.d = 0.0
+  Protected tempError.d = 0.0
+  Protected controlError.d = 0.0
+  Protected requestedReduction.d
+  Protected targetCap.i
+  Protected currentCap.i
+  Protected maxStepDown.i = 14
+  Protected maxStepUp.i = 4
+  Protected forcedDrop.i
+  Protected targetSummary$
+  Protected amdTargetW.i
 
-    If powerError >= 1.0 Or cpuPowerIntegrator >= 1.2
-      desiredLevel = cpuControlLevel - 1
-    ElseIf powerError <= -1.0 Or cpuPowerIntegrator <= -1.2
-      desiredLevel = cpuControlLevel + 1
+  If *settings\PowerTargetEnabled = #False And *settings\TemperatureTargetEnabled = #False
+    RestoreDynamicCpuCap(currentPlan$, *settings)
+    gDynamicControl\StatusText = "No automatic targets enabled; selected profile is active."
+    ProcedureReturn
+  EndIf
+
+  If *settings\PowerTargetEnabled
+    If *reading\cpuPackageValid
+      powerError = *reading\cpuPackageWatts - *settings\PowerTargetWatts
+      If Abs(powerError) < *settings\ControlDeadband
+        powerError = 0.0
+      EndIf
+      targetSummary$ = "power " + Str(*settings\PowerTargetWatts) + " W"
+    Else
+      targetSummary$ = "power target waiting for telemetry"
     EndIf
+  EndIf
 
+  If *settings\TemperatureTargetEnabled
     If *reading\valid
-      tempPlan$ = DecideTempDrivenPlan(*reading\celsius, currentPlan$, *settings)
-      tempLevel = PlanLevelFromName(tempPlan$)
-      If tempLevel < desiredLevel
-        desiredLevel = tempLevel
+      tempError = (*reading\celsius - *settings\TemperatureTargetC) * 2.0
+      If Abs(tempError) < *settings\Hysteresis
+        tempError = 0.0
+      EndIf
+      If targetSummary$ <> "" : targetSummary$ + ", " : EndIf
+      targetSummary$ + "temp " + Str(*settings\TemperatureTargetC) + " C"
+    Else
+      If targetSummary$ <> "" : targetSummary$ + ", " : EndIf
+      targetSummary$ + "temp target waiting for telemetry"
+    EndIf
+  EndIf
+
+  controlError = powerError
+  If tempError > controlError
+    controlError = tempError
+  EndIf
+
+  If controlError >= *settings\ControlDeadband * 5.0
+    maxStepDown = 45
+  ElseIf controlError >= *settings\ControlDeadband * 3.0
+    maxStepDown = 34
+  ElseIf controlError >= *settings\ControlDeadband * 2.0
+    maxStepDown = 24
+  EndIf
+
+  If controlError <= 0.0
+    gDynamicControl\Integral = ClampDouble(gDynamicControl\Integral + (controlError * 0.25), -45.0, 45.0)
+  Else
+    gDynamicControl\Integral = ClampDouble(gDynamicControl\Integral + controlError, -45.0, 45.0)
+  EndIf
+
+  requestedReduction = (controlError * 3.0) + (gDynamicControl\Integral * 0.35)
+  requestedReduction = ClampDouble(requestedReduction, 0.0, 100.0 - *settings\MinCpuCapPercent)
+  targetCap = ClampInt(100 - Int(requestedReduction), *settings\MinCpuCapPercent, 100)
+
+  currentCap = gDynamicControl\CpuCapPercent
+  If currentCap <= 0
+    currentCap = 100
+  EndIf
+
+  If *settings\PowerTargetEnabled And powerError > 0.0
+    If targetCap > currentCap
+      targetCap = currentCap
+    EndIf
+    If powerError >= *settings\ControlDeadband * 2.0
+      forcedDrop = ClampInt(Int(powerError * 3.0), 5, maxStepDown)
+      If targetCap > currentCap - forcedDrop
+        targetCap = currentCap - forcedDrop
       EndIf
     EndIf
-  ElseIf *reading\valid
-    tempPlan$ = DecideTempDrivenPlan(*reading\celsius, currentPlan$, *settings)
-    desiredLevel = PlanLevelFromName(tempPlan$)
-    cpuPowerIntegrator * 0.5
+  EndIf
+
+  If targetCap < currentCap - maxStepDown
+    targetCap = currentCap - maxStepDown
+  ElseIf targetCap > currentCap + maxStepUp
+    targetCap = currentCap + maxStepUp
+  EndIf
+  targetCap = ClampInt(targetCap, *settings\MinCpuCapPercent, 100)
+
+  If nowTick - gDynamicControl\LastApplyTick >= #AutoControlApplyIntervalMs And Abs(targetCap - currentCap) >= 2
+    If ApplyDynamicCpuCap(currentPlan$, targetCap, *settings)
+      If targetCap < 99
+        gDynamicControl\StatusText = "Limiting to CPU " + Str(targetCap) + "% / " + Str(gDynamicControl\CpuCapMhz) + " MHz for " + targetSummary$ + "."
+        LogAction("Auto Control applied CPU cap " + Str(targetCap) + "% (" + Str(gDynamicControl\CpuCapMhz) + " MHz).")
+        If *settings\AmdAdlxEnabled
+          If *settings\PowerTargetEnabled
+            amdTargetW = *settings\PowerTargetWatts
+          ElseIf *reading\cpuPackageValid And controlError > 0.0
+            amdTargetW = ClampInt(Int(*reading\cpuPackageWatts - controlError), 5, 80)
+          EndIf
+          If amdTargetW > 0
+            ApplyAmdAdlxControl(*reading, amdTargetW, *settings)
+          EndIf
+        EndIf
+      Else
+        gDynamicControl\StatusText = "Controller relaxed; selected profile is active."
+      EndIf
+    EndIf
   Else
-    cpuPowerIntegrator * 0.5
+    If gDynamicControl\Active
+      gDynamicControl\StatusText = "Holding CPU " + Str(gDynamicControl\CpuCapPercent) + "% / " + Str(gDynamicControl\CpuCapMhz) + " MHz for " + targetSummary$ + "."
+    Else
+      gDynamicControl\StatusText = "Selected profile active; targets are within deadband."
+    EndIf
   EndIf
 
-  If *reading\valid And *reading\celsius >= *settings\Threshold1512
-    desiredLevel = 0
+  If announceKeep
+    LogAction(gDynamicControl\StatusText)
   EndIf
-
-  desiredLevel = ClampInt(desiredLevel, 0, 5)
-  ProcedureReturn PlanNameFromLevel(desiredLevel)
 EndProcedure
 
 Procedure UpdateRuntimeState(*reading.TempReading, powerSource.i, activePlan$)
@@ -3834,9 +4245,10 @@ Procedure UpdateRuntimeSourceSnapshots(*windows.TempReading, *fallback.TempReadi
   UnlockMutex(gStateMutex)
 EndProcedure
 
-Procedure.i AutoCoolStep(announceKeep.i = #False)
+Procedure.i AutoControlStep(announceKeep.i = #False)
   Protected settings.AppSettings
   Protected reading.TempReading
+  Protected displayReading.TempReading
   Protected controlReading.TempReading
   Protected windows.TempReading
   Protected fallback.TempReading
@@ -3847,6 +4259,7 @@ Procedure.i AutoCoolStep(announceKeep.i = #False)
   Protected targetPlan$
   Protected autoWanted.i
   Protected pollSeconds.i
+  Protected controlAverageMs.i
   Static warnedMissing.i
   Static warnedSensor.i
 
@@ -3860,8 +4273,14 @@ Procedure.i AutoCoolStep(announceKeep.i = #False)
   UnlockMutex(gStateMutex)
 
   CaptureTelemetrySnapshot(@reading, @windows, @fallback)
+  CopyTempReading(@displayReading, @reading)
   CopyTempReading(@controlReading, @reading)
-  ApplyTelemetryAveraging(@controlReading, settings\AutoCoolAverageSeconds * 1000)
+  ApplyTelemetryAveraging(@displayReading, settings\AutoControlAverageSeconds * 1000, #True)
+  controlAverageMs = settings\AutoControlAverageSeconds * 1000
+  If controlAverageMs > #AutoControlResponseAverageMaxMs
+    controlAverageMs = #AutoControlResponseAverageMaxMs
+  EndIf
+  ApplyTelemetryAveraging(@controlReading, controlAverageMs, #False)
   BuildDependencyStatusFromSnapshots(@dependency, @reading, @windows, @fallback, @settings)
   CacheDependencyStatus(@dependency)
   currentPlan$ = GetActiveSchemeName()
@@ -3881,10 +4300,12 @@ Procedure.i AutoCoolStep(announceKeep.i = #False)
   UnlockMutex(gStateMutex)
 
   UpdateRuntimeState(@reading, powerSource, currentPlan$)
-  UpdateRuntimeControlState(@controlReading)
+  UpdateRuntimeControlState(@displayReading)
   UpdateRuntimeSourceSnapshots(@windows, @fallback)
+  MaintainAmdAdlxAutoProbe(@reading, #False)
 
   If settings\AutoBatteryPlan And powerSource = #PowerSourceBattery
+    RestoreDynamicCpuCap(currentPlan$, @settings)
     warnedSensor = #False
     If currentPlan$ <> #PlanBattery$
       LogAction("Battery power detected. Switching to " + #PlanBattery$)
@@ -3898,12 +4319,13 @@ Procedure.i AutoCoolStep(announceKeep.i = #False)
   autoWanted = settings\AutoEnabled
 
   If autoWanted = #False
+    RestoreDynamicCpuCap(currentPlan$, @settings)
     ProcedureReturn #False
   EndIf
 
   If CachedManagedPlansExist() = #False
     If warnedMissing = #False
-      LogAction("PowerPilot plans are missing. Open Plan Manager and click Create Defaults.")
+      LogAction("PowerPilot profiles are missing. Open Profiles and click Create Defaults.")
       warnedMissing = #True
     EndIf
     ProcedureReturn #False
@@ -3925,7 +4347,6 @@ Procedure.i AutoCoolStep(announceKeep.i = #False)
         If announceKeep
           LogAction("Manual plan override is active. Keeping " + currentPlan$)
         EndIf
-        ProcedureReturn #False
       EndIf
 
       If previousPowerSource = #PowerSourceBattery Or currentPlan$ = #PlanBattery$
@@ -3946,24 +4367,18 @@ Procedure.i AutoCoolStep(announceKeep.i = #False)
           EndIf
           warnedSensor = #True
         EndIf
+        RestoreDynamicCpuCap(currentPlan$, @settings)
         ProcedureReturn #False
       EndIf
 
       warnedSensor = #False
-      targetPlan$ = DecideAutoPlanSnapshot(@controlReading, currentPlan$, @settings)
-      If targetPlan$ <> currentPlan$
-        If ActivatePlanByName(targetPlan$)
-          ProcedureReturn #True
-        EndIf
-        ProcedureReturn #False
-      ElseIf announceKeep
-        LogAction(BuildGameStateText(@reading, @settings) + " -> keep " + currentPlan$)
-      EndIf
+      ApplyTargetController(@controlReading, currentPlan$, @settings, announceKeep)
 
     Default
       If announceKeep
         LogAction("Power source is unknown. No plan change was made.")
       EndIf
+      RestoreDynamicCpuCap(currentPlan$, @settings)
   EndSelect
   ProcedureReturn #False
 EndProcedure
@@ -3981,7 +4396,7 @@ Procedure WorkerThread(*unused)
   UnlockMutex(gStateMutex)
 
   Repeat
-    AutoCoolStep()
+    AutoControlStep()
 
     LockMutex(gStateMutex)
     pollSeconds = gSettings\PollSeconds
@@ -5165,7 +5580,7 @@ Procedure RefreshStatusDisplay()
   Protected tempText$
   Protected cpuPowerText$
   Protected gpuMemoryText$
-  Protected gameStateText$
+  Protected controlStateText$
   Protected telemetrySourceText$
   Protected blendGpuDevices$
   Protected liveGpuDevicesText$
@@ -5179,7 +5594,7 @@ Procedure RefreshStatusDisplay()
   powerSource = gState\PowerSource
   activePlan$ = gState\ActivePlan
   autoEnabled = gState\AutoEnabled
-  averageSeconds = gSettings\AutoCoolAverageSeconds
+  averageSeconds = gSettings\AutoControlAverageSeconds
   logText$ = BuildUiLogText()
   UnlockMutex(gStateMutex)
   CopyCachedDependencyStatus(@status)
@@ -5202,11 +5617,11 @@ Procedure RefreshStatusDisplay()
     cpuPowerText$ = "Unavailable"
   EndIf
 
-  blendGpuDevices$ = GpuHardwareNamesFromReading(@reading)
+  blendGpuDevices$ = CombinedGpuDeviceList(@reading, @windows)
 
   gpuMemoryText$ = DisplayGpuMemoryValue(@reading, blendGpuDevices$)
 
-  gameStateText$ = BuildGameStateText(@reading, @gSettings)
+  controlStateText$ = BuildControlStateText(@reading, @gSettings)
   If activePlan$ = "" : activePlan$ = "Unknown" : EndIf
   telemetrySourceText$ = BuildTelemetrySourceDisplay(@reading)
   If averageSeconds > 0 And HasUsableTelemetry(@averaged)
@@ -5224,7 +5639,7 @@ Procedure RefreshStatusDisplay()
   UpdateTextGadgetIfNeeded(#GadgetOverviewGpuMemoryValue, gpuMemoryText$)
   UpdateTextGadgetIfNeeded(#GadgetOverviewPowerValue, PowerSourceText(powerSource))
   UpdateTextGadgetIfNeeded(#GadgetOverviewPlanValue, activePlan$)
-  UpdateTextGadgetIfNeeded(#GadgetOverviewGameStateValue, gameStateText$)
+  UpdateTextGadgetIfNeeded(#GadgetOverviewControlStateValue, controlStateText$)
   overviewHardwareText$ = BuildOverviewHardwareDetails(@reading, @windows)
   UpdateTextGadgetIfNeeded(#GadgetOverviewHardwareDetails, overviewHardwareText$)
 
@@ -5241,9 +5656,36 @@ Procedure RefreshStatusDisplay()
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendGpuMemory, gpuMemoryText$)
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendPowerSource, PowerSourceText(powerSource))
   UpdateTextGadgetIfNeeded(#GadgetLiveBlendActivePlan, activePlan$)
-  UpdateTextGadgetIfNeeded(#GadgetLiveBlendGameState, gameStateText$)
+  UpdateTextGadgetIfNeeded(#GadgetLiveBlendControlState, controlStateText$)
 
   UpdateTextGadgetIfNeeded(#GadgetLiveFallbackStatus, liveGpuDevicesText$)
+
+  If IsGadget(#GadgetAmdAdlxStatus)
+    If gAmdAdlx\Probed = #False
+      UpdateTextGadgetIfNeeded(#GadgetAmdAdlxStatus, "Checking...")
+    Else
+      UpdateTextGadgetIfNeeded(#GadgetAmdAdlxStatus, gAmdAdlx\StatusText)
+    EndIf
+  If gAmdAdlx\GpuName <> ""
+      UpdateTextGadgetIfNeeded(#GadgetAmdAdlxGpuName, PreferResolvedAmdGpuName(gAmdAdlx\GpuName, blendGpuDevices$))
+    Else
+      UpdateTextGadgetIfNeeded(#GadgetAmdAdlxGpuName, "Unavailable")
+    EndIf
+    UpdateTextGadgetIfNeeded(#GadgetAmdAdlxFeatures, gAmdAdlx\FeatureText)
+    If gAmdAdlx\MetricsText <> ""
+      UpdateTextGadgetIfNeeded(#GadgetAmdAdlxMetrics, gAmdAdlx\MetricsText)
+    Else
+      UpdateTextGadgetIfNeeded(#GadgetAmdAdlxMetrics, "Unavailable")
+    EndIf
+  EndIf
+
+  If IsGadget(#GadgetControllerStatus)
+    If gDynamicControl\StatusText <> ""
+      UpdateTextGadgetIfNeeded(#GadgetControllerStatus, gDynamicControl\StatusText)
+    Else
+      UpdateTextGadgetIfNeeded(#GadgetControllerStatus, "Waiting for telemetry.")
+    EndIf
+  EndIf
 
   If gLastUiLogText$ <> logText$
     SetEditorText(#GadgetActionValue, logText$)
@@ -5286,6 +5728,7 @@ Procedure RefreshRuntimeSnapshot()
 
   UpdateRuntimeState(@reading, powerSource, activePlan$)
   UpdateRuntimeSourceSnapshots(@windows, @fallback)
+  MaintainAmdAdlxAutoProbe(@reading, #False)
 
   LockMutex(gStateMutex)
   gState\AutoEnabled = gSettings\AutoEnabled
@@ -5374,6 +5817,33 @@ Procedure ApplyLiveCheckboxSettings(logText$ = "")
   EndIf
 EndProcedure
 
+Procedure ApplyLiveTuningSettings()
+  Protected activePlan$
+  Protected currentCap.i
+
+  PullSettingsFromGui()
+  SaveSettings()
+  ResetTelemetrySmoothing()
+  UpdateUiRefreshTimer()
+  PushSettingsToGui()
+
+  LockMutex(gStateMutex)
+  gState\AutoEnabled = gSettings\AutoEnabled
+  UnlockMutex(gStateMutex)
+
+  If gDynamicControl\Active
+    currentCap = gDynamicControl\CpuCapPercent
+    activePlan$ = GetActiveSchemeName()
+    If activePlan$ = #PlanVisible$
+      activePlan$ = GetCurrentManagedPlan()
+    EndIf
+    ApplyDynamicCpuCap(activePlan$, currentCap, @gSettings)
+  EndIf
+
+  RequestImmediateTelemetryRefresh()
+  RefreshStatusDisplay()
+EndProcedure
+
 Procedure SelectPrimaryTelemetrySource(enabled.i)
   UpdateGadgetStateIfNeeded(#GadgetUseWindows, enabled)
 EndProcedure
@@ -5428,6 +5898,9 @@ EndProcedure
 
 Procedure ShutdownApp(exitCode.i = 0)
   StopWorkerThread()
+  If gAmdAdlx\HasChangedSettings
+    RestoreAmdAdlxSettings(#False)
+  EndIf
   StopWindowsPerfHelper()
   RemoveNativeTrayIcon()
   If IsImage(gTrayImage)
@@ -5442,17 +5915,17 @@ Procedure CreateTrayMenu()
   If CreatePopupImageMenu(#PopupTray)
     MenuItem(#MenuOpen, "Open PowerPilot")
     MenuBar()
-    MenuItem(#MenuToggleAuto, "Toggle Auto Cool")
-    MenuItem(#MenuAutoOnce, "Run Auto Cool Once")
+    MenuItem(#MenuToggleAuto, "Toggle Auto Control")
+    MenuItem(#MenuAutoOnce, "Run Auto Control Once")
     MenuBar()
-    MenuItem(#MenuBattery, "Activate Battery Saver")
-    MenuItem(#MenuPlugged, "Activate Plugged In")
-    MenuItem(#MenuFull, "Activate Full Power")
+    MenuItem(#MenuBattery, "Activate Battery")
+    MenuItem(#MenuPlugged, "Activate Balanced")
+    MenuItem(#MenuFull, "Activate Maximum")
     MenuBar()
     MenuItem(#MenuDependencies, "Help")
     MenuBar()
-    MenuItem(#MenuCreatePlans, "Create Or Refresh Plans")
-    MenuItem(#MenuCleanupPlans, "Remove Managed Plans")
+    MenuItem(#MenuCreatePlans, "Create Or Refresh Profiles")
+    MenuItem(#MenuCleanupPlans, "Remove Managed Profiles")
     MenuBar()
     MenuItem(#MenuExit, "Exit")
   EndIf
@@ -5547,7 +6020,7 @@ Procedure.i CreateMainWindow(showWindow.i)
   AppendRuntimeLog("CreateMainWindow: PanelGadget ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Overview")
-  TextGadget(#PB_Any, 18, 12, 780, 34, "Main dashboard. Shows the readings and plan state PowerPilot is using now." + #CRLF$ + "Values are averaged using the Control tab setting.")
+  TextGadget(#PB_Any, 18, 12, 780, 34, "Main dashboard. Shows the readings and plan state PowerPilot is using now." + #CRLF$ + "Values are averaged using the Auto Tuning tab setting.")
   FrameGadget(#PB_Any, 18, 54, 370, 150, "Averaged Snapshot")
   TextGadget(#PB_Any, 34, 84, 94, 20, "Temperature:")
   TextGadget(#GadgetOverviewTempValue, 136, 82, 220, 22, "Waiting...")
@@ -5572,135 +6045,144 @@ Procedure.i CreateMainWindow(showWindow.i)
   TextGadget(#PB_Any, 34, 352, 82, 20, "Active Plan:")
   TextGadget(#GadgetOverviewPlanValue, 122, 350, 240, 28, "Waiting...")
   SetGadgetFont(#GadgetOverviewPlanValue, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 382, 82, 20, "Cool State:")
-  TextGadget(#GadgetOverviewGameStateValue, 122, 380, 240, 28, "Waiting...")
-  SetGadgetFont(#GadgetOverviewGameStateValue, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 34, 382, 82, 20, "Control:")
+  TextGadget(#GadgetOverviewControlStateValue, 122, 380, 240, 28, "Waiting...")
+  SetGadgetFont(#GadgetOverviewControlStateValue, FontID(gFontBoldSmall))
 
   FrameGadget(#PB_Any, 408, 54, 390, 220, "Activity Log")
-  TextGadget(#PB_Any, 424, 82, 350, 18, "Recent Auto Cool and manual plan actions.")
+  TextGadget(#PB_Any, 424, 82, 350, 18, "Recent Auto Control and manual profile actions.")
   EditorGadget(#GadgetActionValue, 424, 106, 350, 144, #PB_Editor_ReadOnly | #PB_Editor_WordWrap)
 
   FrameGadget(#PB_Any, 408, 286, 390, 150, "System Details")
   TextGadget(#GadgetOverviewHardwareDetails, 424, 312, 350, 112, "Waiting...")
   SetGadgetFont(#GadgetOverviewHardwareDetails, FontID(gFontBoldSmall))
 
-  TextGadget(#PB_Any, 18, 448, 780, 34, "Auto Cool uses Windows CPU package power and temperature only." + #CRLF$ + "GPU names and VRAM are display-only information.")
+  TextGadget(#PB_Any, 18, 448, 780, 34, "Profiles set Windows behavior. Auto Control applies temporary CPU caps from enabled targets." + #CRLF$ + "AMD ADLX is used only for metrics or real driver power/frequency controls when exposed.")
   AppendRuntimeLog("CreateMainWindow: Overview tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Live Telemetry")
-  TextGadget(#PB_Any, 18, 12, 780, 34, "Live reading summary. Use this tab to see what PowerPilot can currently read." + #CRLF$ + "Windows temperature and CPU package power control Auto Cool.")
+  TextGadget(#PB_Any, 18, 12, 780, 34, "Live reading summary. Use this tab to see what PowerPilot can currently read." + #CRLF$ + "CPU package power remains primary. AMD ADLX adds optional GPU-side visibility and control.")
 
-  FrameGadget(#PB_Any, 18, 54, 390, 286, "Control Readings")
+  FrameGadget(#PB_Any, 18, 54, 390, 180, "Control Readings")
   TextGadget(#PB_Any, 34, 86, 96, 20, "Temperature:")
   TextGadget(#GadgetLiveBlendTemp, 152, 84, 220, 22, "")
   SetGadgetFont(#GadgetLiveBlendTemp, FontID(gFontBold))
   TextGadget(#PB_Any, 34, 116, 96, 20, "Telemetry:")
-  TextGadget(#GadgetLiveBlendSourceMix, 152, 114, 220, 48, "")
+  TextGadget(#GadgetLiveBlendSourceMix, 152, 114, 220, 36, "")
   SetGadgetFont(#GadgetLiveBlendSourceMix, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 174, 96, 20, "Temp Sensor:")
-  TextGadget(#GadgetLiveBlendTempSensor, 152, 172, 220, 42, "")
+  TextGadget(#PB_Any, 34, 158, 96, 20, "Temp Sensor:")
+  TextGadget(#GadgetLiveBlendTempSensor, 152, 156, 220, 34, "")
   SetGadgetFont(#GadgetLiveBlendTempSensor, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 34, 230, 96, 20, "CPU Power:")
-  TextGadget(#GadgetLiveBlendCpu, 152, 226, 220, 26, "")
+  TextGadget(#PB_Any, 34, 202, 96, 20, "CPU Power:")
+  TextGadget(#GadgetLiveBlendCpu, 152, 200, 220, 24, "")
   SetGadgetFont(#GadgetLiveBlendCpu, FontID(gFontBold))
 
-  FrameGadget(#PB_Any, 418, 54, 380, 286, "Display-Only Hardware Info")
+  FrameGadget(#PB_Any, 418, 54, 380, 180, "Hardware Info")
   TextGadget(#PB_Any, 434, 86, 110, 20, "Detected GPUs:")
-  TextGadget(#GadgetLiveFallbackStatus, 434, 108, 340, 64, "")
+  TextGadget(#GadgetLiveFallbackStatus, 434, 108, 340, 48, "")
   SetGadgetFont(#GadgetLiveFallbackStatus, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 434, 178, 100, 20, "GPU Memory:")
-  TextGadget(#GadgetLiveBlendGpuMemory, 550, 178, 224, 20, "")
+  TextGadget(#PB_Any, 434, 164, 100, 20, "GPU Memory:")
+  TextGadget(#GadgetLiveBlendGpuMemory, 550, 164, 224, 20, "")
   SetGadgetFont(#GadgetLiveBlendGpuMemory, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 434, 230, 100, 20, "Power Source:")
-  TextGadget(#GadgetLiveBlendPowerSource, 550, 230, 224, 20, "")
+  TextGadget(#PB_Any, 434, 194, 100, 20, "Power Source:")
+  TextGadget(#GadgetLiveBlendPowerSource, 550, 194, 224, 20, "")
   SetGadgetFont(#GadgetLiveBlendPowerSource, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 434, 256, 100, 20, "Active Plan:")
-  TextGadget(#GadgetLiveBlendActivePlan, 550, 254, 224, 30, "")
-  SetGadgetFont(#GadgetLiveBlendActivePlan, FontID(gFontBoldSmall))
-  TextGadget(#PB_Any, 434, 290, 100, 20, "Cool State:")
-  TextGadget(#GadgetLiveBlendGameState, 550, 288, 224, 32, "")
-  SetGadgetFont(#GadgetLiveBlendGameState, FontID(gFontBoldSmall))
 
-  FrameGadget(#PB_Any, 18, 352, 780, 96, "Important")
-  TextGadget(#PB_Any, 34, 378, 740, 38, "GPU names and VRAM are shown for hardware awareness." + #CRLF$ + "Auto Cool decisions come from CPU package power and temperature.")
+  FrameGadget(#PB_Any, 18, 248, 390, 190, "AMD Driver Telemetry")
+  TextGadget(#PB_Any, 34, 280, 82, 20, "Status:")
+  TextGadget(#GadgetAmdAdlxStatus, 128, 278, 250, 22, "Checking...")
+  SetGadgetFont(#GadgetAmdAdlxStatus, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 34, 310, 82, 20, "AMD GPU:")
+  TextGadget(#GadgetAmdAdlxGpuName, 128, 308, 250, 34, "Unavailable")
+  SetGadgetFont(#GadgetAmdAdlxGpuName, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 34, 356, 82, 20, "Metrics:")
+  TextGadget(#GadgetAmdAdlxMetrics, 128, 354, 250, 42, "Unavailable")
+  SetGadgetFont(#GadgetAmdAdlxMetrics, FontID(gFontBoldSmall))
+
+  FrameGadget(#PB_Any, 418, 248, 380, 190, "Profile and Control State")
+  TextGadget(#PB_Any, 434, 280, 100, 20, "Active Profile:")
+  TextGadget(#GadgetLiveBlendActivePlan, 550, 278, 224, 30, "")
+  SetGadgetFont(#GadgetLiveBlendActivePlan, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 434, 314, 100, 20, "Control:")
+  TextGadget(#GadgetLiveBlendControlState, 550, 312, 224, 32, "")
+  SetGadgetFont(#GadgetLiveBlendControlState, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 434, 356, 100, 20, "AMD Features:")
+  TextGadget(#GadgetAmdAdlxFeatures, 550, 354, 224, 54, "Checking support.")
+  SetGadgetFont(#GadgetAmdAdlxFeatures, FontID(gFontBoldSmall))
+
+  TextGadget(#PB_Any, 18, 456, 780, 24, "ADLX is probed automatically at startup and refreshed when Windows reports a GPU change.")
   AppendRuntimeLog("CreateMainWindow: Live Telemetry tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Automation")
-  TextGadget(#PB_Any, 18, 12, 780, 36, "Choose when PowerPilot is allowed to change plans for you." + #CRLF$ + "On battery it can hold Battery Saver. Plugged in, Auto Cool manages Cool plans.")
-  FrameGadget(#PB_Any, 18, 54, 360, 146, "Auto Cool")
-  CheckBoxGadget(#GadgetAutoEnabled, 34, 84, 280, 24, "Allow Auto Cool to change plans")
-  CheckBoxGadget(#GadgetAutoBatteryPlan, 34, 114, 292, 24, "Use Battery Saver when unplugged")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Choose whether PowerPilot may apply temporary caps from Auto Tuning targets." + #CRLF$ + "Profiles stay separate and are not changed by target control.")
+  FrameGadget(#PB_Any, 18, 54, 360, 146, "Auto Control")
+  CheckBoxGadget(#GadgetAutoEnabled, 34, 84, 280, 24, "Allow target-based temporary caps")
+  CheckBoxGadget(#GadgetAutoBatteryPlan, 34, 114, 292, 24, "Use Battery profile when unplugged")
 
   FrameGadget(#PB_Any, 392, 54, 406, 146, "Startup")
   CheckBoxGadget(#GadgetAutoStart, 410, 84, 170, 24, "Start in tray")
   CheckBoxGadget(#GadgetKeepSettings, 410, 114, 220, 24, "Keep settings on reinstall")
   TextGadget(#PB_Any, 410, 150, 360, 36, "Start in tray keeps the window hidden after login." + #CRLF$ + "Keep settings preserves your config during reinstall.")
 
-  FrameGadget(#PB_Any, 18, 220, 780, 176, "Readings")
-  TextGadget(#PB_Any, 34, 248, 740, 42, "Leave Windows telemetry on. It provides temperature and CPU package power." + #CRLF$ + "The GPU helper is only for GPU names and VRAM display.")
+  FrameGadget(#PB_Any, 18, 220, 360, 206, "Readings")
+  TextGadget(#PB_Any, 34, 248, 320, 46, "Windows telemetry provides temperature, CPU package power, GPU names, and VRAM readings.")
   CheckBoxGadget(#GadgetUseWindows, 34, 306, 190, 24, "Use Windows telemetry")
   ButtonGadget(#GadgetWindowsInfo, 244, 302, 24, 24, "i")
-  TextGadget(#PB_Any, 34, 342, 740, 40, "Battery note: use Windows Balanced or Best performance mode." + #CRLF$ + "Best power efficiency may cap power before Auto Cool can work fully.")
+  TextGadget(#PB_Any, 34, 350, 320, 40, "Use Windows Balanced or Best performance mode; Best power efficiency may cap power below PowerPilot targets.")
+
+  FrameGadget(#PB_Any, 392, 220, 406, 206, "AMD GPU-Side Assist")
+  CheckBoxGadget(#GadgetAmdAdlxEnabled, 410, 250, 260, 24, "Enable AMD GPU-side control")
+  ButtonGadget(#GadgetAmdAdlxRestore, 410, 286, 150, 28, "Restore AMD")
+  TextGadget(#PB_Any, 410, 330, 360, 58, "When enabled, Auto Control may use AMD power or frequency tuning only when the driver exposes it. ADLX support remains optional and driver-dependent.")
   AppendRuntimeLog("CreateMainWindow: Automation tab ok")
 
-  AddGadgetItem(#GadgetMainPanel, -1, "Control")
-  TextGadget(#PB_Any, 18, 12, 780, 36, "Tune how quickly Auto Cool reacts." + #CRLF$ + "Full Power enters CPU package power control by temperature.")
-  FrameGadget(#PB_Any, 18, 54, 360, 174, "Timing")
+  AddGadgetItem(#GadgetMainPanel, -1, "Auto Tuning")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Power and temperature targets are independent of behavior profiles." + #CRLF$ + "The bounded PI controller applies temporary CPU caps and optional real AMD GPU caps.")
+  FrameGadget(#PB_Any, 18, 54, 360, 174, "Timing and Response")
   TextGadget(#PB_Any, 34, 86, 170, 20, "Refresh every (sec):")
   SpinGadget(#GadgetPollSpin, 248, 82, 72, 25, 1, 60, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 116, 170, 20, "Temp step-back gap (C):")
+  TextGadget(#PB_Any, 34, 116, 170, 20, "Temp deadband (C):")
   SpinGadget(#GadgetHysteresisSpin, 248, 112, 72, 25, 1, 20, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 146, 170, 20, "Power step-back gap (W):")
-  SpinGadget(#GadgetPowerHysteresisSpin, 248, 142, 72, 25, 1, 30, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 176, 170, 20, "Average window (sec):")
-  SpinGadget(#GadgetAutoCoolAverage, 248, 172, 72, 25, 1, 60, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 146, 170, 20, "Power deadband (W):")
+  SpinGadget(#GadgetControlDeadbandSpin, 248, 142, 72, 25, 1, 15, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 176, 170, 20, "Dashboard average (sec):")
+  SpinGadget(#GadgetAutoControlAverage, 248, 172, 72, 25, 1, 60, #PB_Spin_Numeric)
 
-  FrameGadget(#PB_Any, 392, 54, 406, 174, "Decision Rule")
-  TextGadget(#PB_Any, 410, 86, 360, 92, "From Full Power: temperature starts Cool control." + #CRLF$ + "CPU package power can immediately choose a cooler level." + #CRLF$ + "High temperature can still force a lower-power Cool plan.")
+  FrameGadget(#PB_Any, 392, 54, 406, 174, "Targets")
+  CheckBoxGadget(#GadgetPowerTargetEnabled, 410, 84, 190, 24, "Use power target")
+  TextGadget(#PB_Any, 622, 88, 66, 20, "Watts:")
+  SpinGadget(#GadgetPowerTargetWatts, 696, 84, 72, 25, 5, 80, #PB_Spin_Numeric)
+  CheckBoxGadget(#GadgetTempTargetEnabled, 410, 124, 190, 24, "Use temperature target")
+  TextGadget(#PB_Any, 622, 128, 66, 20, "Temp C:")
+  SpinGadget(#GadgetTempTargetC, 696, 124, 72, 25, 45, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 410, 164, 360, 42, "Enable either target or both. Selecting a profile never changes these target values.")
 
-  FrameGadget(#PB_Any, 18, 252, 780, 128, "Tuning Notes")
-  TextGadget(#PB_Any, 34, 280, 740, 72, "Shorter refresh and smaller gaps react faster." + #CRLF$ + "Longer refresh and larger gaps switch plans less often." + #CRLF$ + "Use smoother settings if plan changes feel too busy.")
-  AppendRuntimeLog("CreateMainWindow: Control tab ok")
+  FrameGadget(#PB_Any, 18, 252, 380, 186, "CPU Cap Bounds")
+  TextGadget(#PB_Any, 34, 286, 164, 20, "Minimum CPU cap (%):")
+  SpinGadget(#GadgetMinCpuCap, 224, 282, 72, 25, #MinimumDynamicCpuCapPercent, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 322, 164, 20, "Minimum CPU MHz:")
+  SpinGadget(#GadgetMinCpuMHz, 224, 318, 72, 25, #MinimumDynamicCpuMHz, 5000, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 358, 164, 20, "Reference max MHz:")
+  SpinGadget(#GadgetMaxCpuMHz, 224, 354, 72, 25, 800, 6000, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 398, 330, 26, "Very low caps can starve GPU-heavy APU load; profile settings return when control relaxes.")
 
-  AddGadgetItem(#GadgetMainPanel, -1, "Thermal Steps")
-  TextGadget(#PB_Any, 18, 12, 780, 36, "Set the temperature safety limits." + #CRLF$ + "Higher temperature means PowerPilot can move to a lower-power Cool plan.")
-  FrameGadget(#PB_Any, 18, 54, 780, 216, "Temperature Safety Limits")
-  TextGadget(#PB_Any, 250, 82, 88, 20, "Hot at C")
-  TextGadget(#PB_Any, 360, 82, 96, 20, "Return at C")
-  TextGadget(#PB_Any, 34, 116, 190, 20, "Full Power -> 24W:")
-  SpinGadget(#GadgetThresholdFull24, 250, 112, 72, 25, 45, 100, #PB_Spin_Numeric)
-  SpinGadget(#GadgetReturnFull24, 360, 112, 72, 25, 30, 99, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 146, 190, 20, "24W -> 21W:")
-  SpinGadget(#GadgetThreshold2421, 250, 142, 72, 25, 46, 105, #PB_Spin_Numeric)
-  SpinGadget(#GadgetReturn2421, 360, 142, 72, 25, 31, 104, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 176, 190, 20, "21W -> 18W:")
-  SpinGadget(#GadgetThreshold2118, 250, 172, 72, 25, 47, 110, #PB_Spin_Numeric)
-  SpinGadget(#GadgetReturn2118, 360, 172, 72, 25, 32, 109, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 206, 190, 20, "18W -> 15W:")
-  SpinGadget(#GadgetThreshold1815, 250, 202, 72, 25, 48, 115, #PB_Spin_Numeric)
-  SpinGadget(#GadgetReturn1815, 360, 202, 72, 25, 33, 114, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 236, 190, 20, "15W -> 12W:")
-  SpinGadget(#GadgetThreshold1512, 250, 232, 72, 25, 49, 120, #PB_Spin_Numeric)
-  SpinGadget(#GadgetReturn1512, 360, 232, 72, 25, 34, 119, #PB_Spin_Numeric)
+  FrameGadget(#PB_Any, 418, 252, 380, 186, "Current Controller State")
+  TextGadget(#GadgetControllerStatus, 436, 286, 340, 92, "Waiting for telemetry.")
+  SetGadgetFont(#GadgetControllerStatus, FontID(gFontBoldSmall))
+  TextGadget(#PB_Any, 436, 392, 340, 30, "Fast attack, slow recovery, bounded integral, and a short response window.")
+  AppendRuntimeLog("CreateMainWindow: Auto Tuning tab ok")
 
-  FrameGadget(#PB_Any, 18, 282, 780, 84, "How This Is Used")
-  TextGadget(#PB_Any, 34, 308, 740, 28, "Hot at C moves to the next lower-power plan." + #CRLF$ + "Return at C moves back to Full Power or the previous Cool plan.")
-
-  FrameGadget(#PB_Any, 18, 378, 780, 88, "Choosing Values")
-  TextGadget(#PB_Any, 34, 404, 740, 34, "Lower hot numbers cool sooner." + #CRLF$ + "Lower return numbers wait for more cooling before stepping back up.")
-  AppendRuntimeLog("CreateMainWindow: Thermal Steps tab ok")
-
-  AddGadgetItem(#GadgetMainPanel, -1, "Plan Manager")
-  TextGadget(#PB_Any, 18, 12, 780, 36, "Install, remove, and edit PowerPilot power plans." + #CRLF$ + "Built-in plans can be refreshed. Custom plans can be created from a preset.")
-  FrameGadget(#PB_Any, 18, 54, 370, 442, "Installed Plans")
+  AddGadgetItem(#GadgetMainPanel, -1, "Profiles")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Install, remove, and tune the four PowerPilot behavior profiles." + #CRLF$ + "Profiles do not set watt or temperature targets; Auto Tuning does.")
+  FrameGadget(#PB_Any, 18, 54, 370, 442, "Installed Profiles")
   ListIconGadget(#GadgetPlanList, 34, 84, 338, 270, "Plan", 175, #PB_ListIcon_CheckBoxes | #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
   AddGadgetColumn(#GadgetPlanList, 1, "Type", 72)
   AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 280)
   ButtonGadget(#GadgetPlanRefreshAll, 34, 372, 150, 30, "Create Defaults")
   ButtonGadget(#GadgetPlanRemoveAll, 198, 372, 174, 30, "Remove Managed")
-  TextGadget(#PB_Any, 34, 420, 338, 54, "Tick to keep installed; untick to remove." + #CRLF$ + "Select a row to edit plug/battery settings.")
+  TextGadget(#PB_Any, 34, 420, 338, 54, "Tick to keep installed; untick to remove." + #CRLF$ + "Maximum, Balanced, Quiet, and Battery are the only default profiles.")
 
-  FrameGadget(#PB_Any, 408, 54, 390, 442, "Plan Editor")
+  FrameGadget(#PB_Any, 408, 54, 390, 442, "Profile Editor")
   TextGadget(#PB_Any, 426, 84, 78, 20, "Plan Name:")
   StringGadget(#GadgetPlanEditorName, 512, 80, 266, 24, "")
   TextGadget(#PB_Any, 426, 114, 78, 20, "Purpose:")
@@ -5733,27 +6215,29 @@ Procedure.i CreateMainWindow(showWindow.i)
   TextGadget(#PB_Any, 612, 360, 76, 20, "Batt MHz:")
   SpinGadget(#GadgetPlanDcFreq, 696, 356, 72, 24, 0, 5000, #PB_Spin_Numeric)
 
-  ButtonGadget(#GadgetPlanEditorSave, 426, 420, 96, 30, "Save Plan")
-  ButtonGadget(#GadgetPlanEditorNew, 536, 420, 108, 30, "New Custom")
-  ButtonGadget(#GadgetPlanEditorDelete, 654, 420, 124, 30, "Delete Custom")
-  AppendRuntimeLog("CreateMainWindow: Plan Manager tab ok")
+  ButtonGadget(#GadgetPlanEditorSave, 426, 420, 96, 30, "Save")
+  ButtonGadget(#GadgetPlanEditorNew, 536, 420, 108, 30, "New")
+  ButtonGadget(#GadgetPlanEditorDelete, 654, 420, 124, 30, "Delete")
+  DisableGadget(#GadgetPlanEditorNew, #True)
+  DisableGadget(#GadgetPlanEditorDelete, #True)
+  AppendRuntimeLog("CreateMainWindow: Profiles tab ok")
 
   AddGadgetItem(#GadgetMainPanel, -1, "Manual Override")
-  TextGadget(#PB_Any, 18, 12, 780, 36, "Use this tab when you want to choose the plan yourself." + #CRLF$ + "Full Power and Cool plans keep Auto Cool on. Battery Saver and Plugged In turn it off.")
-  FrameGadget(#PB_Any, 18, 54, 780, 136, "Manual Plan")
-  TextGadget(#PB_Any, 34, 90, 80, 20, "Select Plan:")
+  TextGadget(#PB_Any, 18, 12, 780, 36, "Use this tab when you want to choose the Windows behavior profile yourself." + #CRLF$ + "Profiles do not set watt or temperature targets; those stay on the Auto Tuning tab.")
+  FrameGadget(#PB_Any, 18, 54, 780, 136, "Manual Profile")
+  TextGadget(#PB_Any, 34, 90, 80, 20, "Profile:")
   ComboBoxGadget(#GadgetPlanCombo, 120, 86, 398, 28)
   PopulatePlanCombo()
   ButtonGadget(#GadgetActivatePlan, 542, 85, 110, 28, "Activate")
   ButtonGadget(#GadgetAutoOnce, 670, 85, 106, 28, "Auto Once")
-  TextGadget(#PB_Any, 34, 126, 740, 42, "Activate switches to the selected plan now." + #CRLF$ + "Auto Once makes one Auto Cool decision and leaves your settings unchanged.")
+  TextGadget(#PB_Any, 34, 126, 740, 42, "Activate switches to the selected profile now." + #CRLF$ + "Auto Once applies one target-control decision and leaves target settings unchanged.")
 
   FrameGadget(#PB_Any, 18, 210, 780, 96, "Display Recovery")
   ButtonGadget(#GadgetResetDisplay, 34, 246, 190, 30, "Reset Display")
   TextGadget(#PB_Any, 244, 244, 530, 34, "Sends Win+Ctrl+Shift+B. Use this if the display path needs a quick Windows reset.")
 
-  FrameGadget(#PB_Any, 18, 326, 780, 132, "How Manual Plans Behave")
-  TextGadget(#PB_Any, 34, 352, 740, 72, "Only installed plans appear in the list." + #CRLF$ + "Battery Saver and Plugged In are manual plans, so they turn Auto Cool off." + #CRLF$ + "To let PowerPilot choose again, turn Auto Cool back on in Automation.")
+  FrameGadget(#PB_Any, 18, 326, 780, 132, "How Manual Profiles Behave")
+  TextGadget(#PB_Any, 34, 352, 740, 72, "Only installed profiles appear in the list." + #CRLF$ + "Manual profile activation does not enable, disable, or change power/temperature targets." + #CRLF$ + "Auto Control overlays temporary caps only when enabled in Automation and Auto Tuning.")
 
   CloseGadgetList()
   AppendRuntimeLog("CreateMainWindow: Manual Override tab ok")
@@ -5836,10 +6320,10 @@ Procedure HandleManualAction(action.i)
       SavePlanEditorDefinition()
 
     Case #GadgetPlanEditorNew
-      StartNewPlanFromPreset()
+      LogAction("Custom profiles are disabled; PowerPilot uses four behavior profiles.")
 
     Case #GadgetPlanEditorDelete
-      DeleteSelectedCustomPlan()
+      LogAction("Built-in behavior profiles are kept; use Remove Managed to clean Windows profiles.")
 
     Case #GadgetActivatePlan
       planIndex = GetGadgetState(#GadgetPlanCombo)
@@ -5850,40 +6334,24 @@ Procedure HandleManualAction(action.i)
         If ActivatePlanByName(planName$, #True) And IsRememberedPluggedPlanName(planName$)
           RememberPluggedPlan(planName$, #True)
           gManualOverrideUntil = 0
-          If planName$ = #PlanFull$ Or IsAutoCoolPlanName(planName$)
-            LockMutex(gStateMutex)
-            gSettings\AutoEnabled = #True
-            gState\AutoEnabled = #True
-            UnlockMutex(gStateMutex)
-          Else
-            LockMutex(gStateMutex)
-            gSettings\AutoEnabled = #False
-            gState\AutoEnabled = #False
-            UnlockMutex(gStateMutex)
-          EndIf
+          RestoreDynamicCpuCap(planName$, @gSettings)
           SaveSettings()
           PushSettingsToGui()
-          If planName$ = #PlanFull$
-            LogAction("Full Power activated. Auto Cool stays on and will use temperature.")
-          ElseIf IsAutoCoolPlanName(planName$)
-            LogAction("Cool plan activated. Auto Cool stays on and will use CPU package power first.")
-          Else
-            LogAction("Manual plan activated. Auto Cool is off so this plan stays active.")
-          EndIf
+          LogAction(planName$ + " profile activated. Power and temperature targets are unchanged.")
         EndIf
       Else
         LogAction("No manual plan is selected.")
       EndIf
 
     Case #GadgetAutoOnce
-      AutoCoolStep(#True)
+      AutoControlStep(#True)
 
     Case #GadgetResetDisplay
       TriggerDisplayReset()
       LogAction("Requested Windows graphics/display reset hotkey.")
 
     Case #GadgetAutoEnabled
-      ApplyLiveCheckboxSettings("Auto Cool setting updated.")
+      ApplyLiveCheckboxSettings("Auto Control setting updated.")
 
     Case #GadgetUseWindows
       SelectPrimaryTelemetrySource(GetGadgetState(#GadgetUseWindows))
@@ -5897,6 +6365,23 @@ Procedure HandleManualAction(action.i)
 
     Case #GadgetAutoBatteryPlan
       ApplyLiveCheckboxSettings("Battery/plugged auto setting updated.")
+
+    Case #GadgetAmdAdlxEnabled
+      ApplyLiveCheckboxSettings("AMD ADLX GPU-side control setting updated.")
+      If GetGadgetState(#GadgetAmdAdlxEnabled)
+        ProbeAmdAdlx(#True)
+        ReadAmdAdlxMetrics(#True)
+      Else
+        RestoreAmdAdlxSettings(#True)
+      EndIf
+      RefreshStatusDisplay()
+
+    Case #GadgetAmdAdlxRestore
+      RestoreAmdAdlxSettings(#True)
+      RefreshStatusDisplay()
+
+    Case #GadgetPollSpin, #GadgetHysteresisSpin, #GadgetControlDeadbandSpin, #GadgetAutoControlAverage, #GadgetPowerTargetEnabled, #GadgetPowerTargetWatts, #GadgetTempTargetEnabled, #GadgetTempTargetC, #GadgetMinCpuCap, #GadgetMinCpuMHz, #GadgetMaxCpuMHz
+      ApplyLiveTuningSettings()
 
     Case #GadgetSaveSettings
       SaveSettingsFromGui()
@@ -5929,10 +6414,10 @@ Procedure HandleTrayMenu(menuID.i)
       UnlockMutex(gStateMutex)
       SaveSettings()
       PushSettingsToGui()
-      LogAction("Auto Cool toggled to " + Str(gSettings\AutoEnabled))
+      LogAction("Auto Control toggled to " + Str(gSettings\AutoEnabled))
 
     Case #MenuAutoOnce
-      AutoCoolStep(#True)
+      AutoControlStep(#True)
 
     Case #MenuBattery
       ActivatePlanByName(#PlanBattery$, #True)
@@ -6040,7 +6525,7 @@ Procedure RunGui(showWindow.i)
             workerRunning = gState\WorkerRunning
             UnlockMutex(gStateMutex)
             If workerRunning = #False
-              AutoCoolStep()
+              AutoControlStep()
               RefreshRuntimeSnapshot()
             EndIf
             RefreshStatusDisplay()
@@ -6101,7 +6586,7 @@ If CountProgramParameters() > 0
       EndIf
 
     Case "/auto-gamecool-once", "/auto-cool-once"
-      AutoCoolStep(#True)
+      AutoControlStep(#True)
       End 0
 
     Case "/startup-on"

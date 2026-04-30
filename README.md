@@ -1,42 +1,44 @@
 # PowerPilot
 
-PowerPilot is a PureBasic x64 Windows tray application for managing custom Windows power plans, Auto Cool power levels, temperature protection, startup behavior, and clean install/uninstall handling for the plans it creates.
+PowerPilot is a PureBasic x64 Windows tray application for managing four Windows behavior profiles, target-based automatic CPU cap control, startup behavior, and clean install/uninstall handling for the profiles it creates.
 
-The current control logic uses CPU package power and temperature readings from Windows. Auto Cool uses CPU package power first when it is already running a Cool plan. When PowerPilot is in Full Power and Auto Cool is enabled, temperature is used to decide when to enter the Cool plans.
+The current control logic uses CPU package power and temperature readings from Windows. Auto Control does not switch profiles to regulate power or temperature; it applies temporary CPU caps from independent power and temperature targets, then restores the selected profile when control relaxes. Control uses a short response window with faster downward correction and slower recovery so package-power overshoot is corrected quickly without making normal recovery jumpy.
 
-The GPU helper is used only to show GPU names and VRAM information. GPU load and GPU power are not used for Auto Cool decisions.
+On AMD APUs where the driver exposes no iGPU power actuator, Auto Control can use very low CPU percentage and MHz caps to starve GPU-heavy package load through the shared APU power and memory path.
+
+PowerPilot also includes an optional AMD ADLX helper layer. When enabled by the user and supported by the installed AMD display driver, it can read AMD GPU/APU metrics and use real AMD driver-side GPU power or frequency tuning when those controls are exposed. The Windows power-plan controller remains the primary control path and continues to work when ADLX is unavailable.
 
 ## Main features
 
 - Windows x64 PureBasic tray application
 - live temperature, CPU package power, and VRAM display
-- CPU-package-power Auto Cool control while running Cool plans
-- temperature-based entry into Cool plans from Full Power
-- editable temperature thresholds, smoothing, and polling interval
-- one-click creation and cleanup of PowerPilot-owned Windows power plans
+- target-based package-power control using temporary CPU caps
+- optional single temperature target using the same controller path
+- optional AMD ADLX GPU/APU-side probe, metrics, power/frequency tuning, and restore support
+- editable target values, deadbands, smoothing, and polling interval
+- one-click creation and cleanup of PowerPilot-owned Windows behavior profiles
 - startup-in-tray support
 - standard Inno Setup installer with uninstall support
 
-## Plans managed by the app
+## Profiles managed by the app
 
-PowerPilot creates these custom plans:
+PowerPilot creates these behavior profiles:
 
-- `PowerPilot Battery Saver`
-- `PowerPilot Plugged In`
-- `PowerPilot Cool 12W`
-- `PowerPilot Cool 15W`
-- `PowerPilot Cool 18W`
-- `PowerPilot Cool 21W`
-- `PowerPilot Cool 24W`
-- `PowerPilot Full Power`
+- `PowerPilot Maximum`
+- `PowerPilot Balanced`
+- `PowerPilot Quiet`
+- `PowerPilot Battery`
 
-Cleanup also removes legacy `Codex *` plans from the earlier prototype so upgrades stay clean.
+Cleanup also removes older `PowerPilot *` and legacy `Codex *` plans from earlier prototypes so upgrades stay clean.
 
 ## Runtime notes
 
-- On battery, set Windows Power mode to Balanced or Best performance when using PowerPilot. Best power efficiency can cap the available CPU power range before PowerPilot can apply the full Auto Cool behavior.
+- On battery, set Windows Power mode to Balanced or Best performance when using PowerPilot. Best power efficiency can cap the available CPU power range before PowerPilot can apply the full Auto Control behavior.
 - PowerPilot changes only local Windows power plans and the Windows startup entry needed for tray launch.
 - The helper executables are project-built support tools used for local Windows hardware information.
+- `PowerPilotAmdAdlxHelper.exe` is optional. It uses only the AMD ADLX runtime installed by the AMD display driver.
+- `PowerPilotAmdAdlHelper.exe` is a probe-only fallback helper for AMD's legacy ADL runtime. It dynamically loads only the driver-installed `atiadlxx.dll` from System32 and does not change tuning settings.
+- PowerPilot does not bundle, copy, install, redistribute, or ship `amdadlx64.dll`, does not modify AMD driver files or AMD registry tuning values, and does not reset AMD Adrenalin tuning to factory defaults.
 - PowerPilot does not need network access for its normal control logic.
 
 ## Build requirements
@@ -47,6 +49,7 @@ Cleanup also removes legacy `Codex *` plans from the earlier prototype so upgrad
 - Inno Setup 6 for installer builds
 - .NET Framework C# compiler for helper builds
 - Visual Studio Build Tools with the C++ workload for the EMI helper build
+- Optional: AMD ADLX SDK for real ADLX helper support. Without it, the helper still builds and reports ADLX as unavailable.
 
 ## Command-line build
 
@@ -55,6 +58,15 @@ Build the application and helper executables:
 ```powershell
 .\build-purebasic.ps1
 ```
+
+To build `PowerPilotAmdAdlxHelper.exe` with ADLX support, set `ADLX_SDK_DIR` to the root of the AMD ADLX SDK checkout before building:
+
+```powershell
+$env:ADLX_SDK_DIR = "C:\path\to\ADLX"
+.\build-purebasic.ps1
+```
+
+Do not place `amdadlx64.dll` in this repository or beside the helper. The helper refuses to use a local ADLX runtime DLL next to itself.
 
 Build the installer:
 
@@ -68,7 +80,37 @@ The installer build produces:
 - `build\PowerPilotWindowsPmiHelper.exe`
 - `build\PowerPilotWindowsPerfHelper.exe`
 - `build\PowerPilotWindowsEmiHelper.exe`
+- `build\PowerPilotAmdAdlxHelper.exe`
+- `build\PowerPilotAmdAdlHelper.exe`
 - `build\PowerPilot_V1.0_Setup.exe`
+
+## AMD ADLX helper interface
+
+The PureBasic app calls `PowerPilotAmdAdlxHelper.exe` as an external process and parses JSON output. Supported commands include:
+
+```text
+PowerPilotAmdAdlxHelper.exe probe
+PowerPilotAmdAdlxHelper.exe metrics
+PowerPilotAmdAdlxHelper.exe gfx_get
+PowerPilotAmdAdlxHelper.exe gfx_set_max <mhz>
+PowerPilotAmdAdlxHelper.exe power_get
+PowerPilotAmdAdlxHelper.exe power_set <value>
+PowerPilotAmdAdlxHelper.exe restore
+```
+
+The main controller uses ADLX only for real GPU power/frequency tuning when ADLX is enabled, package power is above the configured power target, and the driver exposes the required tuning controls. If the driver exposes metrics only, ADLX remains informational and CPU-side temporary caps continue to do the control work.
+
+The helper saves only settings it changes and `restore` restores only those saved values. ADLX feature support is device, driver, and AMD Software configuration dependent.
+
+## AMD ADL probe helper
+
+`PowerPilotAmdAdlHelper.exe` is intentionally probe-only. It checks whether the older AMD Display Library exposes useful Overdrive, Overdrive8, OverdriveN, or PMLog capabilities on the current driver:
+
+```text
+PowerPilotAmdAdlHelper.exe probe
+```
+
+The ADL helper refuses to load a local `atiadlxx.dll` beside itself and instead loads the AMD-driver-installed runtime from System32. It does not call ADL setter APIs.
 
 To sign the project-owned executables with a certificate already installed in the Windows certificate store:
 
@@ -148,14 +190,14 @@ The installer:
 - installs into `Program Files\PowerPilot`
 - registers the app to start with Windows using `/tray`
 - launches the app into the notification area after installation
-- calls the app to remove and recreate only the custom plans it owns
+- calls the app to remove and recreate only the PowerPilot profiles it owns
 - removes older helper files on upgrade or uninstall if an earlier install left them behind
 
 The uninstall path removes:
 
 - the installed files
 - the Windows startup entry
-- the custom PowerPilot plans
+- the PowerPilot behavior profiles
 - any legacy `Codex *` plans from the prototype
 
 ## Command-line options
@@ -193,7 +235,7 @@ LICENSE
 
 ## Intended use
 
-PowerPilot is intended for local Windows power-plan management, battery/plugged-in plan switching, and temperature-aware Auto Cool behavior on systems where the user wants quick tray access to those controls.
+PowerPilot is intended for local Windows behavior-profile management, battery/plugged-in profile switching, and target-based Auto Control on systems where the user wants quick tray access to those controls.
 
 ## License
 

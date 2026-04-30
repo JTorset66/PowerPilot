@@ -46,10 +46,14 @@ Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\PowerPilotWindowsPmiHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\PowerPilotWindowsPerfHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\PowerPilotWindowsEmiHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\PowerPilotAmdAdlxHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\PowerPilotAmdAdlHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot_tray.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "installer-assets\installer-welcome.bmp"; Flags: dontcopy
+Source: "installer-assets\installer-finish.bmp"; Flags: dontcopy
 
 [Icons]
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{sys}\imageres.dll"; IconIndex: 101
@@ -57,6 +61,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "
 [InstallDelete]
 Type: files; Name: "{app}\PowerPilotLibreHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
+Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
 Type: files; Name: "{app}\powerpilot_tray.png"
 Type: filesandordirs; Name: "{app}\third_party\LibreHardwareMonitor"
@@ -65,6 +70,7 @@ Type: dirifempty; Name: "{app}\third_party"
 [UninstallDelete]
 Type: files; Name: "{app}\{#AppSetupName}"
 Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
+Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
 Type: files; Name: "{app}\powerpilot_tray.png"
 Type: filesandordirs; Name: "{app}\third_party\LibreHardwareMonitor"
@@ -106,8 +112,31 @@ begin
     Text.Font.Style := [fsBold];
 end;
 
+procedure ApplyWizardArtwork(PageID: Integer);
+var
+  BitmapPath: string;
+begin
+  BitmapPath := '';
+  if PageID = wpWelcome then
+    BitmapPath := ExpandConstant('{tmp}\installer-welcome.bmp')
+  else if PageID = wpFinished then
+    BitmapPath := ExpandConstant('{tmp}\installer-finish.bmp');
+
+  if BitmapPath <> '' then
+  begin
+    try
+      WizardForm.WizardBitmapImage.Bitmap.LoadFromFile(BitmapPath);
+    except
+    end;
+  end;
+end;
+
 procedure InitializeWizard;
 begin
+  ExtractTemporaryFile('installer-welcome.bmp');
+  ExtractTemporaryFile('installer-finish.bmp');
+  ApplyWizardArtwork(wpWelcome);
+
   OverviewPage :=
     CreateCustomPage(
       wpWelcome,
@@ -123,6 +152,11 @@ begin
                   '- startup is enabled so the tray controller is available after sign-in', 134, 76, 9, False);
   AddOverviewText('Auto Cool behavior:', 226, 24, 10, True);
   AddOverviewText('Full Power enters Cool control by temperature, then CPU package power chooses the cooling level. The Thermal Steps page lets you tune both hot and return temperatures.', 256, 64, 9, False);
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  ApplyWizardArtwork(CurPageID);
 end;
 
 function QueryUninstallValue(const ValueName: string; var Value: string): Boolean;

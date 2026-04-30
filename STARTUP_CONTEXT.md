@@ -1,6 +1,6 @@
 ﻿# PowerPilot Startup Context
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 ## Verified build state
 
@@ -11,13 +11,13 @@ Last updated: 2026-04-29
 Latest verified artifact details:
 
 - build\PowerPilot_V1.0.exe
-  - Size: 756,224 bytes
-  - Last write time: 2026-04-29 00:20:27
-  - SHA-256: C586D57A190AF359A17142ED8DC2D891EC4DB28F6DDF21CBC6D064ACFB1BFAD3
+  - Size: 764,416 bytes
+  - Last write time: 2026-04-30 19:41:41
+  - SHA-256: 33F5434AA4F7E7E9217E59C27D7E82DDCA30AB8864B1E98EEA7897483FCE737C
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,396,131 bytes
-  - Last write time: 2026-04-29 00:20:35
-  - SHA-256: 0A67E1A4C3FFC409CD26B87D9CE2D69A07FB5A07F7C06C95EDE5C8C374C08DBA
+  - Size: 2,698,705 bytes
+  - Last write time: 2026-04-30 19:42:04
+  - SHA-256: F555047A2F6E6BFB0D84B975326DA2C82705BEC223EB3BEC2079E4B8DA298C3F
 
 ## Current feature notes
 
@@ -40,9 +40,9 @@ Latest verified artifact details:
 
 ## Latest snapshot
 
-- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-29_00-20-09.zip
-- Created: 2026-04-29 00:20:09
-- Source files captured: 728
+- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-30_19-41-22.zip
+- Created: 2026-04-30 19:41:22
+- Source files captured: 730
 
 ## Where to look first on a new startup
 

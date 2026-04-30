@@ -132,11 +132,19 @@ $windowsPerfHelperTempOutputPath = Join-Path $outputRoot "PowerPilotWindowsPerfH
 $windowsEmiHelperSourcePath = Join-Path $repoRoot "WindowsEmiHelper.c"
 $windowsEmiHelperOutputPath = Join-Path $outputRoot "PowerPilotWindowsEmiHelper.exe"
 $windowsEmiHelperTempOutputPath = Join-Path $outputRoot "PowerPilotWindowsEmiHelper.build.exe"
+$amdAdlxHelperSourcePath = Join-Path $repoRoot "AmdAdlxHelper.cpp"
+$amdAdlxHelperOutputPath = Join-Path $outputRoot "PowerPilotAmdAdlxHelper.exe"
+$amdAdlxHelperTempOutputPath = Join-Path $outputRoot "PowerPilotAmdAdlxHelper.build.exe"
+$amdAdlHelperSourcePath = Join-Path $repoRoot "AmdAdlHelper.cpp"
+$amdAdlHelperOutputPath = Join-Path $outputRoot "PowerPilotAmdAdlHelper.exe"
+$amdAdlHelperTempOutputPath = Join-Path $outputRoot "PowerPilotAmdAdlHelper.build.exe"
 
 foreach ($requiredPath in @(
     $windowsPmiHelperSourcePath,
     $windowsPerfHelperSourcePath,
-    $windowsEmiHelperSourcePath
+    $windowsEmiHelperSourcePath,
+    $amdAdlxHelperSourcePath,
+    $amdAdlHelperSourcePath
 )) {
     if (-not (Test-Path $requiredPath)) {
         throw "Required helper source not found: $requiredPath"
@@ -146,20 +154,18 @@ foreach ($requiredPath in @(
 foreach ($tempPath in @(
     $windowsPmiHelperTempOutputPath,
     $windowsPerfHelperTempOutputPath,
-    $windowsEmiHelperTempOutputPath
+    $windowsEmiHelperTempOutputPath,
+    $amdAdlxHelperTempOutputPath,
+    $amdAdlHelperTempOutputPath
 )) {
     if (Test-Path $tempPath) {
         Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
     }
 }
 
-$legacyAmdHelperOutputPath = Join-Path $outputRoot "PowerPilotAmdAdlxHelper.exe"
-if (Test-Path $legacyAmdHelperOutputPath) {
-    Remove-Item -LiteralPath $legacyAmdHelperOutputPath -Force -ErrorAction SilentlyContinue
-}
-
 foreach ($legacyObjectPath in @(
     (Join-Path $repoRoot "AmdAdlxHelper.obj"),
+    (Join-Path $repoRoot "AmdAdlHelper.obj"),
     (Join-Path $repoRoot "ADLXHelper.obj"),
     (Join-Path $repoRoot "WinAPIs.obj")
 )) {
@@ -226,13 +232,94 @@ if ($LASTEXITCODE -ne 0) {
 Move-Item -LiteralPath $windowsEmiHelperTempOutputPath -Destination $windowsEmiHelperOutputPath -Force
 Write-Host "Built Windows EMI helper:" $windowsEmiHelperOutputPath
 
+$adlxSdkDir = $env:ADLX_SDK_DIR
+$adlxEnabled = $false
+$adlxCompileSources = @($amdAdlxHelperSourcePath)
+$adlxIncludeArgs = @()
+$adlxDefineArgs = @()
+
+if ($adlxSdkDir) {
+    $adlxHelperCpp = Join-Path $adlxSdkDir "SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp"
+    $adlxWinApisCpp = Join-Path $adlxSdkDir "SDK\Platform\Windows\WinAPIs.cpp"
+    $adlxHeader = Join-Path $adlxSdkDir "SDK\ADLXHelper\Windows\Cpp\ADLXHelper.h"
+
+    if ((Test-Path $adlxHelperCpp) -and (Test-Path $adlxWinApisCpp) -and (Test-Path $adlxHeader)) {
+        $adlxEnabled = $true
+        $adlxCompileSources += @($adlxHelperCpp, $adlxWinApisCpp)
+        $adlxIncludeArgs += @("/I`"$adlxSdkDir`"")
+        $adlxDefineArgs += @("/DPOWERPILOT_ENABLE_ADLX_SDK=1")
+    }
+    else {
+        Write-Warning "ADLX_SDK_DIR is set but the expected ADLX SDK helper files were not found. Building the safe unavailable helper."
+    }
+}
+
+$cmdParts = @(
+    "`"$vcvars`" >nul &&",
+    "`"$cl`"",
+    "/nologo",
+    "/O2",
+    "/EHsc",
+    "/std:c++17",
+    "/DUNICODE",
+    "/D_UNICODE"
+) + $adlxDefineArgs + $adlxIncludeArgs + @(
+    "/Fe:`"$amdAdlxHelperTempOutputPath`""
+)
+
+foreach ($sourcePath in $adlxCompileSources) {
+    $cmdParts += "`"$sourcePath`""
+}
+
+$cmdParts += @("/link", "ole32.lib")
+$cmdLine = $cmdParts -join " "
+
+Push-Location $repoRoot
+try {
+    cmd.exe /c $cmdLine
+}
+finally {
+    Pop-Location
+}
+
+if ($LASTEXITCODE -ne 0) {
+    throw "AMD ADLX helper compilation failed."
+}
+Move-Item -LiteralPath $amdAdlxHelperTempOutputPath -Destination $amdAdlxHelperOutputPath -Force
+if ($adlxEnabled) {
+    Write-Host "Built AMD ADLX helper with ADLX SDK:" $amdAdlxHelperOutputPath
+}
+else {
+    Write-Host "Built AMD ADLX helper without ADLX SDK support:" $amdAdlxHelperOutputPath
+}
+
+$cmdLine =
+    "`"$vcvars`" >nul && " +
+    "`"$cl`" /nologo /O2 /EHsc /std:c++17 /DUNICODE /D_UNICODE /Fe:`"$amdAdlHelperTempOutputPath`" `"$amdAdlHelperSourcePath`""
+
+Push-Location $repoRoot
+try {
+    cmd.exe /c $cmdLine
+}
+finally {
+    Pop-Location
+}
+
+if ($LASTEXITCODE -ne 0) {
+    throw "AMD ADL helper compilation failed."
+}
+Move-Item -LiteralPath $amdAdlHelperTempOutputPath -Destination $amdAdlHelperOutputPath -Force
+Write-Host "Built AMD ADL probe helper:" $amdAdlHelperOutputPath
+
 if ($CertificateThumbprint) {
     $certificate = Get-CodeSigningCertificate -Thumbprint $CertificateThumbprint
 
     foreach ($helperPath in @(
         $windowsPmiHelperOutputPath,
         $windowsPerfHelperOutputPath,
-        $windowsEmiHelperOutputPath
+        $windowsEmiHelperOutputPath,
+        $amdAdlxHelperOutputPath,
+        $amdAdlHelperOutputPath
     )) {
         Sign-ProjectArtifact -Path $helperPath -Certificate $certificate -TimestampServer $TimestampUrl
     }
