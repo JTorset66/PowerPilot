@@ -4,7 +4,7 @@ Hello SignPath Foundation team,
 
 I would like to apply for SignPath Foundation signing for PowerPilot.
 
-PowerPilot is a Windows x64 PureBasic tray application for managing three local Windows power plans. It can create Maximum, Balanced, and Battery plans from the selected Windows plan and apply tuned CPU behavior settings on top.
+PowerPilot is a Windows x64 PureBasic tray application for managing three fixed local Windows power plans: Maximum, Balanced, and Battery. The Plans tab lets users edit those fixed plans directly, and PowerPilot follows Windows power mode to choose which managed plan should be active.
 
 Repository:
 https://github.com/JTorset66/PowerPilot
