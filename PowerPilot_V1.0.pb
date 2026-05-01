@@ -4,7 +4,7 @@ EnableExplicit
 ; PureBasic-only Windows power-plan manager with local CPU/GPU identification.
 
 #AppName$            = "PowerPilot"
-#AppVersion$         = "1.0.2605.01490"
+#AppVersion$         = "1.0.2605.01499"
 #AppFullName$        = #AppName$ + " v" + #AppVersion$
 #AppRunKey$          = "PowerPilot"
 #SettingsFolderName$ = "PowerPilot"

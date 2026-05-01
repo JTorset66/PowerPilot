@@ -12,23 +12,20 @@ Latest verified artifact details:
 
 - build\PowerPilot_V1.0.exe
   - Size: 795,648 bytes
-  - Last write time: 2026-05-02 00:50:17
-  - SHA-256: B859BDA53811E39E864547836AB9A8768FD72F79992686C3C1F35626CAD657AC
+  - Last write time: 2026-05-02 00:59:40
+  - SHA-256: 7A33626AE9921C86BC54C90D2AE358A75EECC43C23006B4B66CC0BCC84A28280
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,552,965 bytes
-  - Last write time: 2026-05-02 00:50:19
-  - SHA-256: 0D5ECFE3F084BBF9E11970C73B2142F3E7703BA107C3FAF26D13D30820054161
+  - Size: 2,553,337 bytes
+  - Last write time: 2026-05-02 00:59:42
+  - SHA-256: 90896D7B9D2541F3DD7635C30861DAEB8264B1DE5C5BDB11F4B566FB442D67AF
 
 ## Current feature notes
 
 - Control keeps only the Maximum, Balanced, and Battery plans.
 - The tray app follows Windows power mode: Best performance, Balanced, or Best power efficiency.
 - Plan creation refreshes PowerPilot plans from the current non-PowerPilot Windows plan when one is selected.
-- PowerPilot Balanced is tuned close to Windows Balanced: 100% max CPU, AC boost enabled, DC boost disabled, Windows-like boost response, no frequency cap, and CPU idle enabled.
-- PowerPilot Maximum favors maximum performance: AC EPP 0, aggressive AC boost, 100% max CPU, no frequency cap, faster boost ramp-up, slower ramp-down, and CPU idle enabled.
 - CPU information comes from CPUID inline assembly.
 - GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution, without helpers.
-- The executable, tray, and desktop shortcut use matching green shield icon assets; the desktop shortcut points to powerpilot_desktop.ico.
 
 ## Installer status
 
@@ -43,8 +40,8 @@ Latest verified artifact details:
 
 ## Latest snapshot
 
-- Archive: SNAPSHOTS\powerpilot-prebuild-2026-05-02_00-50-15.zip
-- Created: 2026-05-02 00:50:15
+- Archive: SNAPSHOTS\powerpilot-prebuild-2026-05-02_00-59-38.zip
+- Created: 2026-05-02 00:59:38
 - Source files captured: 30
 
 ## Where to look first on a new startup
