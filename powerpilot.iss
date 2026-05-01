@@ -4,6 +4,7 @@
 #define AppSetupName "PowerPilot_V1.0_Setup.exe"
 #define AppPublisher "John Torset"
 #define AppURL "https://github.com/JTorset66/PowerPilot"
+#define AppIconName "powerpilot.ico"
 #define AppId "{{88D96927-5B26-4DF8-8EE0-3BF9A49E56E3}"
 
 [Setup]
@@ -32,27 +33,35 @@ UninstallDisplayIcon={app}\{#AppExeName}
 CloseApplications=yes
 CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
+VersionInfoCompany={#AppPublisher}
+VersionInfoDescription=PowerPilot Setup
+VersionInfoProductName={#AppName}
+VersionInfoProductVersion={#AppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to PowerPilot
-WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup will refresh the PowerPilot-owned plans, remove older helper files, and start PowerPilot in the tray when it finishes.
+WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup will refresh the PowerPilot-owned plans, remove older helper files, include the user README, license, and third-party notices, and start PowerPilot in the tray when it finishes.
 FinishedHeadingLabel=PowerPilot is ready
 FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. Open PowerPilot from the desktop shortcut or the tray icon to review plans, Windows power mode, and hardware information.
 
 [Files]
 Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "powerpilot.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppIconName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot_tray.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.md"; Flags: ignoreversion
+Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "INSTALLER_README.md"; DestName: "PowerPilot_README.md"; Flags: dontcopy
+Source: "THIRD_PARTY_NOTICES.md"; DestName: "PowerPilot_THIRD_PARTY_NOTICES.md"; Flags: dontcopy
+Source: "LICENSE"; DestName: "PowerPilot_LICENSE.txt"; Flags: dontcopy
 Source: "installer-assets\installer-welcome.bmp"; Flags: dontcopy
 Source: "installer-assets\installer-finish.bmp"; Flags: dontcopy
 
 [Icons]
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{sys}\imageres.dll"; IconIndex: 101
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppIconName}"
 
 [InstallDelete]
 Type: files; Name: "{app}\PowerPilotLibreHelper.exe"
@@ -85,6 +94,7 @@ const
 
 var
   OverviewPage: TWizardPage;
+  IncludedFilesPage: TWizardPage;
 
 function GetCurrentProcessId(): Cardinal;
   external 'GetCurrentProcessId@kernel32.dll stdcall';
@@ -112,6 +122,76 @@ begin
   Text.Font.Size := FontSize;
   if Bold then
     Text.Font.Style := [fsBold];
+end;
+
+procedure OpenIncludedTextFile(const FileName: string);
+var
+  ResultCode: Integer;
+  TempPath: string;
+begin
+  ExtractTemporaryFile(FileName);
+  TempPath := ExpandConstant('{tmp}\' + FileName);
+
+  if not Exec(ExpandConstant('{sys}\notepad.exe'), QuoteValue(TempPath), '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
+    MsgBox('PowerPilot Setup could not open ' + FileName + '.', mbError, MB_OK);
+end;
+
+procedure ReadmeButtonClick(Sender: TObject);
+begin
+  OpenIncludedTextFile('PowerPilot_README.md');
+end;
+
+procedure LicenseButtonClick(Sender: TObject);
+begin
+  OpenIncludedTextFile('PowerPilot_LICENSE.txt');
+end;
+
+procedure ThirdPartyButtonClick(Sender: TObject);
+begin
+  OpenIncludedTextFile('PowerPilot_THIRD_PARTY_NOTICES.md');
+end;
+
+procedure CreateIncludedFileButton(const Caption: string; Top: Integer; OnClick: TNotifyEvent);
+var
+  Button: TNewButton;
+begin
+  Button := TNewButton.Create(IncludedFilesPage);
+  Button.Parent := IncludedFilesPage.Surface;
+  Button.Caption := Caption;
+  Button.Left := 0;
+  Button.Top := Top;
+  Button.Width := ScaleX(190);
+  Button.Height := WizardForm.NextButton.Height;
+  Button.OnClick := OnClick;
+end;
+
+procedure CreateIncludedFilesPage;
+var
+  BodyText: TNewStaticText;
+  ButtonTop: Integer;
+begin
+  IncludedFilesPage :=
+    CreateCustomPage(
+      wpSelectDir,
+      'Read Included Files',
+      'Open the documents bundled with PowerPilot before installing.'
+    );
+
+  BodyText := TNewStaticText.Create(IncludedFilesPage);
+  BodyText.Parent := IncludedFilesPage.Surface;
+  BodyText.Left := 0;
+  BodyText.Top := 0;
+  BodyText.Width := IncludedFilesPage.SurfaceWidth;
+  BodyText.Height := ScaleY(60);
+  BodyText.WordWrap := True;
+  BodyText.Caption :=
+    'PowerPilot Setup includes a user README, license, and third-party notices. ' +
+    'Use these buttons to read them now; the same files will also be installed with PowerPilot.';
+
+  ButtonTop := BodyText.Top + BodyText.Height + ScaleY(18);
+  CreateIncludedFileButton('Read README', ButtonTop, @ReadmeButtonClick);
+  CreateIncludedFileButton('Read License', ButtonTop + ScaleY(36), @LicenseButtonClick);
+  CreateIncludedFileButton('Read Third-Party Notices', ButtonTop + ScaleY(72), @ThirdPartyButtonClick);
 end;
 
 procedure ApplyWizardArtwork(PageID: Integer);
@@ -154,7 +234,9 @@ begin
                   '- old helper executables from previous builds are removed' + #13 +
                   '- startup is enabled so the tray app is available after sign-in', 134, 88, 9, False);
   AddOverviewText('Managed plans:', 226, 24, 10, True);
-  AddOverviewText('PowerPilot keeps only Maximum, Balanced, and Battery plans. The tray app maps Windows power mode to those plans, while Create/Refresh uses the current non-PowerPilot Windows plan as the base when one is selected.', 256, 72, 9, False);
+  AddOverviewText('PowerPilot keeps only Maximum, Balanced, and Battery plans. The Plans tab edits those fixed plans directly, while Windows power mode chooses which one should be active.', 256, 72, 9, False);
+
+  CreateIncludedFilesPage();
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

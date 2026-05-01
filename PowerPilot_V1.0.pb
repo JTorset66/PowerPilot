@@ -51,11 +51,6 @@ Prototype.i GetProcessInformationProto(processHandle.i, informationClass.i, *pro
 
 Enumeration 100
   #MenuOpen
-  #MenuMaximum
-  #MenuBalanced
-  #MenuBattery
-  #MenuCreatePlans
-  #MenuCleanupPlans
   #MenuExit
 EndEnumeration
 
@@ -68,9 +63,6 @@ Enumeration 200
   #GadgetLastAction
   #GadgetRefreshInfo
   #GadgetPlanList
-  #GadgetCreatePlans
-  #GadgetRemovePlans
-  #GadgetActivatePlan
   #GadgetPlanSummary
   #GadgetPlanAcEpp
   #GadgetPlanDcEpp
@@ -1789,24 +1781,46 @@ EndProcedure
 
 Procedure SavePlanEditor()
   Protected guid$
+  Protected baseGuid$
+  Protected baseName$
   ReadPlanEditor()
   SaveSettings()
   guid$ = GetSchemeGuidByName(gPlans(gSelectedPlan)\Name)
   If guid$ <> ""
+    RunPowerCfg("/CHANGENAME " + guid$ + " " + QuoteArgument(gPlans(gSelectedPlan)\Name) + " " + QuoteArgument(gPlans(gSelectedPlan)\Description))
     ConfigureScheme(@gPlans(gSelectedPlan), guid$)
     LogAction(gPlans(gSelectedPlan)\Name + " saved and applied to Windows.")
   Else
-    LogAction(gPlans(gSelectedPlan)\Name + " saved. Click Create/Refresh Plans to install it.")
+    baseGuid$ = GetActiveSchemeGuid()
+    baseName$ = GetSchemeNameByGuid(baseGuid$, #True)
+    If baseGuid$ = "" Or IsManagedPlanName(baseName$)
+      baseGuid$ = "SCHEME_BALANCED"
+    EndIf
+    If EnsurePlanInstalled(gSelectedPlan, baseGuid$)
+      RefreshSchemeCache()
+      LogAction(gPlans(gSelectedPlan)\Name + " created, saved, and applied to Windows.")
+    Else
+      LogAction("Failed to create " + gPlans(gSelectedPlan)\Name + ".")
+    EndIf
   EndIf
-  RefreshPlanList()
+  RefreshPlanList(#True)
 EndProcedure
 
 Procedure ResetSelectedPlan()
   Protected name$ = gPlans(gSelectedPlan)\Name
+  Protected guid$
   LoadDefaultPlan(gSelectedPlan)
   SaveSettings()
   RefreshPlanEditor()
-  LogAction(name$ + " reset to defaults.")
+  guid$ = GetSchemeGuidByName(name$)
+  If guid$ <> ""
+    RunPowerCfg("/CHANGENAME " + guid$ + " " + QuoteArgument(gPlans(gSelectedPlan)\Name) + " " + QuoteArgument(gPlans(gSelectedPlan)\Description))
+    ConfigureScheme(@gPlans(gSelectedPlan), guid$)
+    LogAction(name$ + " reset to defaults and applied to Windows.")
+  Else
+    LogAction(name$ + " reset to defaults.")
+  EndIf
+  RefreshPlanList(#True)
 EndProcedure
 
 Procedure ApplySettingsToGui()
@@ -1865,13 +1879,10 @@ Procedure ApplyToolTips()
     SetTip(#GadgetDeepIdleSaver, "In efficiency mode, reduce hidden PowerPilot wakeups and allow deeper CPU core parking.")
     SetTip(#GadgetShowToolTips, "Show or hide these hover explanations.")
 
-    SetTip(gIntroPlans, "Create/Refresh copies your selected Windows plan, then applies PowerPilot Maximum, Balanced, or Battery intent.")
-    SetTip(gFrameManagedPlans, "The three PowerPilot plans managed inside Windows power settings.")
-    SetTip(#GadgetPlanList, "Select a managed plan to view or edit its processor settings.")
-    SetTip(#GadgetCreatePlans, "Install or refresh the three managed plans from the currently selected Windows base plan.")
-    SetTip(#GadgetRemovePlans, "Remove PowerPilot-managed plans from Windows.")
-    SetTip(#GadgetActivatePlan, "Make the selected PowerPilot plan the active Windows plan.")
-    SetTip(gFramePlanSettings, "Processor power settings for the selected plan. Save applies them to Windows.")
+    SetTip(gIntroPlans, "PowerPilot keeps exactly three editable managed plans and follows Windows power mode automatically.")
+    SetTip(gFrameManagedPlans, "The three fixed PowerPilot plans managed inside Windows power settings.")
+    SetTip(#GadgetPlanList, "Select one of the three fixed plans to edit its processor settings.")
+    SetTip(gFramePlanSettings, "Processor power settings for the selected fixed plan. Save applies them to Windows.")
     SetTip(#GadgetPlanSummary, "Short purpose text shown in the managed plan list.")
     SetTip(#GadgetPlanAcEpp, "Plugged-in energy preference. 0 favors speed; 100 favors efficiency.")
     SetTip(#GadgetPlanDcEpp, "Battery energy preference. 0 favors speed; 100 favors efficiency.")
@@ -1907,9 +1918,6 @@ Procedure ApplyToolTips()
     SetTip(gIntroPlans, "")
     SetTip(gFrameManagedPlans, "")
     SetTip(#GadgetPlanList, "")
-    SetTip(#GadgetCreatePlans, "")
-    SetTip(#GadgetRemovePlans, "")
-    SetTip(#GadgetActivatePlan, "")
     SetTip(gFramePlanSettings, "")
     SetTip(#GadgetPlanSummary, "")
     SetTip(#GadgetPlanAcEpp, "")
@@ -2041,13 +2049,6 @@ Procedure CreateTrayMenu()
   If CreatePopupMenu(#PopupTray)
     MenuItem(#MenuOpen, "Open PowerPilot")
     MenuBar()
-    MenuItem(#MenuMaximum, "Activate Maximum")
-    MenuItem(#MenuBalanced, "Activate Balanced")
-    MenuItem(#MenuBattery, "Activate Battery")
-    MenuBar()
-    MenuItem(#MenuCreatePlans, "Create/Refresh Plans")
-    MenuItem(#MenuCleanupPlans, "Remove Managed Plans")
-    MenuBar()
     MenuItem(#MenuExit, "Exit")
   EndIf
 EndProcedure
@@ -2143,23 +2144,6 @@ Procedure HandleAction(gadget.i)
         RefreshPlanEditor()
       EndIf
 
-    Case #GadgetCreatePlans
-      ReadPlanEditor()
-      SaveSettings()
-      CreateManagedPlans()
-      RefreshPlanList(#True)
-      RefreshDisplay(#True)
-
-    Case #GadgetRemovePlans
-      CleanupManagedPlans()
-      RefreshPlanList(#True)
-      RefreshDisplay(#True)
-
-    Case #GadgetActivatePlan
-      ReadPlanEditor()
-      ActivatePlanByName(gPlans(gSelectedPlan)\Name)
-      RefreshDisplay(#True)
-
     Case #GadgetPlanSave
       SavePlanEditor()
 
@@ -2181,16 +2165,6 @@ Procedure HandleMenu(menu.i)
   Select menu
     Case #MenuOpen
       ShowFromTray()
-    Case #MenuMaximum
-      ActivatePlanByName(#PlanFull$)
-    Case #MenuBalanced
-      ActivatePlanByName(#PlanBalanced$)
-    Case #MenuBattery
-      ActivatePlanByName(#PlanBattery$)
-    Case #MenuCreatePlans
-      CreateManagedPlans()
-    Case #MenuCleanupPlans
-      CleanupManagedPlans()
     Case #MenuExit
       ShutdownApp()
   EndSelect
@@ -2243,15 +2217,12 @@ Procedure CreateMainWindow(showWindow.i)
   CheckBoxGadget(#GadgetShowToolTips, 483, 342, 130, 20, "Show tips")
 
   AddGadgetItem(#GadgetPanel, -1, "Plans")
-  gIntroPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Create/Refresh copies the selected Windows plan as the base; Windows mode chooses Maximum, Balanced, or Battery.")
+  gIntroPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Edit the three fixed PowerPilot plans; Windows mode chooses Maximum, Balanced, or Battery.")
   UseBoldFont(gIntroPlans)
-  gFrameManagedPlans = FrameGadget(#PB_Any, 18, 40, 700, 142, "Managed Plans")
-  ListIconGadget(#GadgetPlanList, 34, 62, 668, 82, "Plan", 176, #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
+  gFrameManagedPlans = FrameGadget(#PB_Any, 18, 40, 700, 134, "Fixed Plans")
+  ListIconGadget(#GadgetPlanList, 34, 62, 668, 96, "Plan", 176, #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
   AddGadgetColumn(#GadgetPlanList, 1, "Installed", 70)
   AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 395)
-  ButtonGadget(#GadgetCreatePlans, 34, 150, 122, 24, "Create/Refresh")
-  ButtonGadget(#GadgetRemovePlans, 166, 150, 124, 24, "Remove Managed")
-  ButtonGadget(#GadgetActivatePlan, 300, 150, 90, 24, "Activate")
 
   gFramePlanSettings = FrameGadget(#PB_Any, 18, 190, 700, 168, "Selected Plan Settings")
   TextGadget(#PB_Any, 34, 212, 64, 20, "Purpose:")

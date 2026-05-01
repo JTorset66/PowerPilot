@@ -11,8 +11,7 @@ The app creates or refreshes those plans from the currently selected Windows pow
 ## Main Features
 
 - PureBasic x64 tray application
-- three-plan maker/editor based on the selected Windows plan
-- manual activation of Maximum, Balanced, or Battery
+- fixed three-plan editor for Maximum, Balanced, and Battery
 - automatic Maximum, Balanced, or Battery activation based on Windows power mode
 - automatic refresh from a newly selected non-PowerPilot Windows plan
 - CPU information from inline CPUID assembly
@@ -65,15 +64,35 @@ To sign the project-owned executables with a certificate already installed in th
 .\build-installer.ps1 -CertificateThumbprint "<YOUR_CERT_THUMBPRINT>"
 ```
 
+To add RFC 3161 timestamping:
+
+```powershell
+.\build-installer.ps1 -CertificateThumbprint "<YOUR_CERT_THUMBPRINT>" -TimestampUrl "<YOUR_TIMESTAMP_URL>"
+```
+
+## Versioning
+
+The public source and artifact names stay at `V1.0`, while build scripts stamp a full build version:
+
+```text
+1.0.YYMM.minute-of-month
+```
+
+For example, a May 2026 build may report a version such as `V1.0.2605.01042` in the app and installer metadata.
+
 ## Installer Behavior
 
 The installer:
 
 - installs into `Program Files\PowerPilot`
+- creates a desktop shortcut
 - registers the app to start with Windows using `/tray`
 - launches the app into the notification area after installation
+- includes a user-focused README, license, and third-party notices
+- provides installer buttons to read those included files before installation
 - removes old PowerPilot helper files from earlier builds if present
 - calls the app to remove and recreate only the PowerPilot plans it owns
+- supports repair and uninstall from Windows Apps/Programs maintenance
 
 The uninstall path removes:
 
@@ -95,9 +114,62 @@ The uninstall path removes:
 /cleanup-settings
 ```
 
+## Fixed Plan Editing
+
+PowerPilot keeps exactly three managed plans:
+
+- `PowerPilot Maximum`
+- `PowerPilot Balanced`
+- `PowerPilot Battery`
+
+The Plans tab edits those fixed plans directly. Select one of the three plans, adjust its processor settings, then click `Save`. If the selected PowerPilot plan is missing from Windows, Save recreates it and applies the edited settings.
+
+PowerPilot does not expose manual plan activation in the UI. While PowerPilot is running, Windows power mode chooses which of the three fixed plans should be active.
+
 ## Privacy
 
 PowerPilot does not transfer information to networked systems unless explicitly requested by the user or operator. Hardware information is read locally from CPUID and Windows display adapter enumeration.
+
+## Releases
+
+Tagged releases are intended to use the format `v*`.
+
+The repository includes a self-hosted GitHub Actions workflow at [`.github/workflows/release-self-hosted.yml`](.github/workflows/release-self-hosted.yml) for controlled Windows builds with PureBasic and Inno Setup installed. The workflow can optionally sign artifacts when a trusted certificate thumbprint is provided through repository secrets.
+
+Release steps are summarized in [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
+
+## Code Signing Policy
+
+The code-signing and release-signing rules are documented in [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md).
+
+For SignPath Foundation onboarding preparation, see [`SIGNPATH_APPLICATION.md`](SIGNPATH_APPLICATION.md).
+
+## Repository Contents
+
+```text
+PowerPilot_V1.0.pb
+PowerPilot.code-workspace
+powerpilot.iss
+build-purebasic.ps1
+build-installer.ps1
+install-powerpilot.ps1
+installer-assets/
+powerpilot.ico
+powerpilot_tray.ico
+README.md
+INSTALLER_README.md
+THIRD_PARTY_NOTICES.md
+RELEASE_NOTES_v1.0.md
+CODE_SIGNING_POLICY.md
+RELEASE_CHECKLIST.md
+SIGNPATH_APPLICATION.md
+SIGNPATH_EMAIL_DRAFT.md
+LICENSE
+```
+
+## Third-Party Notices
+
+No third-party assets or libraries requiring separate redistribution notices are intentionally bundled with the PowerPilot release package. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## License
 

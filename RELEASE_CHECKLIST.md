@@ -6,6 +6,10 @@ Use this checklist for public PowerPilot releases.
 
 - Confirm the intended version number in `PowerPilot_V1.0.pb` and `powerpilot.iss`.
 - Review `README.md` for current installer, startup, tray, plan-maker, and hardware-info behavior.
+- Review `INSTALLER_README.md` for user-facing app functionality and usage changes.
+- Confirm `THIRD_PARTY_NOTICES.md` is included with the installer and still matches bundled assets.
+- Confirm the installer includes `INSTALLER_README.md` as installed `README.md`.
+- Confirm the installer creates a desktop shortcut.
 - Confirm the project still matches the statements in `CODE_SIGNING_POLICY.md`.
 - Confirm the SignPath notes in `SIGNPATH_APPLICATION.md` are still accurate.
 - Build locally with:
@@ -17,8 +21,12 @@ Use this checklist for public PowerPilot releases.
 
 - Verify the executable and installer exist in `build\`.
 - If signing is available, sign and verify the executable and installer before release.
+- Test-launch the built executable on Windows.
 - Test-install the built installer on Windows.
+- Confirm the installer "Read Included Files" page opens the README, license, and third-party notices.
 - Confirm the app starts in the tray after install.
+- Confirm the installed desktop shortcut launches PowerPilot.
+- Confirm the installed maintenance entry offers Repair install and Uninstall.
 - Confirm uninstall removes the startup entry and PowerPilot-owned plans.
 - Confirm GitHub MFA is enabled for the maintainer account.
 

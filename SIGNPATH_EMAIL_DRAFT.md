@@ -28,9 +28,11 @@ Repository readiness:
 - The project uses the MIT License.
 - The repository includes a code signing policy.
 - The repository includes a release checklist.
+- The repository includes a user-focused installer README and third-party notices.
 - The repository includes a self-hosted Windows GitHub Actions workflow for release builds.
 - The build scripts support signing with a certificate installed in the Windows certificate store.
 - The README includes build, installer, privacy, and release notes.
+- The installer bundles the README, license, and third-party notices, and offers buttons to read them before installation.
 
 Privacy and user safety:
 PowerPilot does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it. It reads local CPU identification through CPUID and local GPU display-adapter names through Windows display enumeration. It changes only local Windows power plans and the Windows startup entry needed for tray launch.

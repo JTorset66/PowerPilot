@@ -55,7 +55,11 @@ jobs:
       - name: Create SHA256 checksums
         shell: powershell
         run: |
-          Get-ChildItem .\build\*.exe | ForEach-Object {
+          $artifacts = @(Get-ChildItem .\build\*.exe)
+          if ($artifacts.Count -eq 0) {
+            throw "No executables were produced in the build directory."
+          }
+          $artifacts | ForEach-Object {
             $hash = Get-FileHash $_.FullName -Algorithm SHA256
             "$($hash.Hash.ToLowerInvariant()) *$($_.Name)" | Set-Content -Path (Join-Path $_.Directory.FullName "$($_.Name).sha256") -Encoding ascii
           }
