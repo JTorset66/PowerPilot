@@ -11,7 +11,7 @@ This document collects the information needed to apply for a free SignPath.io su
 - License: GPL-3.0
 - Maintainer: John Torset
 - Primary platform: Windows x64
-- Project description: PureBasic tray application for managing custom Windows power plans, CPU-package-power Auto Cool levels, temperature protection, startup behavior, and clean install/uninstall handling
+- Project description: PureBasic tray application for managing three local Windows power plans, startup behavior, clean install/uninstall handling, and local CPU/GPU identification
 
 ## Why this project fits the program
 
@@ -32,9 +32,6 @@ This document collects the information needed to apply for a free SignPath.io su
 ## Expected release artifacts
 
 - `PowerPilot_V1.0.exe`
-- `PowerPilotWindowsPmiHelper.exe`
-- `PowerPilotWindowsPerfHelper.exe`
-- `PowerPilotWindowsEmiHelper.exe`
 - `PowerPilot_V1.0_Setup.exe`
 - SHA-256 checksum files for published executables
 
@@ -55,7 +52,7 @@ This document collects the information needed to apply for a free SignPath.io su
 ### Privacy and user safety
 
 - The project states: "This program does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it."
-- PowerPilot reads local Windows telemetry for temperature, CPU package power, GPU names, and VRAM display.
+- PowerPilot reads local CPU identification through CPUID and local GPU display-adapter names through Windows display enumeration.
 - PowerPilot changes only local Windows power plans and the Windows startup entry needed for tray launch.
 - The project is not a hacking tool and does not include features intended to bypass platform security controls.
 
@@ -82,7 +79,7 @@ This document collects the information needed to apply for a free SignPath.io su
 
 ### Short project description
 
-PowerPilot is a Windows x64 PureBasic tray application for managing custom Windows power plans. It can switch between battery, plugged-in, Full Power, and Auto Cool plans using CPU package power and temperature readings from Windows.
+PowerPilot is a Windows x64 PureBasic tray application for managing three local Windows power plans. It can create Maximum, Balanced, and Battery plans from the selected Windows plan and apply tuned CPU behavior settings on top.
 
 ### Why code signing is needed
 

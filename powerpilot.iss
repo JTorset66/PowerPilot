@@ -1,5 +1,5 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.0"
+#define AppVersion "1.0.2605.00770"
 #define AppExeName "PowerPilot_V1.0.exe"
 #define AppSetupName "PowerPilot_V1.0_Setup.exe"
 #define AppPublisher "John Torset"
@@ -31,23 +31,19 @@ UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
 CloseApplications=yes
 CloseApplicationsFilter={#AppExeName}
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to PowerPilot
-WelcomeLabel2=PowerPilot installs a tray utility for local Windows power-plan control, CPU package power telemetry, and temperature-aware cooling.%n%nSetup will refresh the PowerPilot plans, install the Windows telemetry helpers, and start PowerPilot in the tray when it finishes.
+WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup will refresh the PowerPilot-owned plans, remove older helper files, and start PowerPilot in the tray when it finishes.
 FinishedHeadingLabel=PowerPilot is ready
-FinishedLabelNoIcons=Setup has installed PowerPilot and queued the tray app to start. Open PowerPilot from the desktop shortcut or the tray icon to review Auto Cool, Thermal Steps, and Plan Manager settings.
+FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. Open PowerPilot from the desktop shortcut or the tray icon to review plans, Windows power mode, and hardware information.
 
 [Files]
 Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\PowerPilotWindowsPmiHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\PowerPilotWindowsPerfHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\PowerPilotWindowsEmiHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\PowerPilotAmdAdlxHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\PowerPilotAmdAdlHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot_tray.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -60,6 +56,9 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "
 
 [InstallDelete]
 Type: files; Name: "{app}\PowerPilotLibreHelper.exe"
+Type: files; Name: "{app}\PowerPilotWindowsPmiHelper.exe"
+Type: files; Name: "{app}\PowerPilotWindowsPerfHelper.exe"
+Type: files; Name: "{app}\PowerPilotWindowsEmiHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
@@ -69,6 +68,9 @@ Type: dirifempty; Name: "{app}\third_party"
 
 [UninstallDelete]
 Type: files; Name: "{app}\{#AppSetupName}"
+Type: files; Name: "{app}\PowerPilotWindowsPmiHelper.exe"
+Type: files; Name: "{app}\PowerPilotWindowsPerfHelper.exe"
+Type: files; Name: "{app}\PowerPilotWindowsEmiHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
@@ -141,17 +143,18 @@ begin
     CreateCustomPage(
       wpWelcome,
       'What PowerPilot will set up',
-      'A quick summary before Windows power settings are refreshed.'
+      'A quick summary before PowerPilot refreshes its owned plans.'
     );
 
   AddOverviewText('PowerPilot runs locally from the tray and manages only this PC.', 0, 28, 10, True);
-  AddOverviewText('Setup installs the app, a desktop shortcut, and small Windows telemetry helpers for temperature and CPU package power readings.', 38, 52, 9, False);
+  AddOverviewText('The tray app follows Windows power mode: Best performance, Balanced, or Best power efficiency. CPU information comes from CPUID assembly; GPU names come from Windows display enumeration plus CPU-based iGPU resolution.', 38, 64, 9, False);
   AddOverviewText('During install:', 104, 24, 10, True);
   AddOverviewText('- any running PowerPilot process is closed safely' + #13 +
-                  '- PowerPilot-owned power plans are removed and recreated' + #13 +
-                  '- startup is enabled so the tray controller is available after sign-in', 134, 76, 9, False);
-  AddOverviewText('Auto Cool behavior:', 226, 24, 10, True);
-  AddOverviewText('Full Power enters Cool control by temperature, then CPU package power chooses the cooling level. The Thermal Steps page lets you tune both hot and return temperatures.', 256, 64, 9, False);
+                  '- PowerPilot-owned and legacy prototype plans are removed and recreated' + #13 +
+                  '- old helper executables from previous builds are removed' + #13 +
+                  '- startup is enabled so the tray app is available after sign-in', 134, 88, 9, False);
+  AddOverviewText('Managed plans:', 226, 24, 10, True);
+  AddOverviewText('PowerPilot keeps only Maximum, Balanced, and Battery plans. The tray app maps Windows power mode to those plans, while Create/Refresh uses the current non-PowerPilot Windows plan as the base when one is selected.', 256, 72, 9, False);
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -267,6 +270,7 @@ function RunHiddenAndWait(const FileName, Params: string): Integer;
 var
   ResultCode: Integer;
 begin
+  Log(Format('Executing: %s %s', [FileName, Params]));
   if Exec(FileName, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
     Log(Format('Executed: %s %s -> %d', [FileName, Params, ResultCode]));
@@ -279,10 +283,21 @@ begin
   end;
 end;
 
+procedure RunHiddenNoWait(const FileName, Params: string);
+var
+  ResultCode: Integer;
+begin
+  if Exec(FileName, Params, '', SW_HIDE, ewNoWait, ResultCode) then
+    Log(Format('Started: %s %s', [FileName, Params]))
+  else
+    Log(Format('Failed to start: %s %s', [FileName, Params]));
+end;
+
 function RunAsOriginalUserAndWait(const FileName, Params: string): Integer;
 var
   ResultCode: Integer;
 begin
+  Log(Format('Executing as original user: %s %s', [FileName, Params]));
   if ExecAsOriginalUser(FileName, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
     Log(Format('Executed as original user: %s %s -> %d', [FileName, Params, ResultCode]));
@@ -305,44 +320,36 @@ procedure StopRunningPowerPilot;
 var
   I: Integer;
 begin
-  for I := 0 to 4 do
+  for I := 0 to 1 do
   begin
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM {#AppExeName} /F /T');
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotWindowsPerfHelper.exe /F /T');
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotWindowsPmiHelper.exe /F /T');
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotWindowsEmiHelper.exe /F /T');
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotLibreHelper.exe /F /T');
-    RunHiddenAndWait(
-      ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-      '-NoProfile -ExecutionPolicy Bypass -Command "$names = @(''PowerPilot_V1.0'', ''PowerPilotWindowsPerfHelper'', ''PowerPilotWindowsPmiHelper'', ''PowerPilotWindowsEmiHelper'', ''PowerPilotLibreHelper''); Get-Process -Name $names -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch { } }"'
-    );
-    Sleep(500);
+    RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotAmdAdlxHelper.exe /F /T');
+    RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotAmdAdlHelper.exe /F /T');
+    Sleep(300);
   end;
 end;
 
 procedure RefreshDesktopIconState;
 begin
-  RunHiddenAndWait(ExpandConstant('{sys}\ie4uinit.exe'), '-show');
+  RunHiddenNoWait(ExpandConstant('{sys}\ie4uinit.exe'), '-show');
 end;
 
 procedure StartInstalledPowerPilot;
 var
   ResultCode: Integer;
   Attempt: Integer;
-  PowerShellPath: string;
   LauncherArgs: string;
 begin
-  PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  LauncherArgs := '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "$setupPid = ' +
-    IntToStr(GetCurrentProcessId()) +
-    '; while (Get-Process -Id $setupPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }; Start-Sleep -Milliseconds 1200; Start-Process -FilePath ''' +
-    ExpandConstant('{app}\{#AppExeName}') + ''' -ArgumentList ''/tray'' -WindowStyle Hidden"';
-
-  for Attempt := 1 to 5 do
+  LauncherArgs := '/C start "" "' + ExpandConstant('{app}\{#AppExeName}') + '" /tray';
+  for Attempt := 1 to 2 do
   begin
-    if ExecAsOriginalUser(PowerShellPath, LauncherArgs, '', SW_HIDE, ewNoWait, ResultCode) then
+    if ExecAsOriginalUser(ExpandConstant('{sys}\cmd.exe'), LauncherArgs, '', SW_HIDE, ewNoWait, ResultCode) then
     begin
-      Log(Format('Queued delayed tray launch as original user: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
+      Log(Format('Launched detached tray as original user: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
       Exit;
     end;
     Sleep(400);
@@ -350,19 +357,9 @@ begin
 
   for Attempt := 1 to 2 do
   begin
-    if ExecAsOriginalUser(ExpandConstant('{app}\{#AppExeName}'), '/tray', '', SW_HIDE, ewNoWait, ResultCode) then
+    if Exec(ExpandConstant('{sys}\cmd.exe'), LauncherArgs, '', SW_HIDE, ewNoWait, ResultCode) then
     begin
-      Log(Format('Launched directly as original user: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
-      Exit;
-    end;
-    Sleep(400);
-  end;
-
-  for Attempt := 1 to 2 do
-  begin
-    if Exec(ExpandConstant('{app}\{#AppExeName}'), '/tray', '', SW_HIDE, ewNoWait, ResultCode) then
-    begin
-      Log(Format('Launched with elevated fallback: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
+      Log(Format('Launched detached tray with elevated fallback: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
       Exit;
     end;
     Sleep(400);
@@ -389,6 +386,7 @@ begin
         RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/startup-on');
         RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-plans');
         RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/create-plans');
+        RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/follow-once');
       end;
 
     ssDone:

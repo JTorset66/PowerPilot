@@ -26,7 +26,7 @@ Only binaries built from this repository and maintained by this project may be s
 ## Release build policy
 
 - Release artifacts must be built from source in this repository.
-- Builds should be produced by an automated workflow on a controlled Windows runner with PureBasic, Visual Studio Build Tools, the .NET Framework compiler, and Inno Setup installed.
+- Builds should be produced by an automated workflow on a controlled Windows runner with PureBasic and Inno Setup installed.
 - Release tags should use the format `v*`.
 - Build scripts, installer scripts, and workflow definitions are part of the trusted source and must be reviewed with the same care as application code.
 - Every signing event must correspond to a release build, release candidate, or explicit maintainer-run verification build.
@@ -43,7 +43,7 @@ Only binaries built from this repository and maintained by this project may be s
 
 This program does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
-PowerPilot reads local Windows telemetry for temperature, CPU package power, GPU names, and VRAM display. PowerPilot changes local Windows power plans and the Windows startup entry needed for tray launch. These actions are part of the program's visible purpose and are documented in the README.
+PowerPilot reads local CPU identification through CPUID and local GPU display-adapter names through Windows display enumeration. PowerPilot changes local Windows power plans and the Windows startup entry needed for tray launch. These actions are part of the program's visible purpose and are documented in the README.
 
 ## User safety
 

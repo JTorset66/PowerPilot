@@ -4,7 +4,7 @@ Hello SignPath Foundation team,
 
 I would like to apply for SignPath Foundation signing for PowerPilot.
 
-PowerPilot is a Windows x64 PureBasic tray application for managing custom Windows power plans. It can switch between battery, plugged-in, Full Power, and Auto Cool plans using CPU package power and temperature readings from Windows.
+PowerPilot is a Windows x64 PureBasic tray application for managing three local Windows power plans. It can create Maximum, Balanced, and Battery plans from the selected Windows plan and apply tuned CPU behavior settings on top.
 
 Repository:
 https://github.com/JTorset66/PowerPilot
@@ -17,9 +17,6 @@ John Torset
 
 Expected release artifacts:
 - PowerPilot_V1.0.exe
-- PowerPilotWindowsPmiHelper.exe
-- PowerPilotWindowsPerfHelper.exe
-- PowerPilotWindowsEmiHelper.exe
 - PowerPilot_V1.0_Setup.exe
 - SHA-256 checksum files for published executables
 
@@ -36,7 +33,7 @@ Repository readiness:
 - The README includes build, installer, privacy, and release notes.
 
 Privacy and user safety:
-PowerPilot does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it. It reads local Windows telemetry for temperature, CPU package power, GPU names, and VRAM display. It changes only local Windows power plans and the Windows startup entry needed for tray launch.
+PowerPilot does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it. It reads local CPU identification through CPUID and local GPU display-adapter names through Windows display enumeration. It changes only local Windows power plans and the Windows startup entry needed for tray launch.
 
 Current status:
 The first public release is still pending. Current local binaries may be unsigned because SignPath onboarding is not yet complete.

@@ -5,7 +5,7 @@ Use this checklist for public PowerPilot releases.
 ## Before tagging
 
 - Confirm the intended version number in `PowerPilot_V1.0.pb` and `powerpilot.iss`.
-- Review `README.md` for current installer, startup, tray, telemetry, and Auto Cool behavior.
+- Review `README.md` for current installer, startup, tray, plan-maker, and hardware-info behavior.
 - Confirm the project still matches the statements in `CODE_SIGNING_POLICY.md`.
 - Confirm the SignPath notes in `SIGNPATH_APPLICATION.md` are still accurate.
 - Build locally with:
@@ -15,8 +15,8 @@ Use this checklist for public PowerPilot releases.
 .\build-installer.ps1
 ```
 
-- Verify the executable, helper executables, and installer exist in `build\`.
-- If signing is available, sign and verify the executable, helper executables, and installer before release.
+- Verify the executable and installer exist in `build\`.
+- If signing is available, sign and verify the executable and installer before release.
 - Test-install the built installer on Windows.
 - Confirm the app starts in the tray after install.
 - Confirm uninstall removes the startup entry and PowerPilot-owned plans.

@@ -375,11 +375,11 @@ Latest verified artifact details:
 
 ## Current feature notes
 
-- Control documents Auto Cool as CPU-package-power control for active Cool plans and temperature-only entry from Full Power.
-- Battery guidance now reminds users to set Windows Power mode to Balanced or Best performance so Auto Cool is not capped by Best power efficiency.
-- Manual Override includes a `Reset Display` action that sends the Windows graphics reset hotkey.
-- Graphics power and graphics workload readings are no longer used for Auto Cool decisions.
-- The GPU helper is retained only for GPU names and VRAM display.
+- Control keeps only the Maximum, Balanced, and Battery plans.
+- The tray app follows Windows power mode: Best performance, Balanced, or Best power efficiency.
+- Plan creation refreshes PowerPilot plans from the current non-PowerPilot Windows plan when one is selected.
+- CPU information comes from CPUID inline assembly.
+- GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution, without helpers.
 
 ## Installer status
 
@@ -409,7 +409,7 @@ $snapshotSection
   - before changing power-plan logic
   - before rebuilding the installer
   - before running elevated install or uninstall steps
-  - before larger UI or telemetry refactors
+  - before larger UI or power-plan refactors
 "@
 
     Set-Content -LiteralPath $path -Value $content -Encoding UTF8
@@ -487,10 +487,10 @@ $snapshotSummary
 
 ## Feature reminders
 
-- Auto Cool uses CPU package power while a Cool plan is active, and temperature only when entering Cool plans from Full Power.
-- Windows battery Power mode should be Balanced or Best performance so Best power efficiency does not cap the available Auto Cool range.
-- Manual Override includes `Reset Display` for graphics-path recovery.
-- Graphics power and graphics workload readings are not used for Auto Cool decisions.
+- PowerPilot keeps only the Maximum, Balanced, and Battery plans.
+- PowerPilot follows Windows power mode and maps it to Maximum, Balanced, or Battery.
+- PowerPilot no longer uses temperature, package-power telemetry, or helper executables.
+- GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution.
 "@
 
     Set-Content -LiteralPath $path -Value $content -Encoding UTF8
@@ -572,6 +572,28 @@ $capturedChat
     & $saveScript -Title $title -Text $text -Retention $ChatRetention
 }
 
+function Sync-InnoAppVersion {
+    $sourcePath = Join-Path $repoRoot "PowerPilot_V1.0.pb"
+    $installerPath = Join-Path $repoRoot "powerpilot.iss"
+    $sourceText = Get-Content -LiteralPath $sourcePath -Raw
+
+    if ($sourceText -notmatch '(?m)^#AppVersion\$\s*=\s*"([^"]+)"') {
+        throw "Could not read #AppVersion$ from $sourcePath."
+    }
+
+    $appVersion = $Matches[1]
+    $installerText = Get-Content -LiteralPath $installerPath -Raw
+    $updatedInstallerText = [regex]::Replace(
+        $installerText,
+        '(?m)^#define AppVersion "[^"]+"',
+        '#define AppVersion "' + $appVersion + '"',
+        1
+    )
+
+    Set-Content -LiteralPath $installerPath -Value $updatedInstallerText -NoNewline
+    Write-Host "Installer AppVersion:" $appVersion
+}
+
 Push-Location $repoRoot
 
 try {
@@ -585,6 +607,7 @@ try {
     }
 
     .\build-purebasic.ps1 -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    Sync-InnoAppVersion
 
     $isccPath = Resolve-IsccPath
     & $isccPath ".\powerpilot.iss"
@@ -607,7 +630,12 @@ try {
 
     Write-StartupContext -ExeInfo $exeInfo -SetupInfo $setupInfo -SnapshotInfo $snapshotInfo -SnapshotRetention $SnapshotRetention -ChatRetention $ChatRetention
     Write-LatestBuildContext -ExeInfo $exeInfo -SetupInfo $setupInfo -SnapshotInfo $snapshotInfo -SnapshotRetention $SnapshotRetention -ChatRetention $ChatRetention
-    Save-BuildMemory -ExeInfo $exeInfo -SetupInfo $setupInfo -SnapshotInfo $snapshotInfo -ChatRetention $ChatRetention
+    try {
+        Save-BuildMemory -ExeInfo $exeInfo -SetupInfo $setupInfo -SnapshotInfo $snapshotInfo -ChatRetention $ChatRetention
+    }
+    catch {
+        Write-Warning "Chat memory update failed: $($_.Exception.Message)"
+    }
 
     Write-Host "Installer built in build\"
     Write-Host "Startup context updated: STARTUP_CONTEXT.md"

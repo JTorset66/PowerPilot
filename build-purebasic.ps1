@@ -56,6 +56,30 @@ function Get-CodeSigningCertificate {
     throw "Code-signing certificate not found for thumbprint $normalizedThumbprint in Cert:\CurrentUser\My or Cert:\LocalMachine\My."
 }
 
+function Update-PureBasicAppVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $now = Get-Date
+    $monthStart = Get-Date -Year $now.Year -Month $now.Month -Day 1 -Hour 0 -Minute 0 -Second 0
+    $minutesSinceMonthStart = [int][Math]::Floor(($now - $monthStart).TotalMinutes)
+    $appVersion = "1.0.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
+
+    $content = Get-Content -LiteralPath $Path -Raw
+    $versionPattern = '(?m)^#AppVersion\$\s*=\s*"[^"]*"'
+
+    if ($content -notmatch $versionPattern) {
+        throw "App version constant not found in $Path."
+    }
+
+    $updated = [regex]::Replace($content, $versionPattern, '#AppVersion$         = "' + $appVersion + '"', 1)
+    Set-Content -LiteralPath $Path -Value $updated -NoNewline
+
+    return $appVersion
+}
+
 $compiler = Resolve-PureBasicCompiler
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -66,6 +90,7 @@ if (-not (Test-Path $sourcePath)) {
 }
 
 $resolvedSource = (Resolve-Path $sourcePath).Path
+$appVersion = Update-PureBasicAppVersion -Path $resolvedSource
 $outputRoot = Join-Path $repoRoot $OutputDir
 $null = New-Item -ItemType Directory -Path $outputRoot -Force
 $iconPath = Join-Path $repoRoot "powerpilot.ico"
@@ -79,6 +104,7 @@ if (Test-Path $iconPath) {
 }
 
 Write-Host "Using PureBasic compiler:" $compiler
+Write-Host "App version:" $appVersion
 
 $compilerDir = Split-Path -Parent $compiler
 Push-Location $compilerDir
@@ -94,12 +120,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Built:" $outputPath
-
-& (Join-Path $repoRoot "build-helpers.ps1") -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Helper build failed."
-}
 
 if ($CertificateThumbprint) {
     $certificate = Get-CodeSigningCertificate -Thumbprint $CertificateThumbprint
