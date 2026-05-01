@@ -8,7 +8,7 @@ This document collects the information needed to apply for a free SignPath.io su
 - Project handle: powerpilot
 - Repository: <https://github.com/JTorset66/PowerPilot>
 - Latest public release: not published yet
-- License: GPL-3.0
+- License: MIT
 - Maintainer: John Torset
 - Primary platform: Windows x64
 - Project description: PureBasic tray application for managing three local Windows power plans, startup behavior, clean install/uninstall handling, and local CPU/GPU identification
@@ -39,7 +39,7 @@ This document collects the information needed to apply for a free SignPath.io su
 
 ### License and source availability
 
-- All repository content intended for release is open source under GPL-3.0.
+- All repository content intended for release is open source under the MIT License.
 - There is no commercial dual-licensing statement in the repository.
 - The project does not intentionally bundle proprietary maintainer-owned components.
 

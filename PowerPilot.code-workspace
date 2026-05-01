@@ -1,0 +1,11 @@
+{
+  "folders": [
+    {
+      "name": "PowerPilot",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "window.title": "PowerPilot - ${activeEditorShort}${separator}${rootName}"
+  }
+}

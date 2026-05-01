@@ -4,11 +4,12 @@ EnableExplicit
 ; PureBasic-only Windows power-plan manager with local CPU/GPU identification.
 
 #AppName$            = "PowerPilot"
-#AppVersion$         = "1.0.2605.00770"
+#AppVersion$         = "1.0.2605.01036"
 #AppFullName$        = #AppName$ + " v" + #AppVersion$
 #AppRunKey$          = "PowerPilot"
 #SettingsFolderName$ = "PowerPilot"
 #SettingsFileName$   = "settings.ini"
+#SettingsVersion = 4
 #TrayTooltip$        = #AppFullName$
 
 #PlanPrefixNew$ = "PowerPilot "
@@ -29,11 +30,24 @@ EnableExplicit
 #TrayIconMain = 1
 #PopupTray = 1
 #TimerRefresh = 1
-#RefreshMs = 5000
+#RefreshVisibleMs = 5000
+#RefreshHiddenMs = 5000
+#RefreshHiddenDeepIdleMs = 30000
 #ProgramTimeoutMs = 10000
+#ThrottleScanMs = 30000
+
+#TH32CS_SNAPPROCESS = $00000002
+#PROCESS_SET_INFORMATION = $0200
+#PROCESS_QUERY_LIMITED_INFORMATION = $1000
+#ProcessPowerThrottling = 4
+#PROCESS_POWER_THROTTLING_CURRENT_VERSION = 1
+#PROCESS_POWER_THROTTLING_EXECUTION_SPEED = $1
+#INVALID_HANDLE_VALUE = -1
 
 Prototype.i PowerGetActiveSchemeProto(userRoot.i, *activeScheme)
 Prototype.i PowerGetGuidValueProto(*guid)
+Prototype.i SetProcessInformationProto(processHandle.i, informationClass.i, *processInformation, processInformationSize.i)
+Prototype.i GetProcessInformationProto(processHandle.i, informationClass.i, *processInformation, processInformationSize.i)
 
 Enumeration 100
   #MenuOpen
@@ -72,6 +86,9 @@ Enumeration 200
   #GadgetPlanReset
   #GadgetAutoStart
   #GadgetKeepSettings
+  #GadgetThrottleMaintenance
+  #GadgetDeepIdleSaver
+  #GadgetShowToolTips
   #GadgetSaveSettings
   #GadgetHideToTray
   #GadgetExit
@@ -103,7 +120,30 @@ EndStructure
 Structure AppSettings
   AutoStartWithApp.i
   KeepSettingsOnReinstall.i
+  ThrottleMaintenance.i
+  DeepIdleSaver.i
+  ShowToolTips.i
+  SettingsVersion.i
   LastPlan.s
+EndStructure
+
+Structure ProcessPowerThrottlingState
+  Version.l
+  ControlMask.l
+  StateMask.l
+EndStructure
+
+Structure PowerPilotProcessEntry32
+  dwSize.l
+  cntUsage.l
+  th32ProcessID.l
+  *th32DefaultHeapID
+  th32ModuleID.l
+  cntThreads.l
+  th32ParentProcessID.l
+  pcPriClassBase.l
+  dwFlags.l
+  szExeFile.c[#MAX_PATH]
 EndStructure
 
 Global Dim gPlans.PlanDefinition(2)
@@ -120,6 +160,7 @@ Global gCachedPowerModeGuid$
 Global gCachedPowerModeText$
 Global gSchemeCacheValid.i
 Global gRefreshTimerActive.i
+Global gRefreshTimerMs.i
 Global gFontUi.i
 Global gFontBold.i
 Global gPowrProfLibrary.i
@@ -128,9 +169,23 @@ Global gPowerGetActiveScheme.PowerGetActiveSchemeProto
 Global gPowerGetEffectiveOverlayScheme.PowerGetGuidValueProto
 Global gPowerGetUserConfiguredACPowerMode.PowerGetGuidValueProto
 Global gPowerGetUserConfiguredDCPowerMode.PowerGetGuidValueProto
+Global gKernelLibrary.i
+Global gThrottleApiTried.i
+Global gSetProcessInformation.SetProcessInformationProto
+Global gGetProcessInformation.GetProcessInformationProto
 Global gMonitorInitialized.i
 Global gLastObservedActiveGuid$
 Global gLastObservedPowerModeGuid$
+Global gMaintenanceThrottleActive.i
+Global gLastMaintenanceThrottleScan.q
+Global gIntroOverview.i
+Global gIntroPlans.i
+Global gFrameProcessor.i
+Global gFrameState.i
+Global gFrameGraphics.i
+Global gFrameStartup.i
+Global gFrameManagedPlans.i
+Global gFramePlanSettings.i
 Global NewMap gSchemeGuidByName.s()
 Global NewMap gSchemeNameByGuid.s()
 
@@ -139,6 +194,9 @@ Declare RefreshPlanList(force.i = #False)
 Declare RefreshPlanEditor()
 Declare ApplySettingsToGui()
 Declare SaveSettingsFromGui()
+Declare SaveSettings()
+Declare ApplyToolTips()
+Declare RefreshActiveTimer()
 Declare.i CreateManagedPlans()
 Declare.i CreateManagedPlansFromBase(baseGuid$, forceRebase.i = #False)
 Declare.i CleanupManagedPlans()
@@ -206,7 +264,7 @@ Procedure LoadDefaultPlan(index.i)
     Case 1
       AddPlan(1, #PlanBalanced$, "Balanced daily profile based on your selected Windows plan.", 55, 1, 85, 0, 1, 75, 1, 80, 0, 1)
     Case 2
-      AddPlan(2, #PlanBattery$, "Battery profile based on your selected Windows plan.", 85, 0, 70, 2500, 0, 95, 0, 60, 1800, 0)
+      AddPlan(2, #PlanBattery$, "Battery profile based on your selected Windows plan.", 90, 0, 65, 2200, 0, 98, 0, 55, 1600, 0)
   EndSelect
 EndProcedure
 
@@ -235,6 +293,10 @@ EndProcedure
 
 Procedure.i IsManagedPlanName(planName$)
   ProcedureReturn Bool(planName$ = #AppName$ Or Left(planName$, Len(#PlanPrefixNew$)) = #PlanPrefixNew$ Or Left(planName$, Len(#PlanPrefixOld$)) = #PlanPrefixOld$)
+EndProcedure
+
+Procedure.i IsEfficiencyPowerMode(guid$)
+  ProcedureReturn Bool(LCase(guid$) = #PowerModeEfficiency$)
 EndProcedure
 
 Procedure.s PowerModeTextFromGuid(guid$)
@@ -288,16 +350,56 @@ Procedure ClampPlanValues(*plan.PlanDefinition)
   *plan\DcCooling = ClampInt(*plan\DcCooling, 0, 1)
 EndProcedure
 
+Procedure.i PlanMatchesValues(*plan.PlanDefinition, acEpp.i, acBoost.i, acState.i, acFreq.i, acCooling.i, dcEpp.i, dcBoost.i, dcState.i, dcFreq.i, dcCooling.i)
+  If *plan\AcEpp <> acEpp : ProcedureReturn #False : EndIf
+  If *plan\AcBoostMode <> acBoost : ProcedureReturn #False : EndIf
+  If *plan\AcMaxState <> acState : ProcedureReturn #False : EndIf
+  If *plan\AcFreqMHz <> acFreq : ProcedureReturn #False : EndIf
+  If *plan\AcCooling <> acCooling : ProcedureReturn #False : EndIf
+  If *plan\DcEpp <> dcEpp : ProcedureReturn #False : EndIf
+  If *plan\DcBoostMode <> dcBoost : ProcedureReturn #False : EndIf
+  If *plan\DcMaxState <> dcState : ProcedureReturn #False : EndIf
+  If *plan\DcFreqMHz <> dcFreq : ProcedureReturn #False : EndIf
+  If *plan\DcCooling <> dcCooling : ProcedureReturn #False : EndIf
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i UpgradeSettingsIfNeeded(savedVersion.i)
+  Protected upgraded.i
+  If savedVersion < 2
+    If PlanMatchesValues(@gPlans(2), 85, 0, 70, 2500, 0, 95, 0, 60, 1800, 0)
+      LoadDefaultPlan(2)
+      upgraded = #True
+    EndIf
+  EndIf
+  If gSettings\SettingsVersion <> #SettingsVersion
+    gSettings\SettingsVersion = #SettingsVersion
+    upgraded = #True
+  EndIf
+  ProcedureReturn upgraded
+EndProcedure
+
 Procedure LoadSettings()
   Protected i.i
+  Protected savedVersion.i = 0
+  Protected upgraded.i
   LoadDefaultPlans()
   gSettings\AutoStartWithApp = #True
   gSettings\KeepSettingsOnReinstall = #False
+  gSettings\ThrottleMaintenance = #True
+  gSettings\DeepIdleSaver = #True
+  gSettings\ShowToolTips = #True
+  gSettings\SettingsVersion = #SettingsVersion
   gSettings\LastPlan = #PlanBalanced$
 
   If OpenPreferences(SettingsPath())
+    savedVersion = ReadPreferenceInteger("SettingsVersion", 0)
+    gSettings\SettingsVersion = savedVersion
     gSettings\AutoStartWithApp = ReadPreferenceInteger("AutoStartWithApp", gSettings\AutoStartWithApp)
     gSettings\KeepSettingsOnReinstall = ReadPreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
+    gSettings\ThrottleMaintenance = ReadPreferenceInteger("ThrottleMaintenance", gSettings\ThrottleMaintenance)
+    gSettings\DeepIdleSaver = ReadPreferenceInteger("DeepIdleSaver", gSettings\DeepIdleSaver)
+    gSettings\ShowToolTips = ReadPreferenceInteger("ShowToolTips", gSettings\ShowToolTips)
     gSettings\LastPlan = ReadPreferenceString("LastPlan", gSettings\LastPlan)
     For i = 0 To 2
       PreferenceGroup(gPlans(i)\Name)
@@ -319,6 +421,10 @@ Procedure LoadSettings()
   EndIf
 
   gSettings\LastPlan = NormalizePlanName(gSettings\LastPlan)
+  upgraded = UpgradeSettingsIfNeeded(savedVersion)
+  If upgraded
+    SaveSettings()
+  EndIf
 EndProcedure
 
 Procedure SaveSettings()
@@ -327,6 +433,10 @@ Procedure SaveSettings()
   If CreatePreferences(SettingsPath())
     WritePreferenceInteger("AutoStartWithApp", Bool(gSettings\AutoStartWithApp))
     WritePreferenceInteger("KeepSettingsOnReinstall", Bool(gSettings\KeepSettingsOnReinstall))
+    WritePreferenceInteger("ThrottleMaintenance", Bool(gSettings\ThrottleMaintenance))
+    WritePreferenceInteger("DeepIdleSaver", Bool(gSettings\DeepIdleSaver))
+    WritePreferenceInteger("ShowToolTips", Bool(gSettings\ShowToolTips))
+    WritePreferenceInteger("SettingsVersion", #SettingsVersion)
     WritePreferenceString("LastPlan", NormalizePlanName(gSettings\LastPlan))
     For i = 0 To 2
       ClampPlanValues(@gPlans(i))
@@ -542,6 +652,132 @@ Procedure.s GetWindowsPowerModeText()
   ProcedureReturn text$
 EndProcedure
 
+Procedure EnsureProcessThrottleApi()
+  If gThrottleApiTried
+    ProcedureReturn
+  EndIf
+  gThrottleApiTried = #True
+  gKernelLibrary = OpenLibrary(#PB_Any, "kernel32.dll")
+  If gKernelLibrary
+    gSetProcessInformation = GetFunction(gKernelLibrary, "SetProcessInformation")
+    gGetProcessInformation = GetFunction(gKernelLibrary, "GetProcessInformation")
+  EndIf
+EndProcedure
+
+Procedure.i ForegroundProcessId()
+  Protected hwnd.i = GetForegroundWindow_()
+  Protected pid.i
+  If hwnd
+    GetWindowThreadProcessId_(hwnd, @pid)
+  EndIf
+  ProcedureReturn pid
+EndProcedure
+
+Procedure.i IsMaintenanceThrottleProcessName(exeName$)
+  Select LCase(exeName$)
+    Case "searchindexer.exe", "searchprotocolhost.exe", "searchfilterhost.exe"
+      ProcedureReturn #True
+    Case "sdxhelper.exe", "officec2rclient.exe", "officeclicktorun.exe"
+      ProcedureReturn #True
+    Case "microsoftedgeupdate.exe"
+      ProcedureReturn #True
+  EndSelect
+  ProcedureReturn #False
+EndProcedure
+
+Procedure.i SetProcessEcoThrottle(pid.i, enable.i)
+  Protected processHandle.i
+  Protected state.ProcessPowerThrottlingState
+  Protected stateSize.i = SizeOf(ProcessPowerThrottlingState)
+  Protected queried.i
+  Protected result.i
+
+  If pid <= 0
+    ProcedureReturn #False
+  EndIf
+  EnsureProcessThrottleApi()
+  If gSetProcessInformation = 0
+    ProcedureReturn #False
+  EndIf
+
+  processHandle = OpenProcess_(#PROCESS_SET_INFORMATION | #PROCESS_QUERY_LIMITED_INFORMATION, #False, pid)
+  If processHandle = 0
+    ProcedureReturn #False
+  EndIf
+
+  state\Version = #PROCESS_POWER_THROTTLING_CURRENT_VERSION
+  If gGetProcessInformation
+    queried = gGetProcessInformation(processHandle, #ProcessPowerThrottling, @state, stateSize)
+  EndIf
+  If queried = #False
+    state\Version = #PROCESS_POWER_THROTTLING_CURRENT_VERSION
+    state\ControlMask = 0
+    state\StateMask = 0
+  EndIf
+
+  If enable
+    state\ControlMask = state\ControlMask | #PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+    state\StateMask = state\StateMask | #PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+  Else
+    If state\ControlMask & #PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+      state\ControlMask = state\ControlMask ! #PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+    EndIf
+    If state\StateMask & #PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+      state\StateMask = state\StateMask ! #PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+    EndIf
+  EndIf
+
+  result = gSetProcessInformation(processHandle, #ProcessPowerThrottling, @state, stateSize)
+  CloseHandle_(processHandle)
+  ProcedureReturn Bool(result)
+EndProcedure
+
+Procedure.i ApplyMaintenanceThrottling(enable.i, force.i = #False)
+  Protected now.q = ElapsedMilliseconds()
+  Protected snapshot.i
+  Protected entry.PowerPilotProcessEntry32
+  Protected foregroundPid.i = ForegroundProcessId()
+  Protected exeName$
+  Protected changed.i
+
+  If gSettings\ThrottleMaintenance = #False
+    enable = #False
+  EndIf
+  If force = #False And enable And gMaintenanceThrottleActive And now - gLastMaintenanceThrottleScan < #ThrottleScanMs
+    ProcedureReturn 0
+  EndIf
+  If force = #False And enable = #False And gMaintenanceThrottleActive = #False
+    ProcedureReturn 0
+  EndIf
+
+  EnsureProcessThrottleApi()
+  If gSetProcessInformation = 0
+    ProcedureReturn 0
+  EndIf
+
+  snapshot = CreateToolhelp32Snapshot_(#TH32CS_SNAPPROCESS, 0)
+  If snapshot = #INVALID_HANDLE_VALUE
+    ProcedureReturn 0
+  EndIf
+
+  entry\dwSize = SizeOf(PowerPilotProcessEntry32)
+  If Process32First_(snapshot, @entry)
+    Repeat
+      exeName$ = PeekS(@entry\szExeFile[0])
+      If IsMaintenanceThrottleProcessName(exeName$) And entry\th32ProcessID <> foregroundPid
+        If SetProcessEcoThrottle(entry\th32ProcessID, enable)
+          changed + 1
+        EndIf
+      EndIf
+    Until Process32Next_(snapshot, @entry) = #False
+  EndIf
+  CloseHandle_(snapshot)
+
+  gMaintenanceThrottleActive = Bool(enable)
+  gLastMaintenanceThrottleScan = now
+  ProcedureReturn changed
+EndProcedure
+
 Procedure.s SchemeNameFromPowerCfgLine(line$)
   Protected p1.i = FindString(line$, "(", 1)
   Protected p2.i
@@ -657,8 +893,13 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   EndIf
 
   If *plan\Name = #PlanBattery$
-    acCoreParkingMin = 50
-    dcCoreParkingMin = 10
+    If gSettings\DeepIdleSaver
+      acCoreParkingMin = 0
+      dcCoreParkingMin = 0
+    Else
+      acCoreParkingMin = 50
+      dcCoreParkingMin = 10
+    EndIf
   ElseIf *plan\Name = #PlanFull$
     acMinState = 20
     dcMinState = 10
@@ -673,6 +914,8 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX2", *plan\AcMaxState)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMIN", acMinState)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES", acCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES1", acCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES2", acCoreParkingMin)
   SetFrequencyCaps(schemeGuid$, #True, *plan\AcFreqMHz)
   SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SYSCOOLPOL", *plan\AcCooling)
 
@@ -685,8 +928,33 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PROCTHROTTLEMAX2", *plan\DcMaxState)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PROCTHROTTLEMIN", dcMinState)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES", dcCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES1", dcCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES2", dcCoreParkingMin)
   SetFrequencyCaps(schemeGuid$, #False, *plan\DcFreqMHz)
   SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SYSCOOLPOL", *plan\DcCooling)
+
+  If *plan\Name = #PlanBattery$
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "IDLEDISABLE", 0)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "IDLEDISABLE", 0)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTPOL", 0)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTPOL", 0)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD", 80)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD", 90)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", 80)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", 90)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD", 20)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD", 10)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", 20)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", 10)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTIME", 3)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTIME", 4)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTIME1", 3)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTIME1", 4)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME1", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME1", 1)
+  EndIf
 
   ProcedureReturn #True
 EndProcedure
@@ -1544,14 +1812,124 @@ EndProcedure
 Procedure ApplySettingsToGui()
   SetGadgetState(#GadgetAutoStart, Bool(gSettings\AutoStartWithApp))
   SetGadgetState(#GadgetKeepSettings, Bool(gSettings\KeepSettingsOnReinstall))
+  SetGadgetState(#GadgetThrottleMaintenance, Bool(gSettings\ThrottleMaintenance))
+  SetGadgetState(#GadgetDeepIdleSaver, Bool(gSettings\DeepIdleSaver))
+  SetGadgetState(#GadgetShowToolTips, Bool(gSettings\ShowToolTips))
+  ApplyToolTips()
 EndProcedure
 
 Procedure SaveSettingsFromGui()
+  Protected batteryGuid$
   gSettings\AutoStartWithApp = GetGadgetState(#GadgetAutoStart)
   gSettings\KeepSettingsOnReinstall = GetGadgetState(#GadgetKeepSettings)
+  gSettings\ThrottleMaintenance = GetGadgetState(#GadgetThrottleMaintenance)
+  gSettings\DeepIdleSaver = GetGadgetState(#GadgetDeepIdleSaver)
+  gSettings\ShowToolTips = GetGadgetState(#GadgetShowToolTips)
   SaveSettings()
   SetStartupRegistry(gSettings\AutoStartWithApp)
+  batteryGuid$ = GetSchemeGuidByName(#PlanBattery$)
+  If batteryGuid$ <> ""
+    ConfigureScheme(@gPlans(2), batteryGuid$)
+  EndIf
+  ApplyMaintenanceThrottling(IsEfficiencyPowerMode(GetWindowsPowerModeGuid()), #True)
+  RefreshActiveTimer()
+  ApplyToolTips()
   LogAction("Settings saved.")
+EndProcedure
+
+Procedure SetTip(gadget.i, text$)
+  If IsGadget(gadget)
+    GadgetToolTip(gadget, text$)
+  EndIf
+EndProcedure
+
+Procedure ApplyToolTips()
+  Protected enabled.i = Bool(gSettings\ShowToolTips)
+  Protected text$
+
+  If enabled
+    SetTip(#GadgetPanel, "Switch between system status and managed power-plan tuning.")
+    SetTip(gIntroOverview, "PowerPilot mirrors Windows power mode and keeps hardware reporting lightweight.")
+    SetTip(gFrameProcessor, "Static processor details from CPUID and Windows memory information.")
+    SetTip(#GadgetCpuInfo, "Local CPU identity, topology, cache, memory, and instruction features. No helper process is used.")
+    SetTip(gFrameState, "Current Windows plan, Windows power mode, and the latest PowerPilot action.")
+    SetTip(#GadgetActivePlan, "The Windows power plan currently active.")
+    SetTip(#GadgetPowerSource, "The Windows power mode PowerPilot follows: performance, balanced, or efficiency.")
+    SetTip(#GadgetLastAction, "Most recent automatic or manual action.")
+    SetTip(gFrameGraphics, "Display adapter name resolved from Windows display enumeration and local GPU matching.")
+    SetTip(#GadgetGpuInfo, "Detected GPU name. Generic Windows names are refined when local CPU/GPU data allows it.")
+    SetTip(gFrameStartup, "Startup and low-power behavior. Changes apply immediately.")
+    SetTip(#GadgetAutoStart, "Start PowerPilot with Windows in the tray.")
+    SetTip(#GadgetKeepSettings, "Keep saved PowerPilot settings when reinstalling.")
+    SetTip(#GadgetThrottleMaintenance, "In efficiency mode, mark safe background maintenance processes for Windows EcoQoS throttling.")
+    SetTip(#GadgetDeepIdleSaver, "In efficiency mode, reduce hidden PowerPilot wakeups and allow deeper CPU core parking.")
+    SetTip(#GadgetShowToolTips, "Show or hide these hover explanations.")
+
+    SetTip(gIntroPlans, "Create/Refresh copies your selected Windows plan, then applies PowerPilot Maximum, Balanced, or Battery intent.")
+    SetTip(gFrameManagedPlans, "The three PowerPilot plans managed inside Windows power settings.")
+    SetTip(#GadgetPlanList, "Select a managed plan to view or edit its processor settings.")
+    SetTip(#GadgetCreatePlans, "Install or refresh the three managed plans from the currently selected Windows base plan.")
+    SetTip(#GadgetRemovePlans, "Remove PowerPilot-managed plans from Windows.")
+    SetTip(#GadgetActivatePlan, "Make the selected PowerPilot plan the active Windows plan.")
+    SetTip(gFramePlanSettings, "Processor power settings for the selected plan. Save applies them to Windows.")
+    SetTip(#GadgetPlanSummary, "Short purpose text shown in the managed plan list.")
+    SetTip(#GadgetPlanAcEpp, "Plugged-in energy preference. 0 favors speed; 100 favors efficiency.")
+    SetTip(#GadgetPlanDcEpp, "Battery energy preference. 0 favors speed; 100 favors efficiency.")
+    SetTip(#GadgetPlanAcBoost, "Plugged-in processor boost behavior.")
+    SetTip(#GadgetPlanDcBoost, "Battery processor boost behavior.")
+    SetTip(#GadgetPlanAcState, "Plugged-in maximum processor state as a percentage.")
+    SetTip(#GadgetPlanDcState, "Battery maximum processor state as a percentage.")
+    SetTip(#GadgetPlanAcFreq, "Plugged-in maximum CPU frequency in MHz. 0 leaves Windows uncapped.")
+    SetTip(#GadgetPlanDcFreq, "Battery maximum CPU frequency in MHz. 0 leaves Windows uncapped.")
+    SetTip(#GadgetPlanAcCooling, "Plugged-in cooling policy. Passive favors less fan and lower clocks; Active favors cooling.")
+    SetTip(#GadgetPlanDcCooling, "Battery cooling policy. Passive favors less fan and lower clocks; Active favors cooling.")
+    SetTip(#GadgetPlanSave, "Save and apply the selected plan settings to Windows.")
+    SetTip(#GadgetPlanReset, "Reset the selected plan to PowerPilot defaults.")
+    SetTip(#GadgetHideToTray, "Hide PowerPilot to the tray while it continues following Windows power mode.")
+    SetTip(#GadgetExit, "Exit PowerPilot and remove the tray icon.")
+    SetTip(#GadgetStatus, "Short status message for the latest action.")
+  Else
+    SetTip(#GadgetPanel, "")
+    SetTip(gIntroOverview, "")
+    SetTip(gFrameProcessor, "")
+    SetTip(#GadgetCpuInfo, "")
+    SetTip(gFrameState, "")
+    SetTip(#GadgetActivePlan, "")
+    SetTip(#GadgetPowerSource, "")
+    SetTip(#GadgetLastAction, "")
+    SetTip(gFrameGraphics, "")
+    SetTip(#GadgetGpuInfo, "")
+    SetTip(gFrameStartup, "")
+    SetTip(#GadgetAutoStart, "")
+    SetTip(#GadgetKeepSettings, "")
+    SetTip(#GadgetThrottleMaintenance, "")
+    SetTip(#GadgetDeepIdleSaver, "")
+    SetTip(gIntroPlans, "")
+    SetTip(gFrameManagedPlans, "")
+    SetTip(#GadgetPlanList, "")
+    SetTip(#GadgetCreatePlans, "")
+    SetTip(#GadgetRemovePlans, "")
+    SetTip(#GadgetActivatePlan, "")
+    SetTip(gFramePlanSettings, "")
+    SetTip(#GadgetPlanSummary, "")
+    SetTip(#GadgetPlanAcEpp, "")
+    SetTip(#GadgetPlanDcEpp, "")
+    SetTip(#GadgetPlanAcBoost, "")
+    SetTip(#GadgetPlanDcBoost, "")
+    SetTip(#GadgetPlanAcState, "")
+    SetTip(#GadgetPlanDcState, "")
+    SetTip(#GadgetPlanAcFreq, "")
+    SetTip(#GadgetPlanDcFreq, "")
+    SetTip(#GadgetPlanAcCooling, "")
+    SetTip(#GadgetPlanDcCooling, "")
+    SetTip(#GadgetPlanSave, "")
+    SetTip(#GadgetPlanReset, "")
+    SetTip(#GadgetHideToTray, "")
+    SetTip(#GadgetExit, "")
+    SetTip(#GadgetStatus, "")
+    SetTip(#GadgetShowToolTips, "Show or hide hover explanations.")
+    ProcedureReturn
+  EndIf
 EndProcedure
 
 Procedure RefreshDisplay(force.i = #False)
@@ -1651,9 +2029,12 @@ Procedure.i ApplyWindowsPowerFollow(force.i = #False)
 EndProcedure
 
 Procedure MonitorAutomaticPlans()
+  Protected powerModeGuid$ = GetWindowsPowerModeGuid()
+  Protected throttleEnabled.i = IsEfficiencyPowerMode(powerModeGuid$)
   If ApplyWindowsPowerFollow(#False)
     RefreshPlanList(#True)
   EndIf
+  ApplyMaintenanceThrottling(throttleEnabled)
 EndProcedure
 
 Procedure CreateTrayMenu()
@@ -1687,33 +2068,59 @@ Procedure SetupTray()
   EndIf
 EndProcedure
 
-Procedure StartRefreshTimer()
-  If gRefreshTimerActive = #False
-    AddWindowTimer(#WindowMain, #TimerRefresh, #RefreshMs)
-    gRefreshTimerActive = #True
+Procedure.i DesiredRefreshInterval()
+  If MainWindowVisible()
+    ProcedureReturn #RefreshVisibleMs
   EndIf
+  If gSettings\DeepIdleSaver
+    ProcedureReturn #RefreshHiddenDeepIdleMs
+  EndIf
+  ProcedureReturn #RefreshHiddenMs
+EndProcedure
+
+Procedure StartRefreshTimer(intervalMs.i = 0)
+  If intervalMs <= 0
+    intervalMs = DesiredRefreshInterval()
+  EndIf
+  If gRefreshTimerActive And gRefreshTimerMs = intervalMs
+    ProcedureReturn
+  EndIf
+  If gRefreshTimerActive
+    RemoveWindowTimer(#WindowMain, #TimerRefresh)
+  EndIf
+  AddWindowTimer(#WindowMain, #TimerRefresh, intervalMs)
+  gRefreshTimerActive = #True
+  gRefreshTimerMs = intervalMs
 EndProcedure
 
 Procedure StopRefreshTimer()
   If gRefreshTimerActive
     RemoveWindowTimer(#WindowMain, #TimerRefresh)
     gRefreshTimerActive = #False
+    gRefreshTimerMs = 0
+  EndIf
+EndProcedure
+
+Procedure RefreshActiveTimer()
+  If gRefreshTimerActive
+    StartRefreshTimer(DesiredRefreshInterval())
   EndIf
 EndProcedure
 
 Procedure HideToTray()
-  StartRefreshTimer()
   If gTrayReady Or gStartedInTrayMode
     HideWindow(#WindowMain, #True)
+    StartRefreshTimer()
   Else
     HideWindow(#WindowMain, #False)
+    StartRefreshTimer(#RefreshVisibleMs)
     LogAction("Tray icon unavailable. Window stays visible.")
   EndIf
 EndProcedure
 
 Procedure ShowFromTray()
   HideWindow(#WindowMain, #False)
-  StartRefreshTimer()
+  StartRefreshTimer(#RefreshVisibleMs)
   RefreshPlanList(#True)
   RefreshDisplay(#True)
   SetForegroundWindow_(WindowID(#WindowMain))
@@ -1729,12 +2136,6 @@ EndProcedure
 Procedure HandleAction(gadget.i)
   Protected row.i
   Select gadget
-    Case #GadgetRefreshInfo
-      gCachedGpuInfo$ = ""
-      RefreshDisplay(#True)
-      RefreshPlanList(#True)
-      LogAction("Hardware and plan display refreshed.")
-
     Case #GadgetPlanList
       row = GetGadgetState(#GadgetPlanList)
       If row >= 0 And row <= 2
@@ -1765,7 +2166,7 @@ Procedure HandleAction(gadget.i)
     Case #GadgetPlanReset
       ResetSelectedPlan()
 
-    Case #GadgetSaveSettings
+    Case #GadgetAutoStart, #GadgetKeepSettings, #GadgetThrottleMaintenance, #GadgetDeepIdleSaver, #GadgetShowToolTips
       SaveSettingsFromGui()
 
     Case #GadgetHideToTray
@@ -1799,13 +2200,13 @@ EndProcedure
 
 Procedure CreateMainWindow(showWindow.i)
   Protected flags.i = #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered
-  Protected introOverview.i
-  Protected introPlans.i
   Protected activeLabel.i
   Protected modeLabel.i
   Protected lastActionLabel.i
   Protected acHeader.i
   Protected dcHeader.i
+  Protected acCoolingHeader.i
+  Protected dcCoolingHeader.i
   If showWindow = #False
     flags | #PB_Window_Invisible
   EndIf
@@ -1816,34 +2217,35 @@ Procedure CreateMainWindow(showWindow.i)
 
   PanelGadget(#GadgetPanel, 12, 12, 736, 390)
   AddGadgetItem(#GadgetPanel, -1, "Overview")
-  introOverview = TextGadget(#PB_Any, 18, 14, 700, 22, "PowerPilot follows Windows power mode: Best performance, Balanced, or Best power efficiency.")
-  UseBoldFont(introOverview)
-  FrameGadget(#PB_Any, 18, 42, 700, 126, "Processor")
-  TextGadget(#GadgetCpuInfo, 34, 64, 668, 92, "Reading CPU...")
-  FrameGadget(#PB_Any, 18, 176, 700, 86, "Current State")
-  activeLabel = TextGadget(#PB_Any, 34, 206, 92, 22, "Active plan:")
-  TextGadget(#GadgetActivePlan, 132, 206, 210, 22, "")
-  modeLabel = TextGadget(#PB_Any, 360, 206, 108, 22, "Windows mode:")
-  TextGadget(#GadgetPowerSource, 476, 206, 226, 22, "")
-  lastActionLabel = TextGadget(#PB_Any, 34, 236, 92, 22, "Last action:")
-  TextGadget(#GadgetLastAction, 132, 236, 430, 22, "")
-  ButtonGadget(#GadgetRefreshInfo, 586, 230, 116, 28, "Refresh Info")
+  gIntroOverview = TextGadget(#PB_Any, 18, 14, 700, 22, "PowerPilot follows Windows power mode: Best performance, Balanced, or Best power efficiency.")
+  UseBoldFont(gIntroOverview)
+  gFrameProcessor = FrameGadget(#PB_Any, 18, 42, 700, 104, "Processor")
+  TextGadget(#GadgetCpuInfo, 34, 64, 668, 78, "Reading CPU...")
+  gFrameState = FrameGadget(#PB_Any, 18, 154, 700, 86, "Current State")
+  activeLabel = TextGadget(#PB_Any, 34, 184, 92, 22, "Active plan:")
+  TextGadget(#GadgetActivePlan, 132, 184, 210, 22, "")
+  modeLabel = TextGadget(#PB_Any, 360, 184, 108, 22, "Windows mode:")
+  TextGadget(#GadgetPowerSource, 476, 184, 226, 22, "")
+  lastActionLabel = TextGadget(#PB_Any, 34, 214, 92, 22, "Last action:")
+  TextGadget(#GadgetLastAction, 132, 214, 570, 22, "")
   UseBoldFont(activeLabel)
   UseBoldFont(#GadgetActivePlan)
   UseBoldFont(modeLabel)
   UseBoldFont(#GadgetPowerSource)
   UseBoldFont(lastActionLabel)
-  FrameGadget(#PB_Any, 18, 270, 342, 78, "Graphics")
-  TextGadget(#GadgetGpuInfo, 34, 294, 310, 34, "Reading GPU...")
-  FrameGadget(#PB_Any, 376, 270, 342, 78, "Startup")
-  CheckBoxGadget(#GadgetAutoStart, 392, 292, 150, 20, "Start with Windows")
-  CheckBoxGadget(#GadgetKeepSettings, 392, 318, 126, 20, "Keep settings")
-  ButtonGadget(#GadgetSaveSettings, 630, 302, 72, 24, "Save")
+  gFrameGraphics = FrameGadget(#PB_Any, 18, 248, 342, 116, "Graphics")
+  TextGadget(#GadgetGpuInfo, 34, 272, 310, 48, "Reading GPU...")
+  gFrameStartup = FrameGadget(#PB_Any, 376, 248, 342, 116, "Startup")
+  CheckBoxGadget(#GadgetAutoStart, 406, 274, 152, 20, "Start with Windows")
+  CheckBoxGadget(#GadgetKeepSettings, 560, 274, 140, 20, "Keep on reinstall")
+  CheckBoxGadget(#GadgetThrottleMaintenance, 406, 308, 152, 20, "Throttle maintenance")
+  CheckBoxGadget(#GadgetDeepIdleSaver, 560, 308, 140, 20, "Deep idle saver")
+  CheckBoxGadget(#GadgetShowToolTips, 483, 342, 130, 20, "Show tips")
 
   AddGadgetItem(#GadgetPanel, -1, "Plans")
-  introPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Create/Refresh copies the selected Windows plan as the base; Windows mode chooses Maximum, Balanced, or Battery.")
-  UseBoldFont(introPlans)
-  FrameGadget(#PB_Any, 18, 40, 700, 142, "Managed Plans")
+  gIntroPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Create/Refresh copies the selected Windows plan as the base; Windows mode chooses Maximum, Balanced, or Battery.")
+  UseBoldFont(gIntroPlans)
+  gFrameManagedPlans = FrameGadget(#PB_Any, 18, 40, 700, 142, "Managed Plans")
   ListIconGadget(#GadgetPlanList, 34, 62, 668, 82, "Plan", 176, #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
   AddGadgetColumn(#GadgetPlanList, 1, "Installed", 70)
   AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 395)
@@ -1851,7 +2253,7 @@ Procedure CreateMainWindow(showWindow.i)
   ButtonGadget(#GadgetRemovePlans, 166, 150, 124, 24, "Remove Managed")
   ButtonGadget(#GadgetActivatePlan, 300, 150, 90, 24, "Activate")
 
-  FrameGadget(#PB_Any, 18, 190, 700, 168, "Selected Plan Settings")
+  gFramePlanSettings = FrameGadget(#PB_Any, 18, 190, 700, 168, "Selected Plan Settings")
   TextGadget(#PB_Any, 34, 212, 64, 20, "Purpose:")
   StringGadget(#GadgetPlanSummary, 104, 208, 598, 22, "")
   acHeader = TextGadget(#PB_Any, 154, 238, 110, 20, "Plugged in")
@@ -1871,6 +2273,10 @@ Procedure CreateMainWindow(showWindow.i)
   SpinGadget(#GadgetPlanAcFreq, 154, 330, 72, 22, 0, 6000, #PB_Spin_Numeric)
   SpinGadget(#GadgetPlanDcFreq, 318, 330, 72, 22, 0, 6000, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 458, 262, 64, 20, "Cooling:")
+  acCoolingHeader = TextGadget(#PB_Any, 528, 238, 80, 20, "Plugged in")
+  dcCoolingHeader = TextGadget(#PB_Any, 618, 238, 80, 20, "Battery")
+  UseBoldFont(acCoolingHeader)
+  UseBoldFont(dcCoolingHeader)
   ComboBoxGadget(#GadgetPlanAcCooling, 528, 258, 80, 22)
   ComboBoxGadget(#GadgetPlanDcCooling, 618, 258, 80, 22)
   ButtonGadget(#GadgetPlanSave, 528, 310, 80, 26, "Save")

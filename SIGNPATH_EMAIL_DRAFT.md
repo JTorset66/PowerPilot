@@ -10,7 +10,7 @@ Repository:
 https://github.com/JTorset66/PowerPilot
 
 License:
-GPL-3.0
+MIT
 
 Maintainer:
 John Torset
@@ -25,7 +25,7 @@ PowerPilot is distributed as a Windows desktop executable and installer. Trusted
 
 Repository readiness:
 - The repository is public.
-- The project uses GPL-3.0.
+- The project uses the MIT License.
 - The repository includes a code signing policy.
 - The repository includes a release checklist.
 - The repository includes a self-hosted Windows GitHub Actions workflow for release builds.

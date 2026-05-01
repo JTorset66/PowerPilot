@@ -11,16 +11,17 @@ Last updated: 2026-05-01
 Latest verified artifact details:
 
 - build\PowerPilot_V1.0.exe
-  - Size: 777,216 bytes
-  - Last write time: 2026-05-01 12:50:59
-  - SHA-256: AA13D29EAF1DFBC04026F16A9AD18B534162CA02F1C01E3E85F995DFEA34DB7F
+  - Size: 793,088 bytes
+  - Last write time: 2026-05-01 17:16:14
+  - SHA-256: 97747E50A4CC561836AF333F3CD53576085A935DA9F118F47CAB97DEEAF288CB
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,555,338 bytes
-  - Last write time: 2026-05-01 12:51:02
-  - SHA-256: 60921E41830E5E2E052146629678D7135579F7852145ACA13201C31A15C06BF4
+  - Size: 2,558,579 bytes
+  - Last write time: 2026-05-01 17:16:18
+  - SHA-256: 92C4BBBC034DA212E755E2FFBCB7179A1A8B049DCFDC64C1A1CF31C5E962C96D
 
 ## Current feature notes
 
+- Project language is PureBasic, not PowerBasic.
 - Control keeps only the Maximum, Balanced, and Battery plans.
 - The tray app follows Windows power mode: Best performance, Balanced, or Best power efficiency.
 - Plan creation refreshes PowerPilot plans from the current non-PowerPilot Windows plan when one is selected.

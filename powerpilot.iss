@@ -1,5 +1,5 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.0.2605.00770"
+#define AppVersion "1.0.2605.01036"
 #define AppExeName "PowerPilot_V1.0.exe"
 #define AppSetupName "PowerPilot_V1.0_Setup.exe"
 #define AppPublisher "John Torset"
