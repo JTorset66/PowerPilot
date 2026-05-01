@@ -1,6 +1,6 @@
 ﻿# Latest Build
 
-Generated: 2026-04-29 00:20:35 +02:00
+Generated: 2026-05-02 00:50:19 +02:00
 
 ## Result
 
@@ -10,19 +10,19 @@ Generated: 2026-04-29 00:20:35 +02:00
 ## Artifacts
 
 - build\PowerPilot_V1.0.exe
-  - Size: 756,224 bytes
-  - Last write time: 2026-04-29 00:20:27
-  - SHA-256: C586D57A190AF359A17142ED8DC2D891EC4DB28F6DDF21CBC6D064ACFB1BFAD3
+  - Size: 795,648 bytes
+  - Last write time: 2026-05-02 00:50:17
+  - SHA-256: B859BDA53811E39E864547836AB9A8768FD72F79992686C3C1F35626CAD657AC
 - build\PowerPilot_V1.0_Setup.exe
-  - Size: 2,396,131 bytes
-  - Last write time: 2026-04-29 00:20:35
-  - SHA-256: 0A67E1A4C3FFC409CD26B87D9CE2D69A07FB5A07F7C06C95EDE5C8C374C08DBA
+  - Size: 2,552,965 bytes
+  - Last write time: 2026-05-02 00:50:19
+  - SHA-256: 0D5ECFE3F084BBF9E11970C73B2142F3E7703BA107C3FAF26D13D30820054161
 
 ## Snapshot
 
-- Archive: SNAPSHOTS\powerpilot-prebuild-2026-04-29_00-20-09.zip
-- Created: 2026-04-29 00:20:09
-- Source files captured: 728
+- Archive: SNAPSHOTS\powerpilot-prebuild-2026-05-02_00-50-15.zip
+- Created: 2026-05-02 00:50:15
+- Source files captured: 30
 
 ## Retention defaults
 
@@ -36,7 +36,7 @@ Generated: 2026-04-29 00:20:35 +02:00
 
 ## Feature reminders
 
-- Auto Cool uses CPU package power while a Cool plan is active, and temperature only when entering Cool plans from Full Power.
-- Windows battery Power mode should be Balanced or Best performance so Best power efficiency does not cap the available Auto Cool range.
-- Manual Override includes Reset Display for graphics-path recovery.
-- Graphics power and graphics workload readings are not used for Auto Cool decisions.
+- PowerPilot keeps only the Maximum, Balanced, and Battery plans.
+- PowerPilot follows Windows power mode and maps it to Maximum, Balanced, or Battery.
+- PowerPilot no longer uses temperature, package-power telemetry, or helper executables.
+- GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution.

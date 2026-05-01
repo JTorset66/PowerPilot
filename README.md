@@ -17,6 +17,7 @@ The app creates or refreshes those plans from the currently selected Windows pow
 - CPU information from inline CPUID assembly
 - GPU names and PCI IDs from Windows display adapter enumeration
 - startup-in-tray support
+- matching green shield icons for the executable, tray icon, and desktop shortcut
 - standard Inno Setup installer with uninstall support
 
 ## Hardware Information
@@ -85,7 +86,7 @@ For example, a May 2026 build may report a version such as `V1.0.2605.01042` in 
 The installer:
 
 - installs into `Program Files\PowerPilot`
-- creates a desktop shortcut
+- creates a desktop shortcut using `powerpilot_desktop.ico`
 - registers the app to start with Windows using `/tray`
 - launches the app into the notification area after installation
 - includes a user-focused README, license, and third-party notices
@@ -126,6 +127,16 @@ The Plans tab edits those fixed plans directly. Select one of the three plans, a
 
 PowerPilot does not expose manual plan activation in the UI. While PowerPilot is running, Windows power mode chooses which of the three fixed plans should be active.
 
+## Default Plan Behavior
+
+PowerPilot applies a small set of tuned processor settings on top of the base Windows plan:
+
+- `PowerPilot Maximum` favors maximum possible plugged-in performance: AC energy preference `0`, aggressive AC boost, 100% max CPU, no frequency cap, active cooling, faster boost ramp-up, slower ramp-down, and CPU idle still enabled.
+- `PowerPilot Balanced` stays close to Windows Balanced: AC/DC energy preference `33/50`, AC boost enabled, DC boost disabled, 100% max CPU on AC and battery, no frequency cap, active AC cooling, passive DC cooling, Windows-like boost policy and ramp thresholds, and CPU idle enabled.
+- `PowerPilot Battery` favors battery life with disabled boost, lower max CPU, MHz caps, passive cooling, deeper core parking when deep idle saver is enabled, and CPU idle enabled.
+
+Windows firmware, chipset drivers, and hidden processor settings can still affect the exact behavior available on a device.
+
 ## Privacy
 
 PowerPilot does not transfer information to networked systems unless explicitly requested by the user or operator. Hardware information is read locally from CPUID and Windows display adapter enumeration.
@@ -155,6 +166,7 @@ build-installer.ps1
 install-powerpilot.ps1
 installer-assets/
 powerpilot.ico
+powerpilot_desktop.ico
 powerpilot_tray.ico
 README.md
 INSTALLER_README.md

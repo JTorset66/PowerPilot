@@ -1,10 +1,11 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.0.2605.01036"
+#define AppVersion "1.0.2605.01490"
 #define AppExeName "PowerPilot_V1.0.exe"
 #define AppSetupName "PowerPilot_V1.0_Setup.exe"
 #define AppPublisher "John Torset"
 #define AppURL "https://github.com/JTorset66/PowerPilot"
 #define AppIconName "powerpilot.ico"
+#define AppDesktopIconName "powerpilot_desktop.ico"
 #define AppId "{{88D96927-5B26-4DF8-8EE0-3BF9A49E56E3}"
 
 [Setup]
@@ -50,6 +51,7 @@ FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. Op
 [Files]
 Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppIconName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppDesktopIconName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot_tray.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.md"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -61,7 +63,7 @@ Source: "installer-assets\installer-welcome.bmp"; Flags: dontcopy
 Source: "installer-assets\installer-finish.bmp"; Flags: dontcopy
 
 [Icons]
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppIconName}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppDesktopIconName}"
 
 [InstallDelete]
 Type: files; Name: "{app}\PowerPilotLibreHelper.exe"

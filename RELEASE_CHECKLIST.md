@@ -10,6 +10,8 @@ Use this checklist for public PowerPilot releases.
 - Confirm `THIRD_PARTY_NOTICES.md` is included with the installer and still matches bundled assets.
 - Confirm the installer includes `INSTALLER_README.md` as installed `README.md`.
 - Confirm the installer creates a desktop shortcut.
+- Confirm the installed desktop shortcut uses `powerpilot_desktop.ico` and shows the green shield.
+- Confirm the tray icon uses `powerpilot_tray.ico` and shows the green shield.
 - Confirm the project still matches the statements in `CODE_SIGNING_POLICY.md`.
 - Confirm the SignPath notes in `SIGNPATH_APPLICATION.md` are still accurate.
 - Build locally with:
@@ -26,6 +28,8 @@ Use this checklist for public PowerPilot releases.
 - Confirm the installer "Read Included Files" page opens the README, license, and third-party notices.
 - Confirm the app starts in the tray after install.
 - Confirm the installed desktop shortcut launches PowerPilot.
+- Confirm `PowerPilot Balanced` is close to Windows Balanced: 100% max CPU, AC boost enabled, DC boost disabled, no frequency cap, and CPU idle enabled.
+- Confirm `PowerPilot Maximum` uses aggressive AC boost, AC energy preference `0`, 100% max CPU, no frequency cap, and CPU idle enabled.
 - Confirm the installed maintenance entry offers Repair install and Uninstall.
 - Confirm uninstall removes the startup entry and PowerPilot-owned plans.
 - Confirm GitHub MFA is enabled for the maintainer account.

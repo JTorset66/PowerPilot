@@ -4,12 +4,12 @@ EnableExplicit
 ; PureBasic-only Windows power-plan manager with local CPU/GPU identification.
 
 #AppName$            = "PowerPilot"
-#AppVersion$         = "1.0.2605.01036"
+#AppVersion$         = "1.0.2605.01490"
 #AppFullName$        = #AppName$ + " v" + #AppVersion$
 #AppRunKey$          = "PowerPilot"
 #SettingsFolderName$ = "PowerPilot"
 #SettingsFileName$   = "settings.ini"
-#SettingsVersion = 4
+#SettingsVersion = 5
 #TrayTooltip$        = #AppFullName$
 
 #PlanPrefixNew$ = "PowerPilot "
@@ -252,9 +252,9 @@ EndProcedure
 Procedure LoadDefaultPlan(index.i)
   Select index
     Case 0
-      AddPlan(0, #PlanFull$, "Maximum performance profile based on your selected Windows plan.", 5, 2, 100, 0, 1, 60, 1, 100, 0, 1)
+      AddPlan(0, #PlanFull$, "Maximum performance profile based on your selected Windows plan.", 0, 2, 100, 0, 1, 60, 1, 100, 0, 1)
     Case 1
-      AddPlan(1, #PlanBalanced$, "Balanced daily profile based on your selected Windows plan.", 55, 1, 85, 0, 1, 75, 1, 80, 0, 1)
+      AddPlan(1, #PlanBalanced$, "Balanced daily profile based on your selected Windows plan.", 33, 1, 100, 0, 1, 50, 0, 100, 0, 0)
     Case 2
       AddPlan(2, #PlanBattery$, "Battery profile based on your selected Windows plan.", 90, 0, 65, 2200, 0, 98, 0, 55, 1600, 0)
   EndSelect
@@ -361,6 +361,16 @@ Procedure.i UpgradeSettingsIfNeeded(savedVersion.i)
   If savedVersion < 2
     If PlanMatchesValues(@gPlans(2), 85, 0, 70, 2500, 0, 95, 0, 60, 1800, 0)
       LoadDefaultPlan(2)
+      upgraded = #True
+    EndIf
+  EndIf
+  If savedVersion < 5
+    If PlanMatchesValues(@gPlans(0), 5, 2, 100, 0, 1, 60, 1, 100, 0, 1)
+      LoadDefaultPlan(0)
+      upgraded = #True
+    EndIf
+    If PlanMatchesValues(@gPlans(1), 55, 1, 85, 0, 1, 75, 1, 80, 0, 1)
+      LoadDefaultPlan(1)
       upgraded = #True
     EndIf
   EndIf
@@ -879,6 +889,10 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   Protected dcMinState.i = 5
   Protected acCoreParkingMin.i = 100
   Protected dcCoreParkingMin.i = 25
+  Protected acCoreParkingMin1.i = 100
+  Protected dcCoreParkingMin1.i = 25
+  Protected acCoreParkingMin2.i = 100
+  Protected dcCoreParkingMin2.i = 25
 
   If schemeGuid$ = ""
     ProcedureReturn #False
@@ -888,13 +902,29 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
     If gSettings\DeepIdleSaver
       acCoreParkingMin = 0
       dcCoreParkingMin = 0
+      acCoreParkingMin1 = 0
+      dcCoreParkingMin1 = 0
+      acCoreParkingMin2 = 0
+      dcCoreParkingMin2 = 0
     Else
       acCoreParkingMin = 50
       dcCoreParkingMin = 10
+      acCoreParkingMin1 = 50
+      dcCoreParkingMin1 = 10
+      acCoreParkingMin2 = 50
+      dcCoreParkingMin2 = 10
     EndIf
+  ElseIf *plan\Name = #PlanBalanced$
+    acCoreParkingMin1 = 0
+    dcCoreParkingMin1 = 0
+    acCoreParkingMin2 = 0
+    dcCoreParkingMin2 = 0
   ElseIf *plan\Name = #PlanFull$
     acMinState = 20
     dcMinState = 10
+    dcCoreParkingMin = 100
+    dcCoreParkingMin1 = 100
+    dcCoreParkingMin2 = 100
   EndIf
 
   SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFEPP", *plan\AcEpp)
@@ -906,8 +936,8 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMAX2", *plan\AcMaxState)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PROCTHROTTLEMIN", acMinState)
   TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES", acCoreParkingMin)
-  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES1", acCoreParkingMin)
-  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES2", acCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES1", acCoreParkingMin1)
+  TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "CPMINCORES2", acCoreParkingMin2)
   SetFrequencyCaps(schemeGuid$, #True, *plan\AcFreqMHz)
   SetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "SYSCOOLPOL", *plan\AcCooling)
 
@@ -920,8 +950,8 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PROCTHROTTLEMAX2", *plan\DcMaxState)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PROCTHROTTLEMIN", dcMinState)
   TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES", dcCoreParkingMin)
-  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES1", dcCoreParkingMin)
-  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES2", dcCoreParkingMin)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES1", dcCoreParkingMin1)
+  TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "CPMINCORES2", dcCoreParkingMin2)
   SetFrequencyCaps(schemeGuid$, #False, *plan\DcFreqMHz)
   SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SYSCOOLPOL", *plan\DcCooling)
 
@@ -946,6 +976,52 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
     TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME", 1)
     TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME1", 1)
     TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME1", 1)
+  ElseIf *plan\Name = #PlanBalanced$
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "IDLEDISABLE", 0)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "IDLEDISABLE", 0)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTPOL", 60)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTPOL", 40)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTPOL1", 60)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTPOL1", 40)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD", 30)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD", 90)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", 30)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", 90)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD", 10)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD", 30)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", 10)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", 30)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTIME1", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTIME1", 1)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME1", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME1", 1)
+  ElseIf *plan\Name = #PlanFull$
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "IDLEDISABLE", 0)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "IDLEDISABLE", 0)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTPOL", 100)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTPOL", 80)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFBOOSTPOL1", 100)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFBOOSTPOL1", 80)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD", 10)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD", 20)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", 10)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTHRESHOLD1", 20)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD", 5)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD", 10)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", 5)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTHRESHOLD1", 10)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTIME", 1)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFINCTIME1", 1)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFINCTIME1", 1)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME", 3)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME", 2)
+    TrySetSchemeValue(schemeGuid$, #True, "SUB_PROCESSOR", "PERFDECTIME1", 3)
+    TrySetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "PERFDECTIME1", 2)
   EndIf
 
   ProcedureReturn #True

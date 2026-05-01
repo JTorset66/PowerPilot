@@ -21,6 +21,12 @@ It creates or refreshes those plans from the currently selected Windows power pl
 - Show local display-adapter names, vendor IDs, device IDs, and active/primary flags.
 - Remove PowerPilot-owned plans during uninstall.
 
+## Default Plan Behavior
+
+- `PowerPilot Maximum` favors maximum possible plugged-in performance: AC energy preference `0`, aggressive AC boost, 100% max CPU, no frequency cap, active cooling, faster boost ramp-up, slower ramp-down, and CPU idle still enabled.
+- `PowerPilot Balanced` stays close to Windows Balanced: AC/DC energy preference `33/50`, AC boost enabled, DC boost disabled, 100% max CPU on AC and battery, no frequency cap, active AC cooling, passive DC cooling, Windows-like boost policy and ramp thresholds, and CPU idle enabled.
+- `PowerPilot Battery` favors battery life with disabled boost, lower max CPU, MHz caps, passive cooling, deeper core parking when deep idle saver is enabled, and CPU idle enabled.
+
 ## Basic Use
 
 1. Install PowerPilot.
@@ -37,7 +43,7 @@ PowerPilot does not expose manual plan activation in the UI. Windows power mode 
 The installer:
 
 - installs PowerPilot into `Program Files\PowerPilot`
-- creates a desktop shortcut
+- creates a desktop shortcut using the green shield `powerpilot_desktop.ico`
 - enables startup for the current user using `/tray`
 - closes a running PowerPilot process before install, repair, reinstall, or uninstall file operations
 - removes old helper files from earlier builds
