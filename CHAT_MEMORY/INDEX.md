@@ -32,6 +32,7 @@ You can also pass text directly:
 
 ## Saved entries
 
+- 2026-05-03 03:43:32 +02:00 : [release snapshot v1.1](logs/2026-05-03_03-43-32-release-snapshot-v1-1.md)
 - 2026-05-03 03:33:18 +02:00 : [installer build 2026-05-03 03-33-18](logs/2026-05-03_03-33-18-installer-build-2026-05-03-03-33-18.md)
 - 2026-05-03 03:29:24 +02:00 : [installer build 2026-05-03 03-29-24](logs/2026-05-03_03-29-24-installer-build-2026-05-03-03-29-24.md)
 - 2026-05-03 03:28:20 +02:00 : [installer build 2026-05-03 03-28-20](logs/2026-05-03_03-28-20-installer-build-2026-05-03-03-28-20.md)
@@ -61,4 +62,3 @@ You can also pass text directly:
 - 2026-05-03 02:15:51 +02:00 : [installer build 2026-05-03 02-15-50](logs/2026-05-03_02-15-51-installer-build-2026-05-03-02-15-50.md)
 - 2026-05-03 02:05:21 +02:00 : [installer build 2026-05-03 02-05-21](logs/2026-05-03_02-05-21-installer-build-2026-05-03-02-05-21.md)
 - 2026-05-03 02:02:59 +02:00 : [installer build 2026-05-03 02-02-59](logs/2026-05-03_02-02-59-installer-build-2026-05-03-02-02-59.md)
-- 2026-05-03 02:02:29 +02:00 : [installer build 2026-05-03 02-02-29](logs/2026-05-03_02-02-29-installer-build-2026-05-03-02-02-29.md)

@@ -1,42 +1,53 @@
 # Current Context
 
-Last updated: 2026-04-19
+Last updated: 2026-05-03
 
 ## Active summary
 
-- `PowerPilot_V1.0.pb` was rebuilt successfully into `build\PowerPilot_V1.0.exe`.
-- The installer was rebuilt successfully into `build\PowerPilot_V1.0_Setup.exe`.
-- The latest local installer run completed successfully on `2026-04-19` and relaunched PowerPilot in the tray.
-- The recent PowerPilot changes now cover three areas:
-  - dGPU-aware plan handling
-  - manual display recovery
-  - adjustable Auto GameCool averaging from the Control tab
+- PowerPilot v1.1 is the current released version.
+- Release commit: `33968a2 Release PowerPilot v1.1`.
+- Release tag: `v1.1`.
+- GitHub release: https://github.com/JTorset66/PowerPilot/releases/tag/v1.1
+- The source snapshot for this released tag is saved at `SNAPSHOTS\powerpilot-release-v1.1-2026-05-03_03-43-06.zip`.
+- The latest verified build artifacts remain `build\PowerPilot_V1.1.2605.03093.exe` and `build\PowerPilot_V1.1.2605.03093_Setup.exe`.
 
-## dGPU behavior summary
+## v1.1 battery work summary
 
-- PowerPilot now tracks a separate remembered plan for active `dGPU` or `eGPU` use.
-- The dGPU rule now follows GPU detection itself, not only AC reconnect.
-- That means a connected active dGPU on battery can still hold the remembered dGPU plan instead of always falling back to `Battery Saver`.
+- Added Battery Graph, PowerPilot Log, and Battery Stats tabs.
+- Battery logging records timestamp, battery percent, connected/charging state, average time, instant time, Windows time, instant drain, and power/app events.
+- The retained CSV log is capped to 168 hours.
+- The PowerPilot Log supports multi-row selection, copying selected rows, and copying the retained log.
+- The log keeps the newest row visible after refresh.
+- The graph uses a gliding 24-hour window with hour marks, date/time labels, active/offline segments, and connected endpoints across sleep/offline gaps.
+- Reset stats clears the log, graph samples, and current calculation state.
 
-## Manual recovery summary
+## estimate and battery-health summary
 
-- Manual Override now has a `Reset Display` button.
-- The button sends the standard Windows graphics reset hotkey `Win+Ctrl+Shift+B`.
-- This gives a software recovery path for black-screen external-display problems without requiring a full power cycle.
+- Average remaining time uses elapsed on-battery history until the configured glide window is full, then rolls over that window.
+- Sleep, hibernate, shutdown, startup, wake, improper shutdown, app exit, and update-close rows break average calculations so offline/app-closed time is not counted as drain time.
+- Startup drain can be learned from the retained log and used immediately until fresh sample history is available.
+- Battery Graph shows average, instant, Windows, wear, maximum capacity, cycle count, and `Max avg`.
+- Average and `Max avg` are calculated to the configured minimum-percent sleep floor.
+- `Max avg` uses the configured maximum ceiling, or the battery charge limiter ceiling when the limiter is enabled.
+- PowerPilot-managed Windows plans align the DC critical battery level to the configured minimum percent, set the critical action to Sleep, and set the low warning one percent above the floor after a short debounce.
 
-## Control summary
+## installer and lifecycle summary
 
-- Control now includes a saved `GameCool avg (sec)` setting.
-- Auto GameCool uses that saved averaging window instead of a fixed 10-second window.
+- The installer remains the elevated part; the installed tray app runs as the local user after install when possible.
+- Installed app builds are side-by-side versioned executables.
+- Newer-version installs can start immediately and let the new app close older PowerPilot versions in the background.
+- Same-version reinstalls close only the matching executable before overwrite.
+- Installer/update closes are logged as `PowerPilot update close`, not as normal app exit or PC shutdown.
+- App lifecycle rows are excluded from PC off/sleep loss and graph offline markers.
+- Install verification checks that no elevated installer/helper shell remains after the installer finishes.
 
-## Important operational note
+## documentation and map
 
-- Build verification is current.
-- Completed installer assembly is current.
-- A full local installer run was re-verified from `build\install-run.log`.
-- The successful install log shows `Installation process succeeded.` at `2026-04-19 19:34:33 +08:00` and `Need to restart Windows? No` at `2026-04-19 19:34:49 +08:00`.
+- `README.md`, `RELEASE_NOTES_v1.1.md`, and `FUNCTION_MAP.md` describe the current v1.1 application.
+- `FUNCTION_MAP.md` maps the PureBasic source areas and helps future stale-code checks.
+- `STARTUP_CONTEXT.md`, `CHAT_MEMORY\LATEST_BUILD.md`, `CHAT_MEMORY\LATEST_INSTALL.md`, and `CHAT_MEMORY\INDEX.md` are the first files to check when resuming.
 
-## Reminder
+## reminder
 
 - Take regular snapshots or commits during active work.
-- Snapshot before installer changes, major plan logic changes, or any risky power-management edits.
+- Snapshot before installer changes, major power-plan logic changes, battery-calculation edits, or any elevated install/uninstall step.

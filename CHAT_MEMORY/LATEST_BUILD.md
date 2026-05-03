@@ -20,7 +20,11 @@ Generated: 2026-05-03 03:33:18 +02:00
 
 ## Snapshot
 
-- Snapshot was skipped for this run.
+- Release snapshot: SNAPSHOTS\powerpilot-release-v1.1-2026-05-03_03-43-06.zip
+- Created: 2026-05-03 03:43:06
+- Captured from tag: v1.1
+- Tracked files captured: 67
+- SHA-256: FB75C367E197B92FC3A89BF228D8E1737CDCDCFF32B57ABDE34138D14D0BE59C
 
 ## Retention defaults
 
@@ -36,5 +40,6 @@ Generated: 2026-05-03 03:33:18 +02:00
 
 - PowerPilot keeps only the Maximum, Balanced, and Battery plans.
 - PowerPilot follows Windows power mode and maps it to Maximum, Balanced, or Battery.
-- PowerPilot no longer uses temperature, package-power telemetry, or helper executables.
-- GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution.
+- Battery Graph, PowerPilot Log, and Battery Stats are the main v1.1 tabs for battery estimates and history.
+- Average and Max avg estimates use the configured minimum floor and effective maximum ceiling.
+- App/update lifecycle log rows break battery-drain calculations without being treated as PC shutdowns.

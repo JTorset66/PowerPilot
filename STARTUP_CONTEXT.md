@@ -24,12 +24,17 @@ Latest verified artifact details:
 - Control keeps only the Maximum, Balanced, and Battery plans.
 - The tray app follows Windows power mode: Best performance, Balanced, or Best power efficiency.
 - Plan creation refreshes PowerPilot plans from the current non-PowerPilot Windows plan when one is selected.
-- CPU information comes from CPUID inline assembly.
-- GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution, without helpers.
+- Battery Graph shows average, instant, Windows, wear, max capacity, cycle count, and Max avg estimates.
+- PowerPilot Log records retained battery samples, app lifecycle rows, and PC power-event rows.
+- Battery Stats summarizes the session, daily drain, off-time battery loss, and configurable log-column widths.
+- Estimate math uses the configured minimum battery floor and effective maximum ceiling.
+- PowerPilot-managed DC critical battery level follows the configured minimum percent and sleeps at that floor.
 
 ## Installer status
 
 - Installer assembly was rebuilt successfully with build-installer.ps1.
+- PowerPilot v1.1 was released from commit 33968a2 and tag v1.1.
+- GitHub release: https://github.com/JTorset66/PowerPilot/releases/tag/v1.1
 - Latest install verification, when available, is tracked in CHAT_MEMORY\LATEST_INSTALL.md.
 - This file confirms build and installer assembly status inside the project directory for quick startup reference.
 
@@ -40,7 +45,11 @@ Latest verified artifact details:
 
 ## Latest snapshot
 
-- Snapshot was skipped for this run.
+- Archive: SNAPSHOTS\powerpilot-release-v1.1-2026-05-03_03-43-06.zip
+- Created: 2026-05-03 03:43:06
+- Captured from tag: v1.1
+- Tracked files captured: 67
+- SHA-256: FB75C367E197B92FC3A89BF228D8E1737CDCDCFF32B57ABDE34138D14D0BE59C
 
 ## Where to look first on a new startup
 
