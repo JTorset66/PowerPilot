@@ -1,5 +1,5 @@
 param(
-    [string]$SetupPath = ".\build\PowerPilot_V1.0_Setup.exe",
+    [string]$SetupPath = "",
     [string]$LogPath = ".\build\install-run.log"
 )
 
@@ -82,6 +82,77 @@ $logSummary
     Set-Content -LiteralPath $path -Value $content -Encoding UTF8
 }
 
+function Get-InnoLogDuration {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ResolvedLog
+    )
+
+    if (-not (Test-Path $ResolvedLog)) {
+        return $null
+    }
+
+    $timestampPattern = '^(?<stamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})'
+    $first = $null
+    $last = $null
+
+    foreach ($line in Get-Content -LiteralPath $ResolvedLog -ErrorAction SilentlyContinue) {
+        if ($line -match $timestampPattern) {
+            $parsed = [datetime]::ParseExact($matches.stamp, 'yyyy-MM-dd HH:mm:ss.fff', [Globalization.CultureInfo]::InvariantCulture)
+            if (-not $first) {
+                $first = $parsed
+            }
+            $last = $parsed
+        }
+    }
+
+    if ($first -and $last) {
+        return [pscustomobject]@{
+            Start = $first
+            End = $last
+            Seconds = [math]::Round(($last - $first).TotalSeconds, 3)
+        }
+    }
+
+    return $null
+}
+
+function Get-PowerPilotBatteryLogDuration {
+    $path = Join-Path $env:APPDATA "PowerPilot\battery-log.csv"
+    if (-not (Test-Path $path)) {
+        return $null
+    }
+
+    $rows = Import-Csv -LiteralPath $path -ErrorAction SilentlyContinue
+    $items = foreach ($row in $rows) {
+        if (-not [string]::IsNullOrWhiteSpace($row.timestamp)) {
+            [pscustomobject]@{
+                Time = [datetime]::ParseExact($row.timestamp, 'yyyy-MM-ddTHH:mm:ss', [Globalization.CultureInfo]::InvariantCulture)
+                Type = [string]$row.row_type
+            }
+        }
+    }
+
+    if (-not $items) {
+        return $null
+    }
+
+    $ordered = @($items | Sort-Object Time)
+    $counts = $items | Group-Object Type | Sort-Object Name | ForEach-Object {
+        $name = if ([string]::IsNullOrWhiteSpace($_.Name)) { "legacy" } else { $_.Name }
+        "$name=$($_.Count)"
+    }
+
+    return [pscustomobject]@{
+        Path = $path
+        Start = $ordered[0].Time
+        End = $ordered[-1].Time
+        Seconds = [math]::Round(($ordered[-1].Time - $ordered[0].Time).TotalSeconds, 3)
+        Rows = $ordered.Count
+        Counts = ($counts -join ", ")
+    }
+}
+
 function Resolve-UnderRepo {
     param(
         [Parameter(Mandatory = $true)]
@@ -95,6 +166,41 @@ function Resolve-UnderRepo {
     return (Join-Path $repoRoot $Path)
 }
 
+function Resolve-PowerPilotSetupPath {
+    param(
+        [string]$Path
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        return Resolve-UnderRepo -Path $Path
+    }
+
+    $buildDir = Join-Path $repoRoot "build"
+    $latestSetup = Get-ChildItem -Path $buildDir -Filter "PowerPilot_V*_Setup.exe" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if (-not $latestSetup) {
+        throw "No PowerPilot installer found in $buildDir. Build the installer first or pass -SetupPath."
+    }
+
+    return $latestSetup.FullName
+}
+
+function Resolve-InstalledPowerPilotExe {
+    $installDir = Join-Path $env:ProgramFiles "PowerPilot"
+    $latestExe = Get-ChildItem -Path $installDir -Filter "PowerPilot_V*.exe" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notlike "*_Setup.exe" } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if ($latestExe) {
+        return $latestExe.FullName
+    }
+
+    return (Join-Path $installDir "PowerPilot_V1.1.exe")
+}
+
 function Test-PowerPilotRunningStable {
     param(
         [int]$ProbeCount = 4,
@@ -105,7 +211,7 @@ function Test-PowerPilotRunningStable {
     $running = $null
 
     for ($probe = 0; $probe -lt $ProbeCount; $probe++) {
-        $running = Get-Process PowerPilot_V1.0 -ErrorAction SilentlyContinue
+        $running = Get-Process PowerPilot_V* -ErrorAction SilentlyContinue
         if (-not $running) {
             return $false
         }
@@ -128,7 +234,7 @@ function Start-PowerPilotTrayProcess {
 }
 
 function Start-InstalledPowerPilotIfNeeded {
-    $installedExe = Join-Path $env:ProgramFiles "PowerPilot\\PowerPilot_V1.0.exe"
+    $installedExe = Resolve-InstalledPowerPilotExe
     $attempt = 0
     $observe = 0
 
@@ -165,7 +271,77 @@ function Start-InstalledPowerPilotIfNeeded {
     Write-Host "PowerPilot did not stay running after install launch attempts."
 }
 
-$resolvedSetup = Resolve-UnderRepo -Path $SetupPath
+function Get-InstallerRelatedProcesses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ResolvedSetup
+    )
+
+    $setupName = Split-Path -Leaf $ResolvedSetup
+    $repoFragment = $repoRoot.Replace('\', '\\')
+
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            if ($_.ProcessId -eq $PID) {
+                return $false
+            }
+
+            $name = [string]$_.Name
+            $commandLine = [string]$_.CommandLine
+            $executablePath = [string]$_.ExecutablePath
+
+            if ($name -like "PowerPilot_V*_Setup.exe") {
+                return $true
+            }
+
+            if ($name -like "PowerPilot_V*.exe" -and $commandLine -like "*/cleanup-old-versions*") {
+                return $true
+            }
+
+            if ($name -in @("powershell.exe", "pwsh.exe")) {
+                if ($commandLine -like "*install-powerpilot.ps1*" -or
+                    $commandLine -like "*$setupName*" -or
+                    $commandLine -like "*$repoRoot*") {
+                    return $true
+                }
+            }
+
+            if ($executablePath -eq $ResolvedSetup) {
+                return $true
+            }
+
+            return $false
+        } |
+        Select-Object ProcessId, Name, CommandLine, ExecutablePath
+}
+
+function Wait-InstallerRelatedProcessesClosed {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ResolvedSetup,
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $remaining = @()
+
+    do {
+        Start-Sleep -Milliseconds 500
+        $remaining = @(Get-InstallerRelatedProcesses -ResolvedSetup $ResolvedSetup)
+        if ($remaining.Count -eq 0) {
+            Write-Host "Post-install elevated/installer process check: clear."
+            return
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Write-Host "Post-install elevated/installer process check: processes still running:"
+    foreach ($item in $remaining) {
+        Write-Host (" - {0} PID {1}" -f $item.Name, $item.ProcessId)
+    }
+    throw "Installer-related elevated/helper processes remained after install."
+}
+
+$resolvedSetup = Resolve-PowerPilotSetupPath -Path $SetupPath
 $resolvedLog = Resolve-UnderRepo -Path $LogPath
 
 if (-not (Test-Path $resolvedSetup)) {
@@ -236,6 +412,7 @@ while (-not $process.HasExited) {
 }
 
 $process.WaitForExit()
+$installerProcessEnded = Get-Date
 
 $resultText = "failed"
 if (Test-Path $resolvedLog) {
@@ -259,7 +436,20 @@ Write-LatestInstallContext -ResolvedSetup $resolvedSetup -ResolvedLog $resolvedL
 if ($process.ExitCode -eq 0) {
     Start-Sleep -Seconds 2
     Start-InstalledPowerPilotIfNeeded
+    Wait-InstallerRelatedProcessesClosed -ResolvedSetup $resolvedSetup
 }
+
+$scriptEnded = Get-Date
+$innoDuration = Get-InnoLogDuration -ResolvedLog $resolvedLog
+if ($innoDuration) {
+    Write-Host ("Installer log duration: {0:n3}s ({1} to {2})" -f $innoDuration.Seconds, $innoDuration.Start.ToString("HH:mm:ss.fff"), $innoDuration.End.ToString("HH:mm:ss.fff"))
+}
+$powerPilotLogDuration = Get-PowerPilotBatteryLogDuration
+if ($powerPilotLogDuration) {
+    Write-Host ("PowerPilot battery log duration: {0:n3}s ({1} to {2}, rows {3}, {4})" -f $powerPilotLogDuration.Seconds, $powerPilotLogDuration.Start.ToString("HH:mm:ss"), $powerPilotLogDuration.End.ToString("HH:mm:ss"), $powerPilotLogDuration.Rows, $powerPilotLogDuration.Counts)
+}
+Write-Host ("Installer process wait: {0:n3}s" -f (($installerProcessEnded - $runStarted).TotalSeconds))
+Write-Host ("Install helper total time: {0:n3}s" -f (($scriptEnded - $runStarted).TotalSeconds))
 
 Write-Host "Install result:" $resultText
 Write-Host "Installer exit code:" $process.ExitCode

@@ -1,6 +1,6 @@
 # PowerPilot User README
 
-PowerPilot is a Windows x64 tray utility for managing three local Windows power plans:
+PowerPilot is a Windows x64 tray utility for managing three local Windows power plans, local battery estimates, and a retained PowerPilot log:
 
 - `PowerPilot Maximum`
 - `PowerPilot Balanced`
@@ -19,6 +19,10 @@ It creates or refreshes those plans from the currently selected Windows power pl
 - Recreate PowerPilot-owned plans from the current non-PowerPilot Windows plan.
 - Show local CPU identification from CPUID.
 - Show local display-adapter names, vendor IDs, device IDs, and active/primary flags.
+- Use the Battery Graph tab to show local battery percent, connection/charging state, remaining capacity, full/design capacity, wear, cycle count, charge/discharge rate, Windows runtime, average estimate, instant estimate, and a 24-hour graph.
+- Use the Battery Graph minimum percent as the on-battery critical sleep level for PowerPilot-managed Windows plans.
+- Use the PowerPilot Log tab to configure sample timing, keep your preferred column sizing, and copy retained CSV rows for battery samples, power events, and short app status messages.
+- Use the Battery Stats tab for session, daily battery, off-time battery-loss, log-column, and settings backup controls.
 - Remove PowerPilot-owned plans during uninstall.
 
 ## Default Plan Behavior
@@ -45,9 +49,12 @@ The installer:
 - installs PowerPilot into `Program Files\PowerPilot`
 - creates a desktop shortcut using the green shield `powerpilot_desktop.ico`
 - enables startup for the current user using `/tray`
-- closes a running PowerPilot process before install, repair, reinstall, or uninstall file operations
+- installs newer stamped versions side-by-side, writes a `PowerPilot update close` app-log row when an existing tray copy is running, and lets the newly launched app close older `PowerPilot_V*.exe` versions in the background
+- closes only the exact same stamped executable before overwrite during same-version reinstall
+- removes stale versioned `PowerPilot_V*.exe` app files after install through a background cleanup command
 - removes old helper files from earlier builds
-- removes and recreates only PowerPilot-owned plans during install
+- repairs missing PowerPilot-owned plans during normal updates without recreating existing plans
+- checks after install that setup, elevated helper, and cleanup processes have exited
 - offers repair and uninstall from Windows Apps/Programs maintenance
 
 The uninstaller removes installed files, the startup entry, PowerPilot-owned plans, and legacy prototype `Codex *` plans.
@@ -56,7 +63,7 @@ The uninstaller removes installed files, the startup entry, PowerPilot-owned pla
 
 PowerPilot does not transfer information to networked systems unless specifically requested by the user or the person installing or operating it.
 
-Hardware information is read locally from CPUID and Windows display-adapter enumeration. PowerPilot changes only local Windows power plans and the Windows startup entry used for tray launch.
+Hardware information is read locally from CPUID, Windows display-adapter enumeration, and Windows battery providers. PowerPilot changes only local Windows power plans and the Windows startup entry used for tray launch.
 
 ## Notes
 

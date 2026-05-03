@@ -1,7 +1,7 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.0.2605.01499"
-#define AppExeName "PowerPilot_V1.0.exe"
-#define AppSetupName "PowerPilot_V1.0_Setup.exe"
+#define AppVersion "1.1.2605.03093"
+#define AppExeName "PowerPilot_V1.1.2605.03093.exe"
+#define AppSetupName "PowerPilot_V1.1.2605.03093_Setup.exe"
 #define AppPublisher "John Torset"
 #define AppURL "https://github.com/JTorset66/PowerPilot"
 #define AppIconName "powerpilot.ico"
@@ -21,7 +21,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=build
-OutputBaseFilename=PowerPilot_V1.0_Setup
+OutputBaseFilename=PowerPilot_V1.1.2605.03093_Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -31,8 +31,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
-CloseApplications=yes
-CloseApplicationsFilter={#AppExeName}
+CloseApplications=no
 RestartApplications=no
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription=PowerPilot Setup
@@ -44,9 +43,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to PowerPilot
-WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup will refresh the PowerPilot-owned plans, remove older helper files, include the user README, license, and third-party notices, and start PowerPilot in the tray when it finishes.
+WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup will keep normal updates fast, repair missing PowerPilot-owned plans if needed, include the user README, license, and third-party notices, and start PowerPilot in the tray when it finishes.
 FinishedHeadingLabel=PowerPilot is ready
-FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. Open PowerPilot from the desktop shortcut or the tray icon to review plans, Windows power mode, and hardware information.
+FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. If an older version was still running, the new PowerPilot closes it in the background after launch. Open PowerPilot from the desktop shortcut or the tray icon to review plans, Windows power mode, and hardware information.
 
 [Files]
 Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -78,6 +77,7 @@ Type: filesandordirs; Name: "{app}\third_party\LibreHardwareMonitor"
 Type: dirifempty; Name: "{app}\third_party"
 
 [UninstallDelete]
+Type: files; Name: "{app}\PowerPilot_V*.exe"
 Type: files; Name: "{app}\{#AppSetupName}"
 Type: files; Name: "{app}\PowerPilotWindowsPmiHelper.exe"
 Type: files; Name: "{app}\PowerPilotWindowsPerfHelper.exe"
@@ -401,19 +401,39 @@ begin
 end;
 
 procedure StopRunningPowerPilot;
-var
-  I: Integer;
 begin
-  for I := 0 to 1 do
-  begin
-    RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM {#AppExeName} /F /T');
+  RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilot_V*.exe /F /T');
+  if FileExists(ExpandConstant('{app}\PowerPilotWindowsPerfHelper.exe')) then
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotWindowsPerfHelper.exe /F /T');
+  if FileExists(ExpandConstant('{app}\PowerPilotWindowsPmiHelper.exe')) then
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotWindowsPmiHelper.exe /F /T');
+  if FileExists(ExpandConstant('{app}\PowerPilotWindowsEmiHelper.exe')) then
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotWindowsEmiHelper.exe /F /T');
+  if FileExists(ExpandConstant('{app}\PowerPilotLibreHelper.exe')) then
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotLibreHelper.exe /F /T');
+  if FileExists(ExpandConstant('{app}\PowerPilotAmdAdlxHelper.exe')) then
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotAmdAdlxHelper.exe /F /T');
+  if FileExists(ExpandConstant('{app}\PowerPilotAmdAdlHelper.exe')) then
     RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM PowerPilotAmdAdlHelper.exe /F /T');
-    Sleep(300);
+  Sleep(200);
+end;
+
+procedure StopSameVersionPowerPilotIfInstalled;
+begin
+  if FileExists(ExpandConstant('{app}\{#AppExeName}')) then
+  begin
+    WizardForm.StatusLabel.Caption := 'Same PowerPilot version found; closing that exact app so Setup can replace it.';
+    Log(Format('Same-version exe exists; closing it before overwrite: %s', [ExpandConstant('{app}\{#AppExeName}')]));
+    if RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/log-update-close-if-running') = 0 then
+      Log('Same-version running app reported update close to the PowerPilot log.')
+    else
+      Log('Same-version exe exists but no running copy reported an update close.');
+    RunHiddenAndWait(ExpandConstant('{sys}\taskkill.exe'), '/IM {#AppExeName} /F /T');
+    Sleep(200);
+  end
+  else begin
+    WizardForm.StatusLabel.Caption := 'Installing new PowerPilot side-by-side; older tray versions will close in the background after launch.';
+    Log('No same-version exe exists; skipping pre-copy app close.');
   end;
 end;
 
@@ -439,24 +459,14 @@ begin
     Sleep(400);
   end;
 
-  for Attempt := 1 to 2 do
-  begin
-    if Exec(ExpandConstant('{sys}\cmd.exe'), LauncherArgs, '', SW_HIDE, ewNoWait, ResultCode) then
-    begin
-      Log(Format('Launched detached tray with elevated fallback: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
-      Exit;
-    end;
-    Sleep(400);
-  end;
-
-  Log(Format('Failed to launch after retries: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
+  Log(Format('Failed to launch tray as original user; not starting elevated: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   case CurStep of
     ssInstall:
-      StopRunningPowerPilot();
+      StopSameVersionPowerPilotIfInstalled();
 
     ssPostInstall:
       begin
@@ -467,14 +477,17 @@ begin
         else
           Log('Keeping existing user settings because the app preference is enabled.');
         RefreshDesktopIconState();
-        RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/startup-on');
-        RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-plans');
-        RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/create-plans');
-        RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/follow-once');
+        RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/install-refresh');
       end;
 
     ssDone:
       begin
+        WizardForm.StatusLabel.Caption := 'Starting PowerPilot; it will close older running versions in the background.';
+        if RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/log-update-close-if-powerpilot-running') = 0 then
+          Log('Running PowerPilot copy reported update close to the PowerPilot log.')
+        else
+          Log('No running PowerPilot copy reported an update close before background cleanup.');
+        RunHiddenNoWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-old-versions');
         StartInstalledPowerPilot();
       end;
   end;

@@ -31,10 +31,10 @@ Initial public release of PowerPilot, a PureBasic x64 tray utility for managing 
 
 ## Included assets
 
-- `PowerPilot_V1.0.exe`
-- `PowerPilot_V1.0.exe.sha256`
-- `PowerPilot_V1.0_Setup.exe`
-- `PowerPilot_V1.0_Setup.exe.sha256`
+- `PowerPilot_V1.0.YYMM.minute-of-month.exe`
+- `PowerPilot_V1.0.YYMM.minute-of-month.exe.sha256`
+- `PowerPilot_V1.0.YYMM.minute-of-month_Setup.exe`
+- `PowerPilot_V1.0.YYMM.minute-of-month_Setup.exe.sha256`
 - green shield icon assets for the executable, desktop shortcut, and tray icon
 
 ## Checksums

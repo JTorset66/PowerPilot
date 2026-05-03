@@ -313,6 +313,22 @@ function Sign-ProjectArtifact {
     Write-Host "Signed:" $Path
 }
 
+function Remove-StaleInstallerArtifacts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$ArtifactNames
+    )
+
+    $buildDir = Join-Path $repoRoot "build"
+    $staleArtifacts = @()
+    $staleArtifacts += Get-ChildItem -Path $buildDir -Filter "PowerPilot_V*_Setup.exe" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne $ArtifactNames.SetupName }
+    $staleArtifacts += Get-ChildItem -Path $buildDir -Filter "PowerPilot_V*_Setup.exe.sha256" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne "$($ArtifactNames.SetupName).sha256" }
+
+    $staleArtifacts | Remove-Item -Force
+}
+
 function Write-StartupContext {
     param(
         [Parameter(Mandatory = $true)]
@@ -358,17 +374,17 @@ Last updated: $today
 
 ## Verified build state
 
-- Source file compiled successfully: PowerPilot_V1.0.pb
-- Main build artifact verified: build\PowerPilot_V1.0.exe
-- Installer assembly verified: build\PowerPilot_V1.0_Setup.exe
+- Source file compiled successfully: PowerPilot_V1.1.pb
+- Main build artifact verified: $($ExeInfo.RelativePath)
+- Installer assembly verified: $($SetupInfo.RelativePath)
 
 Latest verified artifact details:
 
-- build\PowerPilot_V1.0.exe
+- $($ExeInfo.RelativePath)
   - Size: $exeSize bytes
   - Last write time: $exeTime
   - SHA-256: $($ExeInfo.Sha256)
-- build\PowerPilot_V1.0_Setup.exe
+- $($SetupInfo.RelativePath)
   - Size: $setupSize bytes
   - Last write time: $setupTime
   - SHA-256: $($SetupInfo.Sha256)
@@ -465,11 +481,11 @@ Generated: $($stamp.ToString("yyyy-MM-dd HH:mm:ss zzz"))
 
 ## Artifacts
 
-- build\PowerPilot_V1.0.exe
+- $($ExeInfo.RelativePath)
   - Size: $exeSize bytes
   - Last write time: $exeTime
   - SHA-256: $($ExeInfo.Sha256)
-- build\PowerPilot_V1.0_Setup.exe
+- $($SetupInfo.RelativePath)
   - Size: $setupSize bytes
   - Last write time: $setupTime
   - SHA-256: $($SetupInfo.Sha256)
@@ -529,10 +545,10 @@ Installer build completed successfully on $($stamp.ToString("yyyy-MM-dd HH:mm:ss
 
 Artifacts:
 
-- build\PowerPilot_V1.0.exe
+- $($ExeInfo.RelativePath)
   - Size: $("{0:N0}" -f $ExeInfo.Length) bytes
   - SHA-256: $($ExeInfo.Sha256)
-- build\PowerPilot_V1.0_Setup.exe
+- $($SetupInfo.RelativePath)
   - Size: $("{0:N0}" -f $SetupInfo.Length) bytes
   - SHA-256: $($SetupInfo.Sha256)
 
@@ -573,7 +589,7 @@ $capturedChat
 }
 
 function Sync-InnoAppVersion {
-    $sourcePath = Join-Path $repoRoot "PowerPilot_V1.0.pb"
+    $sourcePath = Join-Path $repoRoot "PowerPilot_V1.1.pb"
     $installerPath = Join-Path $repoRoot "powerpilot.iss"
     $sourceText = Get-Content -LiteralPath $sourcePath -Raw
 
@@ -582,16 +598,26 @@ function Sync-InnoAppVersion {
     }
 
     $appVersion = $Matches[1]
+    $exeName = "PowerPilot_V{0}.exe" -f $appVersion
+    $setupName = "PowerPilot_V{0}_Setup.exe" -f $appVersion
+    $setupBaseName = [System.IO.Path]::GetFileNameWithoutExtension($setupName)
     $installerText = Get-Content -LiteralPath $installerPath -Raw
-    $updatedInstallerText = [regex]::Replace(
-        $installerText,
-        '(?m)^#define AppVersion "[^"]+"',
-        '#define AppVersion "' + $appVersion + '"',
-        1
-    )
+    $updatedInstallerText = $installerText
+    $updatedInstallerText = [regex]::Replace($updatedInstallerText, '(?m)^#define AppVersion "[^"]+"', '#define AppVersion "' + $appVersion + '"', 1)
+    $updatedInstallerText = [regex]::Replace($updatedInstallerText, '(?m)^#define AppExeName "[^"]+"', '#define AppExeName "' + $exeName + '"', 1)
+    $updatedInstallerText = [regex]::Replace($updatedInstallerText, '(?m)^#define AppSetupName "[^"]+"', '#define AppSetupName "' + $setupName + '"', 1)
+    $updatedInstallerText = [regex]::Replace($updatedInstallerText, '(?m)^OutputBaseFilename=.+$', 'OutputBaseFilename=' + $setupBaseName, 1)
 
     Set-Content -LiteralPath $installerPath -Value $updatedInstallerText -NoNewline
     Write-Host "Installer AppVersion:" $appVersion
+    Write-Host "Installer AppExeName:" $exeName
+    Write-Host "Installer AppSetupName:" $setupName
+
+    return [PSCustomObject]@{
+        AppVersion = $appVersion
+        ExeName = $exeName
+        SetupName = $setupName
+    }
 }
 
 Push-Location $repoRoot
@@ -607,7 +633,8 @@ try {
     }
 
     .\build-purebasic.ps1 -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
-    Sync-InnoAppVersion
+    $artifactNames = Sync-InnoAppVersion
+    Remove-StaleInstallerArtifacts -ArtifactNames $artifactNames
 
     $isccPath = Resolve-IsccPath
     & $isccPath ".\powerpilot.iss"
@@ -616,8 +643,8 @@ try {
         throw "Inno Setup compilation failed."
     }
 
-    $exePath = Join-Path $repoRoot "build\PowerPilot_V1.0.exe"
-    $setupPath = Join-Path $repoRoot "build\PowerPilot_V1.0_Setup.exe"
+    $exePath = Join-Path $repoRoot ("build\{0}" -f $artifactNames.ExeName)
+    $setupPath = Join-Path $repoRoot ("build\{0}" -f $artifactNames.SetupName)
 
     if ($CertificateThumbprint) {
         $certificate = Get-CodeSigningCertificate -Thumbprint $CertificateThumbprint

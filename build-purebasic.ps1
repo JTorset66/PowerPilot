@@ -1,5 +1,5 @@
 param(
-    [string]$Source = ".\PowerPilot_V1.0.pb",
+    [string]$Source = ".\PowerPilot_V1.1.pb",
     [string]$OutputDir = ".\build",
     [string]$CertificateThumbprint,
     [string]$TimestampUrl
@@ -65,7 +65,7 @@ function Update-PureBasicAppVersion {
     $now = Get-Date
     $monthStart = Get-Date -Year $now.Year -Month $now.Month -Day 1 -Hour 0 -Minute 0 -Second 0
     $minutesSinceMonthStart = [int][Math]::Floor(($now - $monthStart).TotalMinutes)
-    $appVersion = "1.0.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
+    $appVersion = "1.1.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
 
     $content = Get-Content -LiteralPath $Path -Raw
     $versionPattern = '(?m)^#AppVersion\$\s*=\s*"[^"]*"'
@@ -78,6 +78,38 @@ function Update-PureBasicAppVersion {
     Set-Content -LiteralPath $Path -Value $updated -NoNewline
 
     return $appVersion
+}
+
+function Get-VersionedExeName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+        [Parameter(Mandatory = $true)]
+        [string]$AppVersion
+    )
+
+    $sourceBaseName = [System.IO.Path]::GetFileNameWithoutExtension($SourcePath)
+    $projectName = $sourceBaseName -replace '_V\d+(\.\d+)*$', ''
+
+    return "{0}_V{1}.exe" -f $projectName, $AppVersion
+}
+
+function Remove-StaleAppArtifacts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OutputRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$ExeName
+    )
+
+    $artifactPrefix = $ExeName -replace '_V.+\.exe$', ''
+    $staleArtifacts = @()
+    $staleArtifacts += Get-ChildItem -Path $OutputRoot -Filter "${artifactPrefix}_V*.exe" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notlike "*_Setup.exe" -and $_.Name -ne $ExeName }
+    $staleArtifacts += Get-ChildItem -Path $OutputRoot -Filter "${artifactPrefix}_V*.exe.sha256" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notlike "*_Setup.exe.sha256" -and $_.Name -ne "$ExeName.sha256" }
+
+    $staleArtifacts | Remove-Item -Force
 }
 
 $compiler = Resolve-PureBasicCompiler
@@ -95,8 +127,9 @@ $outputRoot = Join-Path $repoRoot $OutputDir
 $null = New-Item -ItemType Directory -Path $outputRoot -Force
 $iconPath = Join-Path $repoRoot "powerpilot.ico"
 
-$exeName = [System.IO.Path]::GetFileNameWithoutExtension($resolvedSource) + ".exe"
+$exeName = Get-VersionedExeName -SourcePath $resolvedSource -AppVersion $appVersion
 $outputPath = Join-Path $outputRoot $exeName
+Remove-StaleAppArtifacts -OutputRoot $outputRoot -ExeName $exeName
 
 $compileArgs = @($resolvedSource, "/THREAD", "/OPTIMIZER", "/OUTPUT", $outputPath)
 if (Test-Path $iconPath) {

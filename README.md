@@ -1,12 +1,12 @@
 # PowerPilot
 
-PowerPilot is a PureBasic x64 Windows tray application for managing three local Windows power plans:
+PowerPilot is a PureBasic x64 Windows tray application for managing three local Windows power plans, tracking local battery history, and showing a copyable PowerPilot log:
 
 - `PowerPilot Maximum`
 - `PowerPilot Balanced`
 - `PowerPilot Battery`
 
-The app creates or refreshes those plans from the currently selected Windows power plan, then applies PowerPilot's tuned CPU behavior settings on top. It watches Windows power mode while open or hidden in the tray and follows Best performance, Balanced, or Best power efficiency. It no longer uses temperature, package-power telemetry, Auto Control, or helper executables.
+The app creates or refreshes those plans from the currently selected Windows power plan, then applies PowerPilot's tuned CPU behavior settings on top. It watches Windows power mode while open or hidden in the tray and follows Best performance, Balanced, or Best power efficiency. It also records retained local battery samples, Windows power events, and short app status rows. It no longer uses temperature, package-power telemetry, Auto Control, or helper executables.
 
 ## Main Features
 
@@ -16,13 +16,17 @@ The app creates or refreshes those plans from the currently selected Windows pow
 - automatic refresh from a newly selected non-PowerPilot Windows plan
 - CPU information from inline CPUID assembly
 - GPU names and PCI IDs from Windows display adapter enumeration
+- Battery Graph tab with live charge state, capacity/wear data, Windows runtime, average and instant estimates, and a gliding 24-hour percent graph
+- Battery Graph minimum percent is also applied to PowerPilot-managed Windows plans as the on-battery critical sleep level
+- PowerPilot Log tab with configurable sample interval, saved column sizing, copyable retained CSV rows, app status rows, and battery/power-event rows
+- Battery Stats tab with session, daily battery, off-time battery loss, log column, and settings backup controls
 - startup-in-tray support
 - matching green shield icons for the executable, tray icon, and desktop shortcut
 - standard Inno Setup installer with uninstall support
 
 ## Hardware Information
 
-PowerPilot shows static local hardware information only:
+PowerPilot shows static local hardware information plus local battery status:
 
 - CPU brand, vendor, family/model/stepping
 - core/thread topology when CPUID exposes it
@@ -30,6 +34,9 @@ PowerPilot shows static local hardware information only:
 - CPU feature summary such as AVX2, AVX-512, AES, SHA, BMI, and virtualization
 - installed system memory
 - GPU display adapter names, vendor IDs, device IDs, and active/primary flags
+- battery percent, connected/charging state, remaining capacity, full/design capacity, wear, live charge/discharge rate, cycle count, and runtime data when exposed by Windows battery providers
+- PowerPilot log event rows for PC startup, shutdown, shutdown requested, sleep/hibernate, wake, return from hibernation, improper shutdown, app start/exit/update close, and short app status messages
+- battery stats summaries for the latest session event, today's active battery drain, and battery percentage lost across off/sleep/hibernate gaps
 
 PowerPilot does not read live CPU temperature, live package watts, fan speed, or live GPU telemetry.
 
@@ -56,8 +63,8 @@ Build the installer:
 
 The installer build produces:
 
-- `build\PowerPilot_V1.0.exe`
-- `build\PowerPilot_V1.0_Setup.exe`
+- `build\PowerPilot_V1.1.YYMM.minute-of-month.exe`
+- `build\PowerPilot_V1.1.YYMM.minute-of-month_Setup.exe`
 
 To sign the project-owned executables with a certificate already installed in the Windows certificate store:
 
@@ -73,13 +80,13 @@ To add RFC 3161 timestamping:
 
 ## Versioning
 
-The public source and artifact names stay at `V1.0`, while build scripts stamp a full build version:
+The public source file is on the `V1.1` line, while build scripts stamp a full build version into metadata and generated artifact filenames:
 
 ```text
-1.0.YYMM.minute-of-month
+1.1.YYMM.minute-of-month
 ```
 
-For example, a May 2026 build may report a version such as `V1.0.2605.01042` in the app and installer metadata.
+For example, a May 2026 build may produce artifacts such as `PowerPilot_V1.1.2605.01042.exe` and `PowerPilot_V1.1.2605.01042_Setup.exe`.
 
 ## Installer Behavior
 
@@ -92,7 +99,10 @@ The installer:
 - includes a user-focused README, license, and third-party notices
 - provides installer buttons to read those included files before installation
 - removes old PowerPilot helper files from earlier builds if present
-- calls the app to remove and recreate only the PowerPilot plans it owns
+- installs newer versions side-by-side, writes a `PowerPilot update close` app-log row when an existing tray copy is running, lets the new app close older `PowerPilot_V*.exe` versions in the background, and only pre-closes the exact same stamped exe during same-version reinstall
+- removes stale versioned `PowerPilot_V*.exe` app files after install through a background cleanup command
+- calls the app to repair missing PowerPilot plans during normal updates without recreating existing plans
+- checks after install that setup, elevated helper, and cleanup processes have exited
 - supports repair and uninstall from Windows Apps/Programs maintenance
 
 The uninstall path removes:
@@ -109,10 +119,13 @@ The uninstall path removes:
 /show
 /create-plans
 /cleanup-plans
+/install-refresh
+/cleanup-old-versions
 /startup-on
 /startup-off
 /query-keep-settings
 /cleanup-settings
+/follow-once
 ```
 
 ## Fixed Plan Editing
@@ -139,11 +152,11 @@ Windows firmware, chipset drivers, and hidden processor settings can still affec
 
 ## Privacy
 
-PowerPilot does not transfer information to networked systems unless explicitly requested by the user or operator. Hardware information is read locally from CPUID and Windows display adapter enumeration.
+PowerPilot does not transfer information to networked systems unless explicitly requested by the user or operator. Hardware information is read locally from CPUID, Windows display adapter enumeration, and Windows battery providers.
 
 ## Releases
 
-Tagged releases are intended to use the format `v*`.
+Tagged releases and release artifact filenames should use the full stamped version number, for example `v1.1.2605.01042`.
 
 The repository includes a self-hosted GitHub Actions workflow at [`.github/workflows/release-self-hosted.yml`](.github/workflows/release-self-hosted.yml) for controlled Windows builds with PureBasic and Inno Setup installed. The workflow can optionally sign artifacts when a trusted certificate thumbprint is provided through repository secrets.
 
@@ -155,15 +168,20 @@ The code-signing and release-signing rules are documented in [`CODE_SIGNING_POLI
 
 For SignPath Foundation onboarding preparation, see [`SIGNPATH_APPLICATION.md`](SIGNPATH_APPLICATION.md).
 
+## Function Map
+
+The current PureBasic source layout is summarized in [`FUNCTION_MAP.md`](FUNCTION_MAP.md). Review it after larger source changes to catch stale functions, obsolete UI references, and documentation drift.
+
 ## Repository Contents
 
 ```text
-PowerPilot_V1.0.pb
+PowerPilot_V1.1.pb
 PowerPilot.code-workspace
 powerpilot.iss
 build-purebasic.ps1
 build-installer.ps1
 install-powerpilot.ps1
+FUNCTION_MAP.md
 installer-assets/
 powerpilot.ico
 powerpilot_desktop.ico
@@ -171,11 +189,10 @@ powerpilot_tray.ico
 README.md
 INSTALLER_README.md
 THIRD_PARTY_NOTICES.md
-RELEASE_NOTES_v1.0.md
+RELEASE_NOTES_v1.1.md
 CODE_SIGNING_POLICY.md
 RELEASE_CHECKLIST.md
 SIGNPATH_APPLICATION.md
-SIGNPATH_EMAIL_DRAFT.md
 LICENSE
 ```
 

@@ -11,7 +11,7 @@ This document collects the information needed to apply for a free SignPath.io su
 - License: MIT
 - Maintainer: John Torset
 - Primary platform: Windows x64
-- Project description: PureBasic tray application for editing three fixed local Windows power plans, following Windows power mode, managing startup behavior, handling clean install/uninstall, and showing local CPU/GPU identification
+- Project description: PureBasic tray application for editing three fixed local Windows power plans, following Windows power mode, managing startup behavior, handling clean install/uninstall, showing local CPU/GPU/battery information, and retaining a local PowerPilot battery/status log
 
 ## Why this project fits the program
 
@@ -32,8 +32,8 @@ This document collects the information needed to apply for a free SignPath.io su
 
 ## Expected release artifacts
 
-- `PowerPilot_V1.0.exe`
-- `PowerPilot_V1.0_Setup.exe`
+- `PowerPilot_V1.1.YYMM.minute-of-month.exe`
+- `PowerPilot_V1.1.YYMM.minute-of-month_Setup.exe`
 - SHA-256 checksum files for published executables
 
 ## Compliance notes against SignPath Foundation terms
@@ -55,7 +55,7 @@ This document collects the information needed to apply for a free SignPath.io su
 ### Privacy and user safety
 
 - The project states: "This program does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it."
-- PowerPilot reads local CPU identification through CPUID and local GPU display-adapter names through Windows display enumeration.
+- PowerPilot reads local CPU identification through CPUID, local GPU display-adapter names through Windows display enumeration, and local battery status/runtime data through Windows battery providers.
 - PowerPilot changes only local Windows power plans and the Windows startup entry needed for tray launch.
 - The project is not a hacking tool and does not include features intended to bypass platform security controls.
 
@@ -83,7 +83,7 @@ This document collects the information needed to apply for a free SignPath.io su
 
 ### Short project description
 
-PowerPilot is a Windows x64 PureBasic tray application for managing three fixed local Windows power plans: Maximum, Balanced, and Battery. The Plans tab lets users edit those fixed plans directly, and PowerPilot follows Windows power mode to choose which managed plan should be active.
+PowerPilot is a Windows x64 PureBasic tray application for managing three fixed local Windows power plans: Maximum, Balanced, and Battery. The Plans tab lets users edit those fixed plans directly, PowerPilot follows Windows power mode to choose which managed plan should be active, and the Battery Graph/PowerPilot Log tabs show local battery estimates, history, power events, and short app status rows.
 
 ### Why code signing is needed
 
