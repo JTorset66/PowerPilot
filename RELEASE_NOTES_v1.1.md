@@ -4,22 +4,29 @@ PowerPilot v1.1 adds local battery history, graphing, and remaining-time estimat
 
 ## Added
 
-- Battery Graph tab with live battery percent, connected state, charging/discharging state, capacity, charge/discharge rate, Windows runtime, wear, maximum capacity, cycle count, and a taller gliding graph.
+- Battery Graph tab with live battery percent, plugged-in state, charging/discharging state, capacity, charging/discharging rate, Windows runtime, wear, maximum capacity, cycle count, and a taller gliding graph.
 - Battery Graph tab surfaces wear as the simple headline health number, backed by full-charge capacity versus design capacity.
 - PowerPilot Log tab with configurable logging interval, battery refresh interval, minimum percent floor, maximum percent ceiling, charge-limiter maximum, smoothing window, and startup drain estimate.
 - PowerPilot CSV log saved under the user's PowerPilot settings folder.
 - PowerPilot CSV log is capped to the latest 168 hours.
 - PowerPilot Log tab includes a Reset stats button to clear the CSV log, graph samples, and current estimate calculations.
 - PowerPilot Log tab includes multi-row selection and copy buttons for selected retained rows and the full retained CSV log.
-- PowerPilot Log tab shows average, instant, Windows runtime, instant drain, connected state, power-event rows, and short app status messages.
+- PowerPilot Log tab shows average, instant, Windows runtime, now rate, plugged-in state, signed battery watts, screen event, brightness, power-event rows, and short app status messages.
+- Charging estimates now show average time to the configured Full at or charge-limit target, using current charging watts plus recent percent movement with a taper adjustment near the target. The live `Now` field uses the average while charging to avoid a redundant second ETA.
+- Charging estimate learning is persisted with a 32-update cap so future time-to-full estimates can start from earlier charging behavior.
+- Vendor battery calibration states that are plugged in but discharging are now treated as active battery use for estimates and logs.
+- Battery Test tab added between Power Use and About with guided manual discharge, Lenovo calibration reset mode, automatic vendor calibration detection, charge recovery tracking, target-time CPU load for watched drain tests, drain-helper test-mode telemetry, `BATTERY TEST` log rows, saved `.txt` reports, and copyable reports.
 - PowerPilot Log column widths are saved as user settings, so manual column sizing survives refreshes, restarts, and reinstalls that keep settings.
 - Battery Stats tab with session summary, daily battery summary, off-time battery-loss summary, configurable PowerPilot Log columns, and settings export/import.
 - PowerPilot CSV log records separate event rows for PC startup, shutdown, shutdown requested, sleep/hibernate, wake, return from hibernation, and Improper shutdown after a missing prior shutdown.
+- PowerPilot CSV log records separate `screen` rows for screen on, screen dim, and screen off using Windows console display-state power notifications.
+- PowerPilot CSV battery sample rows include the built-in laptop screen brightness percent when `root\wmi:WmiMonitorBrightness` and `root\wmi:WmiMonitorConnectionParams` expose it, with a conservative `Dxva2.dll` fallback when Windows monitor WMI is unavailable.
 - PowerPilot CSV log records separate `app` rows for PowerPilot start, normal PowerPilot exit, installer/update close, and shortened app status messages; app rows reset sample averaging without being treated as PC shutdowns or graph power-event markers.
 - Average battery-time calculation treats sleep, hibernate, shutdown, startup, wake, and improper-shutdown event rows as hard breaks so offline time is not counted as drain time.
 - Battery percent graph based on recent logged/sampled values.
 - Battery graph now uses a gliding 24-hour time window with hourly grid marks and date/time labels.
 - Battery graph includes an active/offline legend, event markers, and grey endpoint-to-endpoint segments across sleep, hibernate, shutdown, startup, and large missing-sample periods while keeping those periods out of average drain calculations.
+- Battery graph marker letters distinguish sleep/suspend, hibernate, wake, shutdown, startup, improper shutdown, offline/missing samples, Energy Saver, and normal-state transitions. Labels use collision checks and adaptive density so crowded 36- to 72-hour windows stay readable.
 - Resume classification checks recent Windows System event log text to better distinguish wake from return from hibernation.
 - Gliding remaining-time estimate based on percent-per-hour reduction, with a saved startup estimate used immediately after app start until fresh data takes over.
 - Initial startup `%/h` drain is now learned automatically from the full retained PowerPilot log, using continuous on-battery samples and skipping app/power-event breaks.
@@ -35,7 +42,8 @@ PowerPilot v1.1 adds local battery history, graphing, and remaining-time estimat
 ## Changed
 
 - Build stamping now uses the `1.1.YYMM.minute-of-month` version line and `PowerPilot_V1.1...` artifact names.
-- The installer still runs elevated, but post-install tray launch no longer falls back to starting PowerPilot elevated if original-user launch fails.
+- The installer still requires administrator approval for setup, but all installed app commands after file copy run as the original ordinary user, and post-install tray launch does not start PowerPilot elevated.
+- The installer owns per-user Windows startup registration for the original user. The app install-refresh path persists the preference and repairs plans, but does not write the startup entry during setup.
 - Installer cleanup now targets running and stale versioned app executables with the `PowerPilot_V*.exe` pattern so updates replace prior stamped builds cleanly.
 - Installer normal-update path is faster: setup now closes PowerPilot directly instead of waiting on Inno Restart Manager, skips repeated legacy helper kills unless those files exist, and uses one `/install-refresh` command that repairs plans only when missing.
 - Installer now uses side-by-side versioned app updates: newer-version installs do not wait for the old tray app to close, while same-version reinstalls close only the exact same exe name before overwrite.

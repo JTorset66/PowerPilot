@@ -19,7 +19,7 @@ This document collects the information needed to apply for a free SignPath.io su
 - The project source uses the OSI-approved MIT License.
 - The published release artifacts are built from the repository source.
 - The repository includes a public code signing policy and privacy statement.
-- The installer includes a user-focused `INSTALLER_README.md`, the MIT license, and third-party notices.
+- The installer includes a user-focused guide from `INSTALLER_README.md` as `README.txt`, the MIT license as `LICENSE.txt`, and third-party notices as `THIRD_PARTY_NOTICES.txt`.
 - The application does not include network telemetry or data transfer unless explicitly requested by the user or operator.
 - The project is a user-facing Windows desktop utility where trusted code signing materially improves install and run experience.
 
@@ -47,7 +47,7 @@ This document collects the information needed to apply for a free SignPath.io su
 ### Released and documented
 
 - The repository README describes the software, build requirements, runtime notes, installer behavior, and usage.
-- `INSTALLER_README.md` is the user-facing README bundled into the installer and focuses on PowerPilot functionality rather than build/release details.
+- `INSTALLER_README.md` is the source for the user-facing `README.txt` bundled into the installer and focuses on PowerPilot functionality rather than build/release details.
 - The repository includes third-party notices for the release package.
 - The repository includes a release checklist and a self-hosted Windows GitHub Actions workflow.
 - The first public release is still pending, so current binaries may be unsigned until signing onboarding is complete.

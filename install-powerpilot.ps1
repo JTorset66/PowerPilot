@@ -329,16 +329,16 @@ function Wait-InstallerRelatedProcessesClosed {
         Start-Sleep -Milliseconds 500
         $remaining = @(Get-InstallerRelatedProcesses -ResolvedSetup $ResolvedSetup)
         if ($remaining.Count -eq 0) {
-            Write-Host "Post-install elevated/installer process check: clear."
+            Write-Host "Post-install installer process check: clear."
             return
         }
     } while ((Get-Date) -lt $deadline)
 
-    Write-Host "Post-install elevated/installer process check: processes still running:"
+    Write-Host "Post-install installer process check: processes still running:"
     foreach ($item in $remaining) {
         Write-Host (" - {0} PID {1}" -f $item.Name, $item.ProcessId)
     }
-    throw "Installer-related elevated/helper processes remained after install."
+    throw "Installer-related processes remained after install."
 }
 
 $resolvedSetup = Resolve-PowerPilotSetupPath -Path $SetupPath
@@ -368,20 +368,19 @@ $arguments = @(
     "/LOG=$quotedLogPath"
 )
 
+Write-Host "Setup:" $resolvedSetup
+Write-Host "Log:" $resolvedLog
 $startParams = @{
     FilePath = $resolvedSetup
     ArgumentList = $arguments
     PassThru = $true
 }
-
 if (-not (Test-IsAdministrator)) {
     $startParams.Verb = "RunAs"
+    Write-Host "Requesting elevation for the installer only..."
 }
-
-Write-Host "Setup:" $resolvedSetup
-Write-Host "Log:" $resolvedLog
-if (-not (Test-IsAdministrator)) {
-    Write-Host "Requesting elevation for the installer..."
+else {
+    Write-Host "Installer helper is already elevated; it will not launch the installed app as admin."
 }
 
 $process = Start-Process @startParams
@@ -435,7 +434,12 @@ Write-LatestInstallContext -ResolvedSetup $resolvedSetup -ResolvedLog $resolvedL
 
 if ($process.ExitCode -eq 0) {
     Start-Sleep -Seconds 2
-    Start-InstalledPowerPilotIfNeeded
+    if (Test-IsAdministrator) {
+        Write-Host "Skipping non-installer tray fallback because this helper is elevated."
+    }
+    else {
+        Start-InstalledPowerPilotIfNeeded
+    }
     Wait-InstallerRelatedProcessesClosed -ResolvedSetup $resolvedSetup
 }
 

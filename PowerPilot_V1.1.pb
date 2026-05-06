@@ -12,12 +12,12 @@ EnableExplicit
 ; - GUI construction, event dispatch, tray behavior, and command-line entry.
 
 #AppName$            = "PowerPilot"
-#AppVersion$         = "1.1.2605.03093"
+#AppVersion$         = "1.1.2605.08578"
 #AppFullName$        = #AppName$ + " v" + #AppVersion$
 #AppRunKey$          = "PowerPilot"
 #SettingsFolderName$ = "PowerPilot"
 #SettingsFileName$   = "settings.ini"
-#SettingsVersion = 7
+#SettingsVersion = 17
 #TrayTooltip$        = #AppFullName$
 
 ; PowerPilot owns exactly three Windows plans. The old "Codex" prefix is kept
@@ -33,8 +33,17 @@ EnableExplicit
 #PowerModeEfficiency$ = "961cc777-2547-4f9d-8174-7d86181b8a7a"
 #PowerModeBalanced$   = "00000000-0000-0000-0000-000000000000"
 #PowerModePerformance$ = "ded574b5-45a0-4f42-8737-46345c09c238"
+#EnergySaverFollowWindows = 0
+#EnergySaverPowerPilotControlled = 1
+#EnergySaverWindowsThreshold = 20
+#EnergySaverSubgroup$ = "de830923-a562-41af-a086-e3a2c6bad2da"
+#EnergySaverPolicySetting$ = "5c5bb349-ad29-4ee2-9d0b-2b25270f7a81"
+#EnergySaverThresholdSetting$ = "e69653ca-cf7f-4f05-aa73-cb833fa90ad4"
+#EnergySaverPolicyUser = 0
+#EnergySaverPolicyAggressive = 1
 
 #ERROR_SUCCESS = 0
+#ERROR_ALREADY_EXISTS = 183
 #EDD_GET_DEVICE_INTERFACE_NAME = 1
 
 #WindowMain = 1
@@ -44,21 +53,53 @@ EnableExplicit
 #TimerRefresh = 1
 #TimerBatterySettingsApply = 2
 #RefreshVisibleMs = 5000
-#RefreshHiddenMs = 5000
-#RefreshHiddenDeepIdleMs = 30000
+#RefreshBatteryTestTabMs = 1000
+#RefreshHiddenMs = 30000
+#RefreshHiddenDeepIdleMs = 300000
 #BatterySettingsApplyDelayMs = 1500
 #ProgramTimeoutMs = 10000
 #ThrottleScanMs = 30000
 
 ; Battery graph/log sizing. The CSV retention cap is the source of truth for
 ; how much history the PowerPilot Log tab and startup graph reload can show.
-#BatteryGraphMaxPoints = 2880
-#BatteryGraphWindowSeconds = 86400
+#BatteryGraphMaxPoints = 60000
+#BatteryGraphDefaultHours = 24
+#BatteryGraphMaxWindowSeconds = 259200
+#BatteryGraphLongAppGapSeconds = 3600
 #BatteryLogRetentionSeconds = 604800
 #BatteryStaticRefreshSeconds = 86400
 #BatteryDefaultLogMinutes = 5
-#BatteryDefaultRefreshSeconds = 30
+#BatteryDefaultRefreshSeconds = 5
+#BatteryHiddenRefreshSeconds = 300
+#BatteryAverageMinSeconds = 300
+#BatteryChargeLearningCap = 32
 #BatteryWmiTimeoutMs = 15000
+#BatteryTestSampleSeconds = 60
+#BatteryAutoDrainAdjustSeconds = 10
+#BatteryDrainHelperTraceSeconds = 10
+#BatteryCalibrationDefaultDrainMinutes = 120
+#BatteryStableCapacityMinSamples = 3
+#BatteryCapacityRecalibrationThreshold = 0.02
+#BatteryLowGaugePercent = 7
+#BatteryRollingMaxSamples = 96
+#BatteryAutoDrainMinHoldSeconds = 20
+#BatteryAutoDrainMaxStep = 10
+#PowerPilotUseWindowSeconds = 60
+#PowerPilotUseMaxPoints = 64
+#TabBatteryGraph = 3
+#TabBatteryTest = 6
+
+#BatteryPhaseUnknown = 0
+#BatteryPhaseOnBatteryNormal = 1
+#BatteryPhaseCharging = 2
+#BatteryPhasePluggedDischargingCalibration = 3
+#BatteryPhasePluggedIdleOrFull = 4
+
+#BatteryUseUnknown = 0
+#BatteryUseScreenOff = 1
+#BatteryUseLowBrightness = 2
+#BatteryUseActive = 3
+#BatteryUseHighLoad = 4
 
 ; Window and power-broadcast messages used to distinguish real PC power events
 ; from installer/restart-manager app closes. CLOSEAPP is intentionally ignored
@@ -74,6 +115,32 @@ EnableExplicit
 #PBT_APMRESUMESUSPEND = $0007
 #PBT_APMPOWERSTATUSCHANGE = $000A
 #PBT_APMRESUMEAUTOMATIC = $0012
+#PBT_POWERSETTINGCHANGE = $8013
+#DEVICE_NOTIFY_WINDOW_HANDLE = 0
+#DisplayStateOff = 0
+#DisplayStateOn = 1
+#DisplayStateDimmed = 2
+#BatteryLogVisibleColumns = 10
+
+#BatteryIoctlQueryTag = $294040
+#BatteryIoctlQueryInformation = $294044
+#BatteryIoctlQueryStatus = $29404C
+#BatteryInfoLevelInformation = 0
+#BatteryInfoLevelEstimatedTime = 3
+#BatteryUnknownLong = $FFFFFFFF
+#BatteryPowerOnline = $00000001
+#BatteryPowerDischarging = $00000002
+#BatteryPowerCharging = $00000004
+#BatteryCapacityRelative = $40000000
+#SetupDigcfPresent = $00000002
+#SetupDigcfDeviceInterface = $00000010
+#SetupErrorInsufficientBuffer = 122
+#SetupErrorNoMoreItems = 259
+#BatteryFileShareRead = $00000001
+#BatteryFileShareWrite = $00000002
+#BatteryOpenExisting = 3
+#BatteryGenericRead = $80000000
+#BatteryGenericWrite = $40000000
 
 ; Process and EcoQoS constants. These are deliberately minimal so PowerPilot
 ; can throttle only safe background maintenance processes without a helper exe.
@@ -88,8 +155,15 @@ EnableExplicit
 
 Prototype.i PowerGetActiveSchemeProto(userRoot.i, *activeScheme)
 Prototype.i PowerGetGuidValueProto(*guid)
+Prototype.i PowerReadValueIndexProto(userRoot.i, *schemeGuid, *subGroupGuid, *powerSettingGuid, *valueIndex)
+Prototype.i RegisterPowerSettingNotificationProto(hRecipient.i, *powerSettingGuid, flags.l)
+Prototype.i UnregisterPowerSettingNotificationProto(handle.i)
 Prototype.i SetProcessInformationProto(processHandle.i, informationClass.i, *processInformation, processInformationSize.i)
 Prototype.i GetProcessInformationProto(processHandle.i, informationClass.i, *processInformation, processInformationSize.i)
+Prototype.i SetupDiGetClassDevsProto(*classGuid, enumerator.i, hwndParent.i, flags.l)
+Prototype.i SetupDiEnumDeviceInterfacesProto(deviceInfoSet.i, deviceInfoData.i, *interfaceClassGuid, memberIndex.l, *deviceInterfaceData)
+Prototype.i SetupDiGetDeviceInterfaceDetailProto(deviceInfoSet.i, *deviceInterfaceData, *deviceInterfaceDetailData, deviceInterfaceDetailDataSize.l, *requiredSize, deviceInfoData.i)
+Prototype.i SetupDiDestroyDeviceInfoListProto(deviceInfoSet.i)
 
 ; Tray menu ids.
 Enumeration 100
@@ -124,6 +198,7 @@ Enumeration 200
   #GadgetKeepSettings
   #GadgetThrottleMaintenance
   #GadgetDeepIdleSaver
+  #GadgetEnergySaverMode
   #GadgetShowToolTips
   #GadgetHideToTray
   #GadgetExit
@@ -132,13 +207,17 @@ Enumeration 200
   #GadgetBatteryCharging
   #GadgetBatteryCapacity
   #GadgetBatteryRates
+  #GadgetBatteryVoltage
+  #GadgetPowerPilotDraw
   #GadgetBatteryEstimate
   #GadgetBatteryInstantEstimate
   #GadgetBatteryRuntime
   #GadgetBatteryFullEstimate
   #GadgetBatteryWear
+  #GadgetBatteryNominalEstimate
   #GadgetBatteryMaxCapacity
   #GadgetBatteryCycle
+  #GadgetBatteryGraphHours
   #GadgetBatteryGraph
   #GadgetBatteryLogEnabled
   #GadgetBatteryLogMinutes
@@ -156,12 +235,51 @@ Enumeration 200
   #GadgetBatterySessionSummary
   #GadgetBatteryDailySummary
   #GadgetBatteryOffLossSummary
+  #GadgetBatteryAnalysisSummary
   #GadgetSettingsExport
   #GadgetSettingsImport
   #GadgetLogShowAverage
   #GadgetLogShowInstant
+  #GadgetLogShowWindows
   #GadgetLogShowConnected
+  #GadgetLogShowPower
+  #GadgetLogShowScreen
+  #GadgetLogShowBrightness
   #GadgetLogShowEvents
+  #GadgetBatteryTestPhase
+  #GadgetBatteryTestPercent
+  #GadgetBatteryTestRemaining
+  #GadgetBatteryTestWatts
+  #GadgetBatteryTestEstimate
+  #GadgetBatteryTestElapsed
+  #GadgetBatteryTestStart
+  #GadgetBatteryTestLenovo
+  #GadgetBatteryTestEnd
+  #GadgetBatteryTestCopy
+  #GadgetBatteryTestOpenReport
+  #GadgetBatteryTestMode
+  #GadgetBatteryTestGuide
+  #GadgetBatteryTestSummary
+  #GadgetBatteryLoadStatus
+  #GadgetBatteryLoadStep
+  #GadgetBatteryLoadStop
+  #GadgetBatteryLoadMinutes
+  #GadgetBatteryLoadAuto
+  #GadgetBatteryLoadAutoStatus
+  #GadgetBatteryLoadTestMode
+  #GadgetBatteryLoadNote
+  #GadgetPowerUseSummary
+  #GadgetPowerUseStatus
+  #GadgetPowerUseInterpretation
+  #GadgetPowerUseIdleChecklist
+  #GadgetAboutPurpose
+  #GadgetAboutOperation
+  #GadgetAboutData
+  #GadgetAboutVersion
+  #GadgetAboutLicense
+  #GadgetAboutOpenReadme
+  #GadgetAboutOpenLicense
+  #GadgetAboutBoundaries
 EndEnumeration
 
 ; CPUID returns four 32-bit registers; q is used here to make bit operations
@@ -197,6 +315,7 @@ Structure AppSettings
   KeepSettingsOnReinstall.i
   ThrottleMaintenance.i
   DeepIdleSaver.i
+  EnergySaverMode.i
   ShowToolTips.i
   BatteryLogEnabled.i
   BatteryLogIntervalMinutes.i
@@ -208,10 +327,18 @@ Structure AppSettings
   BatterySmoothingMinutes.i
   BatteryStartupDrainPctPerHour.d
   BatteryLastDrainPctPerHour.d
+  BatteryLastChargePctPerHour.d
+  BatteryChargeLearningCount.i
   BatteryLastStaticQuery.q
+  BatteryCalibrationDrainMinutes.i
+  BatteryGraphHours.i
   BatteryLogShowAverage.i
   BatteryLogShowInstant.i
+  BatteryLogShowWindows.i
   BatteryLogShowConnected.i
+  BatteryLogShowPower.i
+  BatteryLogShowScreen.i
+  BatteryLogShowBrightness.i
   BatteryLogShowEvents.i
   BatteryLogColumn0Width.i
   BatteryLogColumn1Width.i
@@ -220,6 +347,9 @@ Structure AppSettings
   BatteryLogColumn4Width.i
   BatteryLogColumn5Width.i
   BatteryLogColumn6Width.i
+  BatteryLogColumn7Width.i
+  BatteryLogColumn8Width.i
+  BatteryLogColumn9Width.i
   LastBootTime.q
   SettingsVersion.i
   LastPlan.s
@@ -250,15 +380,86 @@ Structure BatteryTelemetry
   InstantEstimateValid.i
   InstantDrainPctPerHour.d
   SmoothedDrainPctPerHour.d
+  SmoothedChargePctPerHour.d
+  EnergySaverOn.i
+  StableFullMWh.d
+  StableWearPercent.d
+  EstimateLowConfidence.i
+  LowBatteryPlateau.i
+  Phase.i
 EndStructure
 
-; The graph only needs time, percent, and basic power state. Event/app break
-; arrays are kept separately so they can affect averages and drawing differently.
+; The graph keeps the battery state needed to color each interval. Event/app
+; break arrays are separate so they can affect averages and drawing differently.
 Structure BatteryGraphPoint
   Timestamp.q
   Percent.d
   Connected.i
   Charging.i
+  DisconnectedBattery.i
+  RemainingMWh.d
+  FullMWh.d
+  DischargeRateMW.d
+  ChargeRateMW.d
+  EnergySaverOn.i
+  Phase.i
+  ScreenOnKnown.i
+  ScreenOn.i
+  BrightnessPercent.i
+EndStructure
+
+Structure BatteryLogRow
+  Timestamp.q
+  BatteryPercent.d
+  Connected.i
+  Charging.i
+  DisconnectedBattery.i
+  RemainingMWh.d
+  FullMWh.d
+  DesignMWh.d
+  WearPercent.d
+  DischargeRateMW.d
+  ChargeRateMW.d
+  RuntimeMinutes.i
+  AverageEstimateMinutes.i
+  InstantEstimateMinutes.i
+  InstantDrainPctPerHour.d
+  SmoothedDrainPctPerHour.d
+  CycleCount.i
+  RowType.s
+  EventName.s
+  ScreenEvent.s
+  ScreenBrightnessPercent.i
+  EnergySaverOn.i
+  Phase.i
+EndStructure
+
+Structure BatteryPowerEstimate
+  Watts.d
+  Count.i
+  Valid.i
+EndStructure
+
+Structure BatteryAnalysis
+  LatestStableFullMWh.d
+  DesignMWh.d
+  WearPercent.d
+  NormalWatts.d
+  ScreenOffWatts.d
+  ScreenOnWatts.d
+  LowPowerRuntimeMinutes.i
+  ActiveRuntimeMinutes.i
+  CalibrationSessions.i
+  RecalibrationCount.i
+  ChargingWatts.d
+  ChargingSamples.i
+  LowBatteryPlateau.i
+  Warnings.s
+EndStructure
+
+Structure PowerPilotUsePoint
+  Timestamp.q
+  CpuTime100Ns.q
 EndStructure
 
 ; PC power events are graph markers. App lifecycle/status rows stay in the CSV
@@ -273,6 +474,59 @@ Structure ProcessPowerThrottlingState
   Version.l
   ControlMask.l
   StateMask.l
+EndStructure
+
+Structure GuidValue
+  Data1.l
+  Data2.w
+  Data3.w
+  Data4.a[8]
+EndStructure
+
+Structure DeviceInterfaceData
+  cbSize.l
+  InterfaceClassGuid.GuidValue
+  Flags.l
+  Reserved.i
+EndStructure
+
+Structure DeviceInterfaceDetailData
+  cbSize.l
+  DevicePath.c[1024]
+EndStructure
+
+Structure BatteryQueryInformation
+  BatteryTag.l
+  InformationLevel.l
+  AtRate.l
+EndStructure
+
+Structure BatteryInformation
+  Capabilities.l
+  Technology.a
+  Reserved.a[3]
+  Chemistry.a[4]
+  DesignedCapacity.l
+  FullChargedCapacity.l
+  DefaultAlert1.l
+  DefaultAlert2.l
+  CriticalBias.l
+  CycleCount.l
+EndStructure
+
+Structure BatteryWaitStatus
+  BatteryTag.l
+  Timeout.l
+  PowerState.l
+  LowCapacity.l
+  HighCapacity.l
+EndStructure
+
+Structure BatteryStatus
+  PowerState.l
+  Capacity.l
+  Voltage.l
+  Rate.l
 EndStructure
 
 ; PROCESSENTRY32 layout for Toolhelp snapshots. PowerPilot uses this to find
@@ -309,6 +563,7 @@ Global gSchemeCacheValid.i
 ; different refresh intervals.
 Global gRefreshTimerActive.i
 Global gRefreshTimerMs.i
+Global gLastPeriodicRefreshMs.q
 Global gBatterySettingsApplyPending.i
 Global gFontUi.i
 Global gFontBold.i
@@ -318,10 +573,29 @@ Global gPowerGetActiveScheme.PowerGetActiveSchemeProto
 Global gPowerGetEffectiveOverlayScheme.PowerGetGuidValueProto
 Global gPowerGetUserConfiguredACPowerMode.PowerGetGuidValueProto
 Global gPowerGetUserConfiguredDCPowerMode.PowerGetGuidValueProto
+Global gPowerReadACValueIndex.PowerReadValueIndexProto
+Global gPowerReadDCValueIndex.PowerReadValueIndexProto
 Global gKernelLibrary.i
 Global gThrottleApiTried.i
 Global gSetProcessInformation.SetProcessInformationProto
 Global gGetProcessInformation.GetProcessInformationProto
+Global gSetupApiLibrary.i
+Global gSetupApiTried.i
+Global gSetupDiGetClassDevs.SetupDiGetClassDevsProto
+Global gSetupDiEnumDeviceInterfaces.SetupDiEnumDeviceInterfacesProto
+Global gSetupDiGetDeviceInterfaceDetail.SetupDiGetDeviceInterfaceDetailProto
+Global gSetupDiDestroyDeviceInfoList.SetupDiDestroyDeviceInfoListProto
+Global gBatteryDevicePath$
+Global gUser32PowerLibrary.i
+Global gDisplayNotifyTried.i
+Global gDisplayPowerNotifyHandle.i
+Global gEnergySaverNotifyHandle.i
+Global gRegisterPowerSettingNotification.RegisterPowerSettingNotificationProto
+Global gUnregisterPowerSettingNotification.UnregisterPowerSettingNotificationProto
+Global gLastScreenEvent$
+Global gLastScreenBrightnessPercent.i = -1
+Global gEnergySaverStateKnown.i
+Global gEnergySaverStateOn.i
 
 ; Automatic plan following and optional maintenance throttling state.
 Global gMonitorInitialized.i
@@ -329,6 +603,7 @@ Global gLastObservedActiveGuid$
 Global gLastObservedPowerModeGuid$
 Global gMaintenanceThrottleActive.i
 Global gLastMaintenanceThrottleScan.q
+Global gSelfEcoThrottleActive.i
 
 ; Battery samples, retained-log reload state, and break/event arrays. Sleep,
 ; hibernate, shutdown, startup, and app lifecycle rows are represented as
@@ -339,8 +614,73 @@ Global gLastBatteryLogTime.q
 Global gBatteryLastSampleTime.q
 Global gBatteryLastSamplePercent.d
 Global gBatteryOnBatterySince.q
+Global gBatteryPowerStateKnown.i
+Global gBatteryPowerStateConnected.i
+Global gBatteryPowerStateCharging.i
+Global gBatteryNativeFallbackUsed.i
+Global gPowerPilotCpuWindowSeconds.d
+Global gPowerPilotCpuWindowOneCorePercent.d
+Global gPowerPilotCpuWindowMw.d
+Global gPowerPilotCpuWindowSecondsCost.d
+Global gPowerPilotCpuWindowDrainBasisMW.d
+Global gPowerPilotCpuWindowDrainBasisEstimated.i
+Global gPowerPilotCpuWindowDrainBasisPctPerHour.d
 Global gLastSuspendTime.q
 Global gShutdownLogged.i
+Global gBatteryTestActive.i
+Global gBatteryTestHasSummary.i
+Global gBatteryTestStartTime.q
+Global gBatteryTestEndTime.q
+Global gBatteryTestLastTime.q
+Global gBatteryTestLastLogTime.q
+Global gBatteryTestStartPercent.d
+Global gBatteryTestEndPercent.d
+Global gBatteryTestStartRemainingMWh.d
+Global gBatteryTestEndRemainingMWh.d
+Global gBatteryTestLastRemainingMWh.d
+Global gBatteryTestUsedMWh.d
+Global gBatteryTestChargedMWh.d
+Global gBatteryTestDischargeSeconds.q
+Global gBatteryTestChargeSeconds.q
+Global gBatteryTestDischargeWattSeconds.d
+Global gBatteryTestChargeWattSeconds.d
+Global gBatteryTestCalibrationActive.i
+Global gBatteryTestCalibrationKnown.i
+Global gBatteryTestVendorAuto.i
+Global gBatteryTestLenovoReset.i
+Global gBatteryTestLenovoSawPluggedDrain.i
+Global gBatteryTestLenovoSawCharging.i
+Global gBatteryTestWorkflow$
+Global gBatteryTestReportPath$
+Global gBatteryCpuLoadTarget.i
+Global gBatteryCpuLoadStop.i
+Global gBatteryCpuLoadThreadCount.i
+Global gBatteryAutoDrainActive.i
+Global gBatteryAutoDrainMinutes.i = 120
+Global gBatteryAutoDrainEndTime.q
+Global gBatteryAutoDrainLastAdjust.q
+Global gBatteryAutoDrainIntegral.d
+Global gBatteryAutoDrainFilteredW.d
+Global gBatteryAutoDrainReason$
+Global gBatteryDrainHelperTestMode.i
+Global gBatteryDrainHelperTraceLastTime.q
+Global gBatteryLastSampleRemainingMWh.d
+Global gBatteryFlatSampleCount.i
+Global gBatteryStableFullMWh.d
+Global gBatteryStableDesignMWh.d
+Global gBatteryStableWearPercent.d
+Global gBatteryCapacityCandidateMWh.d
+Global gBatteryCapacityCandidateStartTime.q
+Global gBatteryCapacityCandidateCount.i
+Global gBatteryCapacityRecalibrationDetected.i
+Global gBatteryCapacityRecalibrationText$
+Global gBatteryScreenOffEstimate.BatteryPowerEstimate
+Global gBatteryLowBrightnessEstimate.BatteryPowerEstimate
+Global gBatteryActiveEstimate.BatteryPowerEstimate
+Global gBatteryHighLoadEstimate.BatteryPowerEstimate
+Global gBatteryNormalEstimate.BatteryPowerEstimate
+Global gSingleInstanceMutex.i
+Global Dim gBatteryCpuLoadThreads.i(63)
 Global Dim gBatteryGraph.BatteryGraphPoint(#BatteryGraphMaxPoints - 1)
 Global gBatteryGraphCount.i
 Global Dim gBatteryAverageBreakTime.q(#BatteryGraphMaxPoints - 1)
@@ -349,6 +689,8 @@ Global Dim gBatteryAppBreakTime.q(#BatteryGraphMaxPoints - 1)
 Global gBatteryAppBreakCount.i
 Global Dim gBatteryEvents.BatteryEventPoint(#BatteryGraphMaxPoints - 1)
 Global gBatteryEventCount.i
+Global Dim gPowerPilotUsePoints.PowerPilotUsePoint(#PowerPilotUseMaxPoints - 1)
+Global gPowerPilotUsePointCount.i
 Global gIntroOverview.i
 Global gIntroPlans.i
 Global gFrameProcessor.i
@@ -376,10 +718,32 @@ Declare SaveSettingsFromGui()
 Declare SaveSettings()
 Declare.i CaptureBatteryLogColumnWidths(saveIfChanged.i = #False)
 Declare ApplyBatteryLogColumnWidths()
-Declare RefreshBattery(force.i = #False)
+Declare RefreshBattery(force.i = #False, forceLog.i = #False)
 Declare RefreshBatteryDisplay()
+Declare RefreshPowerPilotDrawDisplay()
+Declare RefreshPowerUseDetails()
 Declare RefreshBatteryLogPreview()
+Declare RefreshBatteryTest()
+Declare RefreshBatteryTestDisplay()
+Declare StartBatteryTestLog()
+Declare StartLenovoCalibrationReset()
+Declare EndBatteryTestLog()
+Declare CopyBatteryTestReport()
+Declare OpenLatestBatteryTestReport()
+Declare StepBatteryCpuLoad()
+Declare StartAutoDrainTarget()
+Declare ToggleAutoDrainTarget()
+Declare UpdateAutoDrainTarget(force.i = #False)
+Declare StopBatteryCpuLoad(logEvent.i = #True)
+Declare SetBatteryDrainHelperTestMode(enabled.i)
+Declare WriteBatteryDrainHelperTrace(reason$, targetMinutes.d, currentMinutes.d, errorMinutes.d, measuredW.d, usableMWh.d, selectedLoad.i, force.i = #False, targetW.d = 0.0, errorW.d = 0.0, phase$ = "")
+Declare RefreshBatteryCpuLoadDisplay()
 Declare SaveBatterySettingsFromGui()
+Declare.i NormalizeBatteryGraphHours(hours.i)
+Declare.i BatteryGraphHoursIndex(hours.i)
+Declare.i BatteryGraphHoursFromIndex(index.i)
+Declare.q BatteryGraphWindowSeconds()
+Declare.s BatteryGraphWindowTitle()
 Declare ResetBatteryStats()
 Declare CopyBatteryLogRow()
 Declare CopyBatteryLogAll()
@@ -387,25 +751,36 @@ Declare ExportSettings()
 Declare ImportSettings()
 Declare WriteBatteryAppEvent(eventName$)
 Declare WriteBatteryEvent(eventName$)
+Declare WriteBatteryScreenEvent(eventName$)
+Declare WriteBatteryEnergySaverEvent(energySaverOn.i)
+Declare WriteBatteryTestRow(eventName$, includeBattery.i = #True)
 Declare LogStartupPowerEvents()
 Declare CleanupAppCloseShutdownEvents(bootTime.q)
 Declare AutoSetInitialBatteryDrainFromLog()
+Declare RefreshBatteryAnalysisSummary()
 Declare DrawBatteryGraph()
 Declare RefreshBatteryStatsSummary()
 Declare PruneBatteryLog()
 Declare ApplyToolTips()
 Declare SetGadgetTextIfChanged(gadget.i, text$)
 Declare RefreshActiveTimer()
+Declare EnsurePowerApi()
+Declare.i CurrentPowerSupplyIsBattery()
+Declare.i BatteryGraphTabVisible()
+Declare.i BatteryTestTabVisible()
 Declare.i SetStartupRegistry(enabled.i)
 Declare.i CreateManagedPlans()
 Declare.i CreateManagedPlansFromBase(baseGuid$, forceRebase.i = #False)
 Declare.i CleanupManagedPlans()
 Declare.i ApplyBatterySleepFloorToManagedPlans()
+Declare.i ApplyEnergySaverPolicyToManagedPlans()
 Declare.i ActivatePlanByName(planName$)
 Declare.i InstallRefresh()
 Declare.i CleanupOldPowerPilotVersions(deleteFiles.i = #False, logEvent.i = #True)
 Declare.i LogUpdateCloseIfSameExeRunning()
 Declare.i LogUpdateCloseIfAnyPowerPilotRunning()
+Declare.i MainWindowVisible()
+Declare.i EnsureSingleInstance()
 
 ; Quotes command arguments for RunProgram calls. The app builds its own command
 ; strings for powercfg and PowerShell rather than invoking a shell pipeline.
@@ -433,6 +808,55 @@ Procedure EnsureSettingsDirectory()
   If FileSize(SettingsDirectory()) <> -2
     CreateDirectory(SettingsDirectory())
   EndIf
+EndProcedure
+
+Procedure.s BatteryReportDirectory()
+  ProcedureReturn SettingsDirectory() + "\reports"
+EndProcedure
+
+Procedure EnsureBatteryReportDirectory()
+  EnsureSettingsDirectory()
+  If FileSize(BatteryReportDirectory()) <> -2
+    CreateDirectory(BatteryReportDirectory())
+  EndIf
+EndProcedure
+
+Procedure.s BatteryReportFileName(prefix$)
+  Protected name$ = prefix$ + "_" + FormatDate("%yyyy-%mm-%dd_%hh-%ii-%ss", Date()) + ".txt"
+  name$ = ReplaceString(name$, " ", "_")
+  name$ = ReplaceString(name$, ",", "")
+  name$ = ReplaceString(name$, ":", "-")
+  ProcedureReturn name$
+EndProcedure
+
+Procedure.s LatestBatteryReportPath()
+  Protected dir$ = BatteryReportDirectory()
+  Protected latestPath$
+  Protected latestTime.q = -1
+  Protected entry$
+  Protected path$
+  Protected modified.q
+  If FileSize(dir$) <> -2
+    ProcedureReturn gBatteryTestReportPath$
+  EndIf
+  If ExamineDirectory(0, dir$, "*.txt")
+    While NextDirectoryEntry(0)
+      If DirectoryEntryType(0) = #PB_DirectoryEntry_File
+        entry$ = DirectoryEntryName(0)
+        path$ = dir$ + "\" + entry$
+        modified = GetFileDate(path$, #PB_Date_Modified)
+        If modified > latestTime
+          latestTime = modified
+          latestPath$ = path$
+        EndIf
+      EndIf
+    Wend
+    FinishDirectory(0)
+  EndIf
+  If latestPath$ <> ""
+    ProcedureReturn latestPath$
+  EndIf
+  ProcedureReturn gBatteryTestReportPath$
 EndProcedure
 
 ; Keep plan names/descriptions single-line so powercfg output parsing and list
@@ -466,6 +890,9 @@ Procedure.i BatteryLogDefaultColumnWidth(column.i)
     Case 4 : ProcedureReturn 64
     Case 5 : ProcedureReturn 64
     Case 6 : ProcedureReturn 58
+    Case 7 : ProcedureReturn 76
+    Case 8 : ProcedureReturn 74
+    Case 9 : ProcedureReturn 78
   EndSelect
   ProcedureReturn 60
 EndProcedure
@@ -481,6 +908,9 @@ Procedure.i BatteryLogColumnWidth(column.i)
     Case 4 : ProcedureReturn ClampInt(gSettings\BatteryLogColumn4Width, 45, 180)
     Case 5 : ProcedureReturn ClampInt(gSettings\BatteryLogColumn5Width, 45, 180)
     Case 6 : ProcedureReturn ClampInt(gSettings\BatteryLogColumn6Width, 35, 160)
+    Case 7 : ProcedureReturn ClampInt(gSettings\BatteryLogColumn7Width, 50, 180)
+    Case 8 : ProcedureReturn ClampInt(gSettings\BatteryLogColumn8Width, 50, 180)
+    Case 9 : ProcedureReturn ClampInt(gSettings\BatteryLogColumn9Width, 55, 180)
   EndSelect
   ProcedureReturn BatteryLogDefaultColumnWidth(column)
 EndProcedure
@@ -495,6 +925,9 @@ Procedure SetBatteryLogColumnWidthSetting(column.i, width.i)
     Case 4 : gSettings\BatteryLogColumn4Width = width
     Case 5 : gSettings\BatteryLogColumn5Width = width
     Case 6 : gSettings\BatteryLogColumn6Width = width
+    Case 7 : gSettings\BatteryLogColumn7Width = width
+    Case 8 : gSettings\BatteryLogColumn8Width = width
+    Case 9 : gSettings\BatteryLogColumn9Width = width
   EndSelect
 EndProcedure
 
@@ -658,6 +1091,32 @@ Procedure.i UpgradeSettingsIfNeeded(savedVersion.i)
       upgraded = #True
     EndIf
   EndIf
+  If savedVersion < 10
+    If gSettings\BatteryLogColumn8Width <= 0
+      gSettings\BatteryLogColumn8Width = BatteryLogDefaultColumnWidth(8)
+      upgraded = #True
+    EndIf
+    If gSettings\BatteryLogColumn9Width <= 0
+      gSettings\BatteryLogColumn9Width = BatteryLogDefaultColumnWidth(9)
+      upgraded = #True
+    EndIf
+  EndIf
+  If savedVersion < 11 And gSettings\BatteryRefreshSeconds = 120
+    gSettings\BatteryRefreshSeconds = #BatteryDefaultRefreshSeconds
+    upgraded = #True
+  EndIf
+  If savedVersion < 12 And gSettings\BatteryRefreshSeconds = 30
+    gSettings\BatteryRefreshSeconds = #BatteryDefaultRefreshSeconds
+    upgraded = #True
+  EndIf
+  If savedVersion < 15 And gSettings\BatteryMinPercent = 1
+    gSettings\BatteryMinPercent = 0
+    upgraded = #True
+  EndIf
+  If savedVersion < 17 And gSettings\BatteryCalibrationDrainMinutes <= 0
+    gSettings\BatteryCalibrationDrainMinutes = #BatteryCalibrationDefaultDrainMinutes
+    upgraded = #True
+  EndIf
   If gSettings\SettingsVersion <> #SettingsVersion
     gSettings\SettingsVersion = #SettingsVersion
     upgraded = #True
@@ -676,21 +1135,30 @@ Procedure LoadSettings()
   gSettings\KeepSettingsOnReinstall = #False
   gSettings\ThrottleMaintenance = #True
   gSettings\DeepIdleSaver = #True
+  gSettings\EnergySaverMode = #EnergySaverFollowWindows
   gSettings\ShowToolTips = #True
   gSettings\BatteryLogEnabled = #True
   gSettings\BatteryLogIntervalMinutes = #BatteryDefaultLogMinutes
   gSettings\BatteryRefreshSeconds = #BatteryDefaultRefreshSeconds
-  gSettings\BatteryMinPercent = 5
+  gSettings\BatteryMinPercent = 0
   gSettings\BatteryMaxPercent = 100
   gSettings\BatteryLimiterEnabled = #False
   gSettings\BatteryLimiterMaxPercent = 80
   gSettings\BatterySmoothingMinutes = 60
   gSettings\BatteryStartupDrainPctPerHour = 12.0
   gSettings\BatteryLastDrainPctPerHour = 12.0
+  gSettings\BatteryLastChargePctPerHour = 0.0
+  gSettings\BatteryChargeLearningCount = 0
   gSettings\BatteryLastStaticQuery = 0
+  gSettings\BatteryCalibrationDrainMinutes = #BatteryCalibrationDefaultDrainMinutes
+  gSettings\BatteryGraphHours = #BatteryGraphDefaultHours
   gSettings\BatteryLogShowAverage = #True
   gSettings\BatteryLogShowInstant = #True
+  gSettings\BatteryLogShowWindows = #True
   gSettings\BatteryLogShowConnected = #True
+  gSettings\BatteryLogShowPower = #True
+  gSettings\BatteryLogShowScreen = #True
+  gSettings\BatteryLogShowBrightness = #True
   gSettings\BatteryLogShowEvents = #True
   gSettings\BatteryLogColumn0Width = BatteryLogDefaultColumnWidth(0)
   gSettings\BatteryLogColumn1Width = BatteryLogDefaultColumnWidth(1)
@@ -699,6 +1167,9 @@ Procedure LoadSettings()
   gSettings\BatteryLogColumn4Width = BatteryLogDefaultColumnWidth(4)
   gSettings\BatteryLogColumn5Width = BatteryLogDefaultColumnWidth(5)
   gSettings\BatteryLogColumn6Width = BatteryLogDefaultColumnWidth(6)
+  gSettings\BatteryLogColumn7Width = BatteryLogDefaultColumnWidth(7)
+  gSettings\BatteryLogColumn8Width = BatteryLogDefaultColumnWidth(8)
+  gSettings\BatteryLogColumn9Width = BatteryLogDefaultColumnWidth(9)
   gSettings\SettingsVersion = #SettingsVersion
   gSettings\LastPlan = #PlanBalanced$
 
@@ -709,6 +1180,7 @@ Procedure LoadSettings()
     gSettings\KeepSettingsOnReinstall = ReadPreferenceInteger("KeepSettingsOnReinstall", gSettings\KeepSettingsOnReinstall)
     gSettings\ThrottleMaintenance = ReadPreferenceInteger("ThrottleMaintenance", gSettings\ThrottleMaintenance)
     gSettings\DeepIdleSaver = ReadPreferenceInteger("DeepIdleSaver", gSettings\DeepIdleSaver)
+    gSettings\EnergySaverMode = ReadPreferenceInteger("EnergySaverMode", gSettings\EnergySaverMode)
     gSettings\ShowToolTips = ReadPreferenceInteger("ShowToolTips", gSettings\ShowToolTips)
     gSettings\BatteryLogEnabled = ReadPreferenceInteger("BatteryLogEnabled", gSettings\BatteryLogEnabled)
     gSettings\BatteryLogIntervalMinutes = ReadPreferenceInteger("BatteryLogIntervalMinutes", gSettings\BatteryLogIntervalMinutes)
@@ -720,10 +1192,18 @@ Procedure LoadSettings()
     gSettings\BatterySmoothingMinutes = ReadPreferenceInteger("BatterySmoothingMinutes", gSettings\BatterySmoothingMinutes)
     gSettings\BatteryStartupDrainPctPerHour = ValD(ReadPreferenceString("BatteryStartupDrainPctPerHour", StrD(gSettings\BatteryStartupDrainPctPerHour, 2)))
     gSettings\BatteryLastDrainPctPerHour = ValD(ReadPreferenceString("BatteryLastDrainPctPerHour", StrD(gSettings\BatteryLastDrainPctPerHour, 2)))
+    gSettings\BatteryLastChargePctPerHour = ValD(ReadPreferenceString("BatteryLastChargePctPerHour", StrD(gSettings\BatteryLastChargePctPerHour, 2)))
+    gSettings\BatteryChargeLearningCount = ReadPreferenceInteger("BatteryChargeLearningCount", gSettings\BatteryChargeLearningCount)
     gSettings\BatteryLastStaticQuery = Val(ReadPreferenceString("BatteryLastStaticQuery", Str(gSettings\BatteryLastStaticQuery)))
+    gSettings\BatteryCalibrationDrainMinutes = ReadPreferenceInteger("BatteryCalibrationDrainMinutes", gSettings\BatteryCalibrationDrainMinutes)
+    gSettings\BatteryGraphHours = ReadPreferenceInteger("BatteryGraphHours", gSettings\BatteryGraphHours)
     gSettings\BatteryLogShowAverage = ReadPreferenceInteger("BatteryLogShowAverage", gSettings\BatteryLogShowAverage)
     gSettings\BatteryLogShowInstant = ReadPreferenceInteger("BatteryLogShowInstant", gSettings\BatteryLogShowInstant)
+    gSettings\BatteryLogShowWindows = ReadPreferenceInteger("BatteryLogShowWindows", gSettings\BatteryLogShowWindows)
     gSettings\BatteryLogShowConnected = ReadPreferenceInteger("BatteryLogShowConnected", gSettings\BatteryLogShowConnected)
+    gSettings\BatteryLogShowPower = ReadPreferenceInteger("BatteryLogShowPower", gSettings\BatteryLogShowPower)
+    gSettings\BatteryLogShowScreen = ReadPreferenceInteger("BatteryLogShowScreen", gSettings\BatteryLogShowScreen)
+    gSettings\BatteryLogShowBrightness = ReadPreferenceInteger("BatteryLogShowBrightness", gSettings\BatteryLogShowBrightness)
     gSettings\BatteryLogShowEvents = ReadPreferenceInteger("BatteryLogShowEvents", gSettings\BatteryLogShowEvents)
     gSettings\BatteryLogColumn0Width = ReadPreferenceInteger("BatteryLogColumn0Width", gSettings\BatteryLogColumn0Width)
     gSettings\BatteryLogColumn1Width = ReadPreferenceInteger("BatteryLogColumn1Width", gSettings\BatteryLogColumn1Width)
@@ -732,6 +1212,9 @@ Procedure LoadSettings()
     gSettings\BatteryLogColumn4Width = ReadPreferenceInteger("BatteryLogColumn4Width", gSettings\BatteryLogColumn4Width)
     gSettings\BatteryLogColumn5Width = ReadPreferenceInteger("BatteryLogColumn5Width", gSettings\BatteryLogColumn5Width)
     gSettings\BatteryLogColumn6Width = ReadPreferenceInteger("BatteryLogColumn6Width", gSettings\BatteryLogColumn6Width)
+    gSettings\BatteryLogColumn7Width = ReadPreferenceInteger("BatteryLogColumn7Width", gSettings\BatteryLogColumn7Width)
+    gSettings\BatteryLogColumn8Width = ReadPreferenceInteger("BatteryLogColumn8Width", gSettings\BatteryLogColumn8Width)
+    gSettings\BatteryLogColumn9Width = ReadPreferenceInteger("BatteryLogColumn9Width", gSettings\BatteryLogColumn9Width)
     gSettings\LastBootTime = Val(ReadPreferenceString("LastBootTime", Str(gSettings\LastBootTime)))
     gSettings\LastPlan = ReadPreferenceString("LastPlan", gSettings\LastPlan)
     ; Plan sections are stored under their visible plan names. This keeps the
@@ -758,10 +1241,13 @@ Procedure LoadSettings()
   gSettings\LastPlan = NormalizePlanName(gSettings\LastPlan)
   gSettings\BatteryLogIntervalMinutes = ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440)
   gSettings\BatteryRefreshSeconds = ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)
-  gSettings\BatteryMinPercent = ClampInt(gSettings\BatteryMinPercent, 1, 99)
+  gSettings\EnergySaverMode = ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled)
+  gSettings\BatteryMinPercent = ClampInt(gSettings\BatteryMinPercent, 0, 99)
   gSettings\BatteryMaxPercent = ClampInt(gSettings\BatteryMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatteryLimiterMaxPercent = ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatterySmoothingMinutes = ClampInt(gSettings\BatterySmoothingMinutes, 5, 240)
+  gSettings\BatteryCalibrationDrainMinutes = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
+  gSettings\BatteryGraphHours = NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)
   SetBatteryLogColumnWidthSetting(0, gSettings\BatteryLogColumn0Width)
   SetBatteryLogColumnWidthSetting(1, gSettings\BatteryLogColumn1Width)
   SetBatteryLogColumnWidthSetting(2, gSettings\BatteryLogColumn2Width)
@@ -769,12 +1255,19 @@ Procedure LoadSettings()
   SetBatteryLogColumnWidthSetting(4, gSettings\BatteryLogColumn4Width)
   SetBatteryLogColumnWidthSetting(5, gSettings\BatteryLogColumn5Width)
   SetBatteryLogColumnWidthSetting(6, gSettings\BatteryLogColumn6Width)
+  SetBatteryLogColumnWidthSetting(7, gSettings\BatteryLogColumn7Width)
+  SetBatteryLogColumnWidthSetting(8, gSettings\BatteryLogColumn8Width)
+  SetBatteryLogColumnWidthSetting(9, gSettings\BatteryLogColumn9Width)
   If gSettings\BatteryStartupDrainPctPerHour <= 0.0
     gSettings\BatteryStartupDrainPctPerHour = 12.0
   EndIf
   If gSettings\BatteryLastDrainPctPerHour <= 0.0
     gSettings\BatteryLastDrainPctPerHour = gSettings\BatteryStartupDrainPctPerHour
   EndIf
+  If gSettings\BatteryLastChargePctPerHour < 0.0 Or gSettings\BatteryLastChargePctPerHour > 200.0
+    gSettings\BatteryLastChargePctPerHour = 0.0
+  EndIf
+  gSettings\BatteryChargeLearningCount = ClampInt(gSettings\BatteryChargeLearningCount, 0, #BatteryChargeLearningCap)
   ; Clamp and migrate after reading all values so old or hand-edited settings
   ; cannot leak invalid values into UI controls or powercfg calls.
   upgraded = UpgradeSettingsIfNeeded(savedVersion)
@@ -794,21 +1287,30 @@ Procedure SaveSettings()
     WritePreferenceInteger("KeepSettingsOnReinstall", Bool(gSettings\KeepSettingsOnReinstall))
     WritePreferenceInteger("ThrottleMaintenance", Bool(gSettings\ThrottleMaintenance))
     WritePreferenceInteger("DeepIdleSaver", Bool(gSettings\DeepIdleSaver))
+    WritePreferenceInteger("EnergySaverMode", ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled))
     WritePreferenceInteger("ShowToolTips", Bool(gSettings\ShowToolTips))
     WritePreferenceInteger("BatteryLogEnabled", Bool(gSettings\BatteryLogEnabled))
     WritePreferenceInteger("BatteryLogIntervalMinutes", ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440))
     WritePreferenceInteger("BatteryRefreshSeconds", ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600))
-    WritePreferenceInteger("BatteryMinPercent", ClampInt(gSettings\BatteryMinPercent, 1, 99))
+    WritePreferenceInteger("BatteryMinPercent", ClampInt(gSettings\BatteryMinPercent, 0, 99))
     WritePreferenceInteger("BatteryMaxPercent", ClampInt(gSettings\BatteryMaxPercent, gSettings\BatteryMinPercent + 1, 100))
     WritePreferenceInteger("BatteryLimiterEnabled", Bool(gSettings\BatteryLimiterEnabled))
     WritePreferenceInteger("BatteryLimiterMaxPercent", ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100))
     WritePreferenceInteger("BatterySmoothingMinutes", ClampInt(gSettings\BatterySmoothingMinutes, 5, 240))
     WritePreferenceString("BatteryStartupDrainPctPerHour", StrD(gSettings\BatteryStartupDrainPctPerHour, 2))
     WritePreferenceString("BatteryLastDrainPctPerHour", StrD(gSettings\BatteryLastDrainPctPerHour, 2))
+    WritePreferenceString("BatteryLastChargePctPerHour", StrD(gSettings\BatteryLastChargePctPerHour, 2))
+    WritePreferenceInteger("BatteryChargeLearningCount", ClampInt(gSettings\BatteryChargeLearningCount, 0, #BatteryChargeLearningCap))
     WritePreferenceString("BatteryLastStaticQuery", Str(gSettings\BatteryLastStaticQuery))
+    WritePreferenceInteger("BatteryCalibrationDrainMinutes", ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720))
+    WritePreferenceInteger("BatteryGraphHours", NormalizeBatteryGraphHours(gSettings\BatteryGraphHours))
     WritePreferenceInteger("BatteryLogShowAverage", Bool(gSettings\BatteryLogShowAverage))
     WritePreferenceInteger("BatteryLogShowInstant", Bool(gSettings\BatteryLogShowInstant))
+    WritePreferenceInteger("BatteryLogShowWindows", Bool(gSettings\BatteryLogShowWindows))
     WritePreferenceInteger("BatteryLogShowConnected", Bool(gSettings\BatteryLogShowConnected))
+    WritePreferenceInteger("BatteryLogShowPower", Bool(gSettings\BatteryLogShowPower))
+    WritePreferenceInteger("BatteryLogShowScreen", Bool(gSettings\BatteryLogShowScreen))
+    WritePreferenceInteger("BatteryLogShowBrightness", Bool(gSettings\BatteryLogShowBrightness))
     WritePreferenceInteger("BatteryLogShowEvents", Bool(gSettings\BatteryLogShowEvents))
     WritePreferenceInteger("BatteryLogColumn0Width", BatteryLogColumnWidth(0))
     WritePreferenceInteger("BatteryLogColumn1Width", BatteryLogColumnWidth(1))
@@ -817,6 +1319,9 @@ Procedure SaveSettings()
     WritePreferenceInteger("BatteryLogColumn4Width", BatteryLogColumnWidth(4))
     WritePreferenceInteger("BatteryLogColumn5Width", BatteryLogColumnWidth(5))
     WritePreferenceInteger("BatteryLogColumn6Width", BatteryLogColumnWidth(6))
+    WritePreferenceInteger("BatteryLogColumn7Width", BatteryLogColumnWidth(7))
+    WritePreferenceInteger("BatteryLogColumn8Width", BatteryLogColumnWidth(8))
+    WritePreferenceInteger("BatteryLogColumn9Width", BatteryLogColumnWidth(9))
     WritePreferenceString("LastBootTime", Str(gSettings\LastBootTime))
     WritePreferenceInteger("SettingsVersion", #SettingsVersion)
     WritePreferenceString("LastPlan", NormalizePlanName(gSettings\LastPlan))
@@ -865,7 +1370,32 @@ Procedure.s ShortStatusLogText(text$)
   If Len(short$) > 42
     short$ = Left(short$, 39) + "..."
   EndIf
-  ProcedureReturn short$
+ProcedureReturn short$
+EndProcedure
+
+Procedure.s OldItemCountText(count.i, singular$)
+  If count <= 0
+    ProcedureReturn ""
+  EndIf
+  If count = 1
+    ProcedureReturn "1 old " + singular$
+  EndIf
+  ProcedureReturn Str(count) + " old " + singular$ + "s"
+EndProcedure
+
+Procedure.s CleanupOldPowerPilotText(processes.i, files.i)
+  Protected processText$ = OldItemCountText(processes, "app")
+  Protected fileText$ = OldItemCountText(files, "file")
+  If processText$ <> "" And fileText$ <> ""
+    ProcedureReturn "Cleaned " + processText$ + ", " + fileText$
+  EndIf
+  If processText$ <> ""
+    ProcedureReturn "Cleaned " + processText$
+  EndIf
+  If fileText$ <> ""
+    ProcedureReturn "Cleaned " + fileText$
+  EndIf
+  ProcedureReturn ""
 EndProcedure
 
 ; Central UI/app feedback path. This updates the Overview tab and records a
@@ -971,10 +1501,82 @@ Procedure.s IsoTimestamp(timestamp.q)
   ProcedureReturn FormatDate("%yyyy-%mm-%ddT%hh:%ii:%ss", timestamp)
 EndProcedure
 
+Procedure.s DisplayTimestamp(timestamp.q)
+  ProcedureReturn FormatDate("%yyyy-%mm-%dd %hh:%ii:%ss", timestamp)
+EndProcedure
+
+Procedure.s BatteryLogTimestampForDisplay(timestamp$)
+  Protected parsed.q
+  parsed = ParseDate("%yyyy-%mm-%ddT%hh:%ii:%ss", timestamp$)
+  If parsed <= 0
+    parsed = ParseDate("%yyyy-%mm-%dd %hh:%ii:%ss", timestamp$)
+  EndIf
+  If parsed > 0
+    ProcedureReturn DisplayTimestamp(parsed)
+  EndIf
+  ProcedureReturn ReplaceString(timestamp$, "T", " ")
+EndProcedure
+
 ; Keep the header stable. Older rows can have missing or legacy fields, so all
 ; CSV readers in this file check field counts before reading newer columns.
 Procedure.s BatteryLogHeader()
-  ProcedureReturn "timestamp,battery_percent,connected,charging,disconnected_battery,remaining_mwh,full_mwh,design_mwh,wear_percent,discharge_rate_mw,charge_rate_mw,runtime_minutes,average_estimate_minutes,instant_estimate_minutes,instant_drain_pct_hour,smoothed_drain_pct_hour,cycle_count,row_type,event_name"
+  ProcedureReturn "timestamp,battery_percent,connected,charging,disconnected_battery,remaining_mwh,full_mwh,design_mwh,wear_percent,discharge_rate_mw,charge_rate_mw,runtime_minutes,average_estimate_minutes,instant_estimate_minutes,instant_drain_pct_hour,smoothed_drain_pct_hour,cycle_count,row_type,event_name,screen_event,screen_brightness_percent,energy_saver_on"
+EndProcedure
+
+Procedure EnsureBatteryLogHeaderCurrent()
+  Protected path$ = BatteryLogPath()
+  Protected firstLine$
+  Protected text$
+  If FileSize(path$) <= 0
+    ProcedureReturn
+  EndIf
+  If ReadFile(0, path$)
+    firstLine$ = ReadString(0)
+    If firstLine$ = BatteryLogHeader() Or Left(firstLine$, 9) <> "timestamp"
+      CloseFile(0)
+      ProcedureReturn
+    EndIf
+    text$ = BatteryLogHeader() + #CRLF$
+    While Eof(0) = 0
+      text$ + ReadString(0) + #CRLF$
+    Wend
+    CloseFile(0)
+    If CreateFile(0, path$)
+      WriteString(0, text$)
+      CloseFile(0)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure.s BatteryLogBrightnessText()
+  If gLastScreenBrightnessPercent >= 0 And gLastScreenBrightnessPercent <= 100
+    ProcedureReturn Str(gLastScreenBrightnessPercent)
+  EndIf
+  ProcedureReturn ""
+EndProcedure
+
+Procedure.i ShouldQueryScreenBrightness()
+  ProcedureReturn Bool(LCase(gLastScreenEvent$) <> "screen off")
+EndProcedure
+
+; Laptop-panel brightness is sampled only when a normal retained CSV row is
+; written. Match WmiMonitorBrightness to WmiMonitorConnectionParams so external
+; displays do not replace the built-in panel value when they are active.
+Procedure.i QueryScreenBrightnessPercent()
+  Protected output$ = Trim(PowerShellCapture("$ErrorActionPreference='SilentlyContinue'; $b=@(Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorBrightness); $c=@(Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorConnectionParams); $internal=@([uint32]2147483648,[uint32]6,[uint32]11,[uint32]13); $target=$null; foreach($cp in @($c | Where-Object { $internal -contains [uint32]$_.VideoOutputTechnology })) { $target=@($b | Where-Object { $_.InstanceName -eq $cp.InstanceName } | Select-Object -First 1); if($target) { break } }; if(-not $target -and $b.Count -eq 1) { $target=$b[0] }; if($target -and $null -ne $target.CurrentBrightness) { [int]$target.CurrentBrightness; exit }; $active=@($c | Where-Object { $_.Active -ne $false }); $internalActive=@($active | Where-Object { $internal -contains [uint32]$_.VideoOutputTechnology }); $externalActive=@($active | Where-Object { $internal -notcontains [uint32]$_.VideoOutputTechnology }); $allowDxva=(($c.Count -gt 0 -and $internalActive.Count -eq 1 -and $externalActive.Count -eq 0) -or ($c.Count -eq 0 -and @(Get-CimInstance -ClassName Win32_Battery).Count -gt 0)); if(-not $allowDxva) { exit }; $q=[char]34; $sig='using System; using System.Runtime.InteropServices; public static class PPMon { public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, IntPtr lprcMonitor, IntPtr dwData); [DllImport('+$q+'user32.dll'+$q+')] public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData); [DllImport('+$q+'dxva2.dll'+$q+', SetLastError=true)] public static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr hMonitor, out uint count); [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct PHYSICAL_MONITOR { public IntPtr hPhysicalMonitor; [MarshalAs(UnmanagedType.ByValTStr, SizeConst=128)] public string szPhysicalMonitorDescription; } [DllImport('+$q+'dxva2.dll'+$q+', SetLastError=true)] public static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr hMonitor, uint count, [Out] PHYSICAL_MONITOR[] monitors); [DllImport('+$q+'dxva2.dll'+$q+', SetLastError=true)] public static extern bool DestroyPhysicalMonitors(uint count, PHYSICAL_MONITOR[] monitors); [DllImport('+$q+'dxva2.dll'+$q+', SetLastError=true)] public static extern bool GetMonitorBrightness(IntPtr hMonitor, out uint min, out uint cur, out uint max); }'; Add-Type $sig; $vals=New-Object System.Collections.Generic.List[int]; $cb=[PPMon+MonitorEnumProc]{ param([IntPtr]$h,[IntPtr]$hdc,[IntPtr]$r,[IntPtr]$d) $n=0; if([PPMon]::GetNumberOfPhysicalMonitorsFromHMONITOR($h,[ref]$n) -and $n -gt 0) { $m=New-Object PPMon+PHYSICAL_MONITOR[] $n; if([PPMon]::GetPhysicalMonitorsFromHMONITOR($h,$n,$m)) { foreach($p in $m) { $min=0; $cur=0; $max=0; if([PPMon]::GetMonitorBrightness($p.hPhysicalMonitor,[ref]$min,[ref]$cur,[ref]$max) -and $max -gt $min) { $pct=[int][Math]::Round((($cur-$min)*100.0)/($max-$min)); if($pct -ge 0 -and $pct -le 100) { $vals.Add($pct) } } }; [PPMon]::DestroyPhysicalMonitors($n,$m) | Out-Null } }; return $true }; [PPMon]::EnumDisplayMonitors([IntPtr]::Zero,[IntPtr]::Zero,$cb,[IntPtr]::Zero) | Out-Null; $u=@($vals | Select-Object -Unique); if($u.Count -eq 1) { [int]$u[0] }", 6000))
+  Protected value.i
+  If output$ = ""
+    ProcedureReturn -1
+  EndIf
+  value = Val(StringField(output$, 1, #LF$))
+  If value < 0 Or value > 100
+    ProcedureReturn -1
+  EndIf
+  ProcedureReturn value
+EndProcedure
+
+Procedure.s BatteryLogListRow(c0$, c1$, c2$, c3$, c4$, c5$, c6$, c7$, c8$, c9$)
+  ProcedureReturn c0$ + Chr(10) + c1$ + Chr(10) + c2$ + Chr(10) + c3$ + Chr(10) + c4$ + Chr(10) + c5$ + Chr(10) + c6$ + Chr(10) + c7$ + Chr(10) + c8$ + Chr(10) + c9$
 EndProcedure
 
 ; Event names live in a CSV cell, so remove separators/control characters but
@@ -1019,6 +1621,228 @@ Procedure.i BatteryBool(value$)
   ProcedureReturn Bool(value$ = "true" Or value$ = "1" Or value$ = "yes")
 EndProcedure
 
+Procedure.q BatteryParseTimestamp(timestamp$)
+  Protected parsed.q
+  timestamp$ = Trim(timestamp$)
+  parsed = ParseDate("%yyyy-%mm-%ddT%hh:%ii:%ss", timestamp$)
+  If parsed <= 0
+    parsed = ParseDate("%yyyy-%mm-%dd %hh:%ii:%ss", timestamp$)
+  EndIf
+  ProcedureReturn parsed
+EndProcedure
+
+Procedure.i BatteryOperatingPhase(connected.i, charging.i, disconnectedBattery.i)
+  connected = Bool(connected)
+  charging = Bool(charging)
+  disconnectedBattery = Bool(disconnectedBattery)
+  If connected = #False And disconnectedBattery
+    ProcedureReturn #BatteryPhaseOnBatteryNormal
+  EndIf
+  If connected And charging
+    ProcedureReturn #BatteryPhaseCharging
+  EndIf
+  If connected And charging = #False And disconnectedBattery
+    ProcedureReturn #BatteryPhasePluggedDischargingCalibration
+  EndIf
+  If connected And charging = #False And disconnectedBattery = #False
+    ProcedureReturn #BatteryPhasePluggedIdleOrFull
+  EndIf
+  ProcedureReturn #BatteryPhaseUnknown
+EndProcedure
+
+Procedure.s BatteryPhaseName(phase.i)
+  Select phase
+    Case #BatteryPhaseOnBatteryNormal
+      ProcedureReturn "OnBatteryNormal"
+    Case #BatteryPhaseCharging
+      ProcedureReturn "Charging"
+    Case #BatteryPhasePluggedDischargingCalibration
+      ProcedureReturn "PluggedDischargingCalibration"
+    Case #BatteryPhasePluggedIdleOrFull
+      ProcedureReturn "PluggedIdleOrFull"
+  EndSelect
+  ProcedureReturn "Unknown"
+EndProcedure
+
+Procedure.i ParseBatteryLogRow(line$, *row.BatteryLogRow)
+  Protected fieldCount.i
+  Protected brightness$
+  If *row = 0 Or Trim(line$) = "" Or Left(line$, 9) = "timestamp"
+    ProcedureReturn #False
+  EndIf
+  fieldCount = CountString(line$, ",") + 1
+  If fieldCount < 1
+    ProcedureReturn #False
+  EndIf
+  InitializeStructure(*row, BatteryLogRow)
+  *row\Timestamp = BatteryParseTimestamp(StringField(line$, 1, ","))
+  *row\BatteryPercent = ValD(StringField(line$, 2, ","))
+  *row\Connected = Val(StringField(line$, 3, ","))
+  *row\Charging = Val(StringField(line$, 4, ","))
+  *row\DisconnectedBattery = Val(StringField(line$, 5, ","))
+  *row\RemainingMWh = ValD(StringField(line$, 6, ","))
+  *row\FullMWh = ValD(StringField(line$, 7, ","))
+  *row\DesignMWh = ValD(StringField(line$, 8, ","))
+  *row\WearPercent = ValD(StringField(line$, 9, ","))
+  *row\DischargeRateMW = ValD(StringField(line$, 10, ","))
+  *row\ChargeRateMW = ValD(StringField(line$, 11, ","))
+  *row\RuntimeMinutes = Val(StringField(line$, 12, ","))
+  *row\AverageEstimateMinutes = Val(StringField(line$, 13, ","))
+  *row\InstantEstimateMinutes = Val(StringField(line$, 14, ","))
+  *row\InstantDrainPctPerHour = ValD(StringField(line$, 15, ","))
+  *row\SmoothedDrainPctPerHour = ValD(StringField(line$, 16, ","))
+  *row\CycleCount = Val(StringField(line$, 17, ","))
+  If fieldCount >= 18
+    *row\RowType = LCase(Trim(StringField(line$, 18, ",")))
+  EndIf
+  If *row\RowType = ""
+    *row\RowType = "battery"
+  EndIf
+  If fieldCount >= 19 : *row\EventName = StringField(line$, 19, ",") : EndIf
+  If fieldCount >= 20 : *row\ScreenEvent = StringField(line$, 20, ",") : EndIf
+  *row\ScreenBrightnessPercent = -1
+  If fieldCount >= 21
+    brightness$ = Trim(StringField(line$, 21, ","))
+    If brightness$ <> ""
+      *row\ScreenBrightnessPercent = Val(brightness$)
+    EndIf
+  EndIf
+  If fieldCount >= 22
+    *row\EnergySaverOn = Val(StringField(line$, 22, ","))
+  EndIf
+  *row\Phase = BatteryOperatingPhase(*row\Connected, *row\Charging, *row\DisconnectedBattery)
+  ProcedureReturn Bool(*row\Timestamp > 0)
+EndProcedure
+
+Procedure.d BatteryRuntimeFullMWh()
+  If gBatteryStableFullMWh > 0.0
+    ProcedureReturn gBatteryStableFullMWh
+  EndIf
+  If gBattery\StableFullMWh > 0.0
+    ProcedureReturn gBattery\StableFullMWh
+  EndIf
+  ProcedureReturn gBattery\FullMWh
+EndProcedure
+
+Procedure.i BatteryCurrentScreenOnKnown()
+  Protected screen$ = LCase(gLastScreenEvent$)
+  ProcedureReturn Bool(screen$ = "screen off" Or screen$ = "screen on" Or screen$ = "screen dimmed")
+EndProcedure
+
+Procedure.i BatteryCurrentScreenOn()
+  Protected screen$ = LCase(gLastScreenEvent$)
+  ProcedureReturn Bool(screen$ = "screen on" Or screen$ = "screen dimmed")
+EndProcedure
+
+Procedure.i BatteryUseCategory(screenOnKnown.i, screenOn.i, brightness.i, watts.d, energySaverOn.i)
+  If watts >= 15.0
+    ProcedureReturn #BatteryUseHighLoad
+  EndIf
+  If screenOnKnown And screenOn = #False
+    ProcedureReturn #BatteryUseScreenOff
+  EndIf
+  If screenOnKnown And screenOn
+    If brightness >= 0 And brightness <= 35
+      ProcedureReturn #BatteryUseLowBrightness
+    EndIf
+    ProcedureReturn #BatteryUseActive
+  EndIf
+  If energySaverOn And watts > 0.0 And watts < 8.0
+    ProcedureReturn #BatteryUseLowBrightness
+  EndIf
+  ProcedureReturn #BatteryUseActive
+EndProcedure
+
+Procedure.d RobustAverageWatts(Array values.d(1), count.i)
+  Protected i.i
+  Protected j.i
+  Protected trim.i
+  Protected first.i
+  Protected last.i
+  Protected used.i
+  Protected total.d
+  Protected tempValue.d
+  If count <= 0
+    ProcedureReturn 0.0
+  EndIf
+  For i = 0 To count - 2
+    For j = i + 1 To count - 1
+      If values(j) < values(i)
+        tempValue = values(i)
+        values(i) = values(j)
+        values(j) = tempValue
+      EndIf
+    Next
+  Next
+  trim = count / 10
+  first = trim
+  last = count - trim - 1
+  If first > last
+    first = 0
+    last = count - 1
+  EndIf
+  For i = first To last
+    total + values(i)
+    used + 1
+  Next
+  If used <= 0
+    ProcedureReturn 0.0
+  EndIf
+  ProcedureReturn total / used
+EndProcedure
+
+Procedure SetBatteryEstimate(*estimate.BatteryPowerEstimate, watts.d, count.i)
+  If *estimate = 0
+    ProcedureReturn
+  EndIf
+  *estimate\Watts = watts
+  *estimate\Count = count
+  *estimate\Valid = Bool(watts > 0.0 And count > 0)
+EndProcedure
+
+Procedure UpdateBatteryCapacityHealth(timestamp.q, fullMWh.d, designMWh.d)
+  Protected changeRatio.d
+  If designMWh > 0.0
+    gBatteryStableDesignMWh = designMWh
+  EndIf
+  If fullMWh <= 0.0
+    ProcedureReturn
+  EndIf
+  If gBatteryStableFullMWh <= 0.0
+    gBatteryStableFullMWh = fullMWh
+    gBatteryCapacityCandidateMWh = fullMWh
+    gBatteryCapacityCandidateStartTime = timestamp
+    gBatteryCapacityCandidateCount = 1
+  Else
+    changeRatio = Abs(fullMWh - gBatteryStableFullMWh) / gBatteryStableFullMWh
+    If changeRatio > #BatteryCapacityRecalibrationThreshold
+      gBatteryCapacityRecalibrationDetected = #True
+      gBatteryCapacityRecalibrationText$ = "capacity gauge recalibration"
+      If gBatteryCapacityCandidateMWh > 0.0 And Abs(fullMWh - gBatteryCapacityCandidateMWh) / gBatteryCapacityCandidateMWh <= #BatteryCapacityRecalibrationThreshold
+        gBatteryCapacityCandidateCount + 1
+      Else
+        gBatteryCapacityCandidateMWh = fullMWh
+        gBatteryCapacityCandidateStartTime = timestamp
+        gBatteryCapacityCandidateCount = 1
+      EndIf
+      If gBatteryCapacityCandidateCount >= #BatteryStableCapacityMinSamples
+        gBatteryStableFullMWh = gBatteryCapacityCandidateMWh
+      EndIf
+    Else
+      gBatteryCapacityCandidateMWh = fullMWh
+      gBatteryCapacityCandidateStartTime = timestamp
+      gBatteryCapacityCandidateCount = #BatteryStableCapacityMinSamples
+      gBatteryStableFullMWh = ((gBatteryStableFullMWh * 2.0) + fullMWh) / 3.0
+    EndIf
+  EndIf
+  If gBatteryStableFullMWh > 0.0 And gBatteryStableDesignMWh > 0.0
+    gBatteryStableWearPercent = 100.0 - ((gBatteryStableFullMWh / gBatteryStableDesignMWh) * 100.0)
+    If gBatteryStableWearPercent < 0.0 : gBatteryStableWearPercent = 0.0 : EndIf
+  EndIf
+  gBattery\StableFullMWh = gBatteryStableFullMWh
+  gBattery\StableWearPercent = gBatteryStableWearPercent
+EndProcedure
+
 ; The graph/estimate "full" point can be a user maximum or a limiter-reported
 ; charge maximum. The minimum percent is handled separately as the empty floor.
 Procedure.d BatteryEffectiveMaxPercent()
@@ -1044,6 +1868,429 @@ Procedure.s FormatBatteryMinutes(minutes.i)
   ProcedureReturn Str(hours) + "h " + RSet(Str(mins), 2, "0") + "m"
 EndProcedure
 
+Procedure.s FormatBatteryRuntimeMinutes(minutes.i, connected.i)
+  If minutes <= 0 And connected
+    ProcedureReturn "Plugged in"
+  EndIf
+  ProcedureReturn FormatBatteryMinutes(minutes)
+EndProcedure
+
+Procedure.d BatterySignedWatts(dischargeRateMW.d, chargeRateMW.d)
+  If chargeRateMW > 0.0
+    ProcedureReturn chargeRateMW / 1000.0
+  EndIf
+  If dischargeRateMW > 0.0
+    ProcedureReturn -dischargeRateMW / 1000.0
+  EndIf
+  ProcedureReturn 0.0
+EndProcedure
+
+Procedure.s FormatSignedBatteryWatts(dischargeRateMW.d, chargeRateMW.d)
+  Protected watts.d = BatterySignedWatts(dischargeRateMW, chargeRateMW)
+  If watts > 0.0
+    ProcedureReturn "Charging " + StrD(watts, 2) + " W"
+  EndIf
+  If watts < 0.0
+    ProcedureReturn "Discharging " + StrD(Abs(watts), 2) + " W"
+  EndIf
+  ProcedureReturn "Idle 0.00 W"
+EndProcedure
+
+Procedure RememberBatteryPowerState(connected.i, charging.i)
+  gBatteryPowerStateKnown = #True
+  gBatteryPowerStateConnected = Bool(connected)
+  gBatteryPowerStateCharging = Bool(charging)
+EndProcedure
+
+Procedure.i BatteryPowerStateChangedFromSystem()
+  Protected status.SYSTEM_POWER_STATUS
+  Protected connected.i
+  Protected charging.i
+  Protected changed.i
+  If GetSystemPowerStatus_(@status) = #False
+    ProcedureReturn #True
+  EndIf
+  connected = Bool(status\ACLineStatus <> 0)
+  charging = Bool(status\BatteryFlag & 8)
+  changed = Bool(gBatteryPowerStateKnown = #False Or connected <> gBatteryPowerStateConnected Or charging <> gBatteryPowerStateCharging)
+  RememberBatteryPowerState(connected, charging)
+  ProcedureReturn changed
+EndProcedure
+
+Procedure.i PowerPilotControlledEnergySaverActive()
+  Protected activeName$ = NormalizePlanName(gCachedActiveName$)
+  If activeName$ = ""
+    activeName$ = NormalizePlanName(gSettings\LastPlan)
+  EndIf
+  ProcedureReturn Bool(gSettings\EnergySaverMode = #EnergySaverPowerPilotControlled And activeName$ = #PlanBattery$)
+EndProcedure
+
+Procedure SetEnergySaverSubgroupGuid(*guid.GuidValue)
+  *guid\Data1 = $DE830923
+  *guid\Data2 = $A562
+  *guid\Data3 = $41AF
+  *guid\Data4[0] = $A0
+  *guid\Data4[1] = $86
+  *guid\Data4[2] = $E3
+  *guid\Data4[3] = $A2
+  *guid\Data4[4] = $C6
+  *guid\Data4[5] = $BA
+  *guid\Data4[6] = $D2
+  *guid\Data4[7] = $DA
+EndProcedure
+
+Procedure SetEnergySaverPolicyGuid(*guid.GuidValue)
+  *guid\Data1 = $5C5BB349
+  *guid\Data2 = $AD29
+  *guid\Data3 = $4EE2
+  *guid\Data4[0] = $9D
+  *guid\Data4[1] = $0B
+  *guid\Data4[2] = $2B
+  *guid\Data4[3] = $25
+  *guid\Data4[4] = $27
+  *guid\Data4[5] = $0F
+  *guid\Data4[6] = $7A
+  *guid\Data4[7] = $81
+EndProcedure
+
+Procedure SetEnergySaverThresholdGuid(*guid.GuidValue)
+  *guid\Data1 = $E69653CA
+  *guid\Data2 = $CF7F
+  *guid\Data3 = $4F05
+  *guid\Data4[0] = $AA
+  *guid\Data4[1] = $73
+  *guid\Data4[2] = $CB
+  *guid\Data4[3] = $83
+  *guid\Data4[4] = $3F
+  *guid\Data4[5] = $A9
+  *guid\Data4[6] = $0A
+  *guid\Data4[7] = $D4
+EndProcedure
+
+Procedure.i ReadActiveEnergySaverSetting(*settingGuid.GuidValue, *value.Long)
+  Protected activeScheme.i
+  Protected subGroup.GuidValue
+  Protected result.i
+  EnsurePowerApi()
+  If gPowerGetActiveScheme = 0 Or gPowerReadACValueIndex = 0 Or gPowerReadDCValueIndex = 0
+    ProcedureReturn #False
+  EndIf
+  If gPowerGetActiveScheme(0, @activeScheme) <> #ERROR_SUCCESS Or activeScheme = 0
+    ProcedureReturn #False
+  EndIf
+  SetEnergySaverSubgroupGuid(@subGroup)
+  If CurrentPowerSupplyIsBattery()
+    result = gPowerReadDCValueIndex(0, activeScheme, @subGroup, *settingGuid, *value)
+  Else
+    result = gPowerReadACValueIndex(0, activeScheme, @subGroup, *settingGuid, *value)
+  EndIf
+  LocalFree_(activeScheme)
+  ProcedureReturn Bool(result = #ERROR_SUCCESS)
+EndProcedure
+
+Procedure.i WindowsEnergySaverPolicyActive()
+  Protected policyGuid.GuidValue
+  Protected thresholdGuid.GuidValue
+  Protected status.SYSTEM_POWER_STATUS
+  Protected policy.l
+  Protected threshold.l
+  SetEnergySaverPolicyGuid(@policyGuid)
+  If ReadActiveEnergySaverSetting(@policyGuid, @policy)
+    If policy = #EnergySaverPolicyAggressive
+      ProcedureReturn #True
+    EndIf
+  EndIf
+  SetEnergySaverThresholdGuid(@thresholdGuid)
+  If ReadActiveEnergySaverSetting(@thresholdGuid, @threshold)
+    If GetSystemPowerStatus_(@status) And status\ACLineStatus = 0 And status\BatteryLifePercent <= 100 And threshold > 0 And status\BatteryLifePercent <= threshold
+      ProcedureReturn #True
+    EndIf
+  EndIf
+  ProcedureReturn #False
+EndProcedure
+
+Procedure.i WindowsEnergySaverActive()
+  Protected status.SYSTEM_POWER_STATUS
+  If GetSystemPowerStatus_(@status)
+    If status\SystemStatusFlag & 1
+      ProcedureReturn #True
+    EndIf
+  EndIf
+  If WindowsEnergySaverPolicyActive()
+    ProcedureReturn #True
+  EndIf
+  ProcedureReturn PowerPilotControlledEnergySaverActive()
+EndProcedure
+
+Procedure UpdateEnergySaverLogState(energySaverOn.i)
+  energySaverOn = Bool(energySaverOn)
+  If gEnergySaverStateKnown = #False
+    gEnergySaverStateKnown = #True
+    gEnergySaverStateOn = energySaverOn
+    If energySaverOn
+      WriteBatteryEnergySaverEvent(#True)
+    EndIf
+    ProcedureReturn
+  EndIf
+  If energySaverOn <> gEnergySaverStateOn
+    gEnergySaverStateOn = energySaverOn
+    WriteBatteryEnergySaverEvent(energySaverOn)
+  EndIf
+EndProcedure
+
+Procedure TrackEnergySaverLogState()
+  If gBattery\Valid = #False
+    ProcedureReturn
+  EndIf
+  UpdateEnergySaverLogState(gBattery\EnergySaverOn)
+EndProcedure
+
+Procedure.q FileTimeValue100Ns(*time.FILETIME)
+  ProcedureReturn ((*time\dwHighDateTime & $FFFFFFFF) << 32) | (*time\dwLowDateTime & $FFFFFFFF)
+EndProcedure
+
+Procedure.q CurrentProcessCpuTime100Ns()
+  Protected created.FILETIME
+  Protected exited.FILETIME
+  Protected kernel.FILETIME
+  Protected user.FILETIME
+  If GetProcessTimes_(GetCurrentProcess_(), @created, @exited, @kernel, @user)
+    ProcedureReturn FileTimeValue100Ns(@kernel) + FileTimeValue100Ns(@user)
+  EndIf
+  ProcedureReturn 0
+EndProcedure
+
+Procedure AddPowerPilotUsePoint(timestamp.q, cpuTime100Ns.q)
+  Protected i.i
+  Protected cutoff.q = timestamp - (#PowerPilotUseWindowSeconds * 4)
+  Protected removeCount.i
+  If timestamp <= 0 Or cpuTime100Ns <= 0
+    ProcedureReturn
+  EndIf
+  If gPowerPilotUsePointCount > 0 And gPowerPilotUsePoints(gPowerPilotUsePointCount - 1)\Timestamp = timestamp
+    gPowerPilotUsePoints(gPowerPilotUsePointCount - 1)\CpuTime100Ns = cpuTime100Ns
+  ElseIf gPowerPilotUsePointCount < #PowerPilotUseMaxPoints
+    gPowerPilotUsePoints(gPowerPilotUsePointCount)\Timestamp = timestamp
+    gPowerPilotUsePoints(gPowerPilotUsePointCount)\CpuTime100Ns = cpuTime100Ns
+    gPowerPilotUsePointCount + 1
+  Else
+    For i = 1 To #PowerPilotUseMaxPoints - 1
+      gPowerPilotUsePoints(i - 1) = gPowerPilotUsePoints(i)
+    Next
+    gPowerPilotUsePoints(#PowerPilotUseMaxPoints - 1)\Timestamp = timestamp
+    gPowerPilotUsePoints(#PowerPilotUseMaxPoints - 1)\CpuTime100Ns = cpuTime100Ns
+  EndIf
+  While removeCount < gPowerPilotUsePointCount - 1 And gPowerPilotUsePoints(removeCount)\Timestamp < cutoff
+    removeCount + 1
+  Wend
+  If removeCount > 0
+    For i = removeCount To gPowerPilotUsePointCount - 1
+      gPowerPilotUsePoints(i - removeCount) = gPowerPilotUsePoints(i)
+    Next
+    gPowerPilotUsePointCount - removeCount
+  EndIf
+EndProcedure
+
+Procedure SetBatteryClassGuid(*guid.GuidValue)
+  *guid\Data1 = $72631E54
+  *guid\Data2 = $78A4
+  *guid\Data3 = $11D0
+  *guid\Data4[0] = $BC
+  *guid\Data4[1] = $F7
+  *guid\Data4[2] = $00
+  *guid\Data4[3] = $AA
+  *guid\Data4[4] = $00
+  *guid\Data4[5] = $B7
+  *guid\Data4[6] = $B3
+  *guid\Data4[7] = $2A
+EndProcedure
+
+Procedure.i EnsureSetupApi()
+  If gSetupApiTried
+    ProcedureReturn Bool(gSetupDiGetClassDevs And gSetupDiEnumDeviceInterfaces And gSetupDiGetDeviceInterfaceDetail And gSetupDiDestroyDeviceInfoList)
+  EndIf
+  gSetupApiTried = #True
+  gSetupApiLibrary = OpenLibrary(#PB_Any, "setupapi.dll")
+  If gSetupApiLibrary
+    gSetupDiGetClassDevs = GetFunction(gSetupApiLibrary, "SetupDiGetClassDevsW")
+    gSetupDiEnumDeviceInterfaces = GetFunction(gSetupApiLibrary, "SetupDiEnumDeviceInterfaces")
+    gSetupDiGetDeviceInterfaceDetail = GetFunction(gSetupApiLibrary, "SetupDiGetDeviceInterfaceDetailW")
+    gSetupDiDestroyDeviceInfoList = GetFunction(gSetupApiLibrary, "SetupDiDestroyDeviceInfoList")
+  EndIf
+  ProcedureReturn Bool(gSetupDiGetClassDevs And gSetupDiEnumDeviceInterfaces And gSetupDiGetDeviceInterfaceDetail And gSetupDiDestroyDeviceInfoList)
+EndProcedure
+
+Procedure.s NativeBatteryDevicePath()
+  Protected guid.GuidValue
+  Protected hdev.i
+  Protected index.i
+  Protected ifaceData.DeviceInterfaceData
+  Protected detail.DeviceInterfaceDetailData
+  Protected requiredSize.l
+  Protected path$
+  If gBatteryDevicePath$ <> ""
+    ProcedureReturn gBatteryDevicePath$
+  EndIf
+  If EnsureSetupApi() = #False
+    ProcedureReturn ""
+  EndIf
+  SetBatteryClassGuid(@guid)
+  hdev = gSetupDiGetClassDevs(@guid, 0, 0, #SetupDigcfPresent | #SetupDigcfDeviceInterface)
+  If hdev = #INVALID_HANDLE_VALUE
+    ProcedureReturn ""
+  EndIf
+  For index = 0 To 99
+    FillMemory(@ifaceData, SizeOf(DeviceInterfaceData), 0)
+    ifaceData\cbSize = SizeOf(DeviceInterfaceData)
+    If gSetupDiEnumDeviceInterfaces(hdev, 0, @guid, index, @ifaceData) = #False
+      If GetLastError_() = #SetupErrorNoMoreItems
+        Break
+      EndIf
+      Continue
+    EndIf
+    requiredSize = 0
+    gSetupDiGetDeviceInterfaceDetail(hdev, @ifaceData, 0, 0, @requiredSize, 0)
+    If requiredSize > SizeOf(DeviceInterfaceDetailData)
+      Continue
+    EndIf
+    FillMemory(@detail, SizeOf(DeviceInterfaceDetailData), 0)
+    CompilerIf #PB_Compiler_Processor = #PB_Processor_x64
+      detail\cbSize = 8
+    CompilerElse
+      detail\cbSize = 6
+    CompilerEndIf
+    If gSetupDiGetDeviceInterfaceDetail(hdev, @ifaceData, @detail, SizeOf(DeviceInterfaceDetailData), @requiredSize, 0)
+      path$ = PeekS(@detail\DevicePath[0])
+      If path$ <> ""
+        gBatteryDevicePath$ = path$
+        Break
+      EndIf
+    EndIf
+  Next
+  gSetupDiDestroyDeviceInfoList(hdev)
+  ProcedureReturn gBatteryDevicePath$
+EndProcedure
+
+Procedure.i NativeBatteryHandle()
+  Protected path$ = NativeBatteryDevicePath()
+  Protected handle.i
+  If path$ = ""
+    ProcedureReturn 0
+  EndIf
+  handle = CreateFile_(path$, #BatteryGenericRead | #BatteryGenericWrite, #BatteryFileShareRead | #BatteryFileShareWrite, 0, #BatteryOpenExisting, 0, 0)
+  If handle = #INVALID_HANDLE_VALUE
+    gBatteryDevicePath$ = ""
+    ProcedureReturn 0
+  EndIf
+  ProcedureReturn handle
+EndProcedure
+
+Procedure.i QueryNativeBatteryData()
+  Protected handle.i
+  Protected waitInput.l
+  Protected tag.l
+  Protected bytes.l
+  Protected query.BatteryQueryInformation
+  Protected info.BatteryInformation
+  Protected wait.BatteryWaitStatus
+  Protected status.BatteryStatus
+  Protected estimatedSeconds.l
+  Protected signedRate.l
+  Protected relative.i
+  Protected percent.d
+  handle = NativeBatteryHandle()
+  If handle = 0
+    ProcedureReturn #False
+  EndIf
+  If DeviceIoControl_(handle, #BatteryIoctlQueryTag, @waitInput, SizeOf(Long), @tag, SizeOf(Long), @bytes, 0) = #False Or tag = 0
+    CloseHandle_(handle)
+    ProcedureReturn #False
+  EndIf
+
+  query\BatteryTag = tag
+  query\InformationLevel = #BatteryInfoLevelInformation
+  query\AtRate = 0
+  If DeviceIoControl_(handle, #BatteryIoctlQueryInformation, @query, SizeOf(BatteryQueryInformation), @info, SizeOf(BatteryInformation), @bytes, 0)
+    relative = Bool(info\Capabilities & #BatteryCapacityRelative)
+    If relative = #False
+      If info\FullChargedCapacity > 0 And info\FullChargedCapacity <> -1
+        gBattery\FullMWh = info\FullChargedCapacity
+      EndIf
+      If info\DesignedCapacity > 0 And info\DesignedCapacity <> -1
+        gBattery\DesignMWh = info\DesignedCapacity
+      EndIf
+      If gBattery\DesignMWh > 0.0 And gBattery\FullMWh > 0.0
+        gBattery\WearPercent = 100.0 - ((gBattery\FullMWh / gBattery\DesignMWh) * 100.0)
+        If gBattery\WearPercent < 0.0 : gBattery\WearPercent = 0.0 : EndIf
+      EndIf
+      UpdateBatteryCapacityHealth(Date(), gBattery\FullMWh, gBattery\DesignMWh)
+    EndIf
+    If info\CycleCount > 0 And info\CycleCount <> -1
+      gBattery\CycleCount = info\CycleCount
+    EndIf
+  EndIf
+
+  query\BatteryTag = tag
+  query\InformationLevel = #BatteryInfoLevelEstimatedTime
+  query\AtRate = 0
+  If DeviceIoControl_(handle, #BatteryIoctlQueryInformation, @query, SizeOf(BatteryQueryInformation), @estimatedSeconds, SizeOf(Long), @bytes, 0)
+    If estimatedSeconds > 0 And estimatedSeconds <> -1 And estimatedSeconds < 864000
+      gBattery\RuntimeValid = #True
+      gBattery\RuntimeMinutes = estimatedSeconds / 60
+    Else
+      gBattery\RuntimeValid = #False
+      gBattery\RuntimeMinutes = -1
+    EndIf
+  Else
+    gBattery\RuntimeValid = #False
+    gBattery\RuntimeMinutes = -1
+  EndIf
+
+  wait\BatteryTag = tag
+  wait\Timeout = 0
+  wait\PowerState = 0
+  wait\LowCapacity = 0
+  wait\HighCapacity = 0
+  If DeviceIoControl_(handle, #BatteryIoctlQueryStatus, @wait, SizeOf(BatteryWaitStatus), @status, SizeOf(BatteryStatus), @bytes, 0) = #False
+    CloseHandle_(handle)
+    ProcedureReturn #False
+  EndIf
+  CloseHandle_(handle)
+
+  gBattery\Valid = #True
+  gBattery\Timestamp = Date()
+  gBattery\Connected = Bool(status\PowerState & #BatteryPowerOnline)
+  gBattery\Charging = Bool(status\PowerState & #BatteryPowerCharging)
+  gBattery\EnergySaverOn = WindowsEnergySaverActive()
+  RememberBatteryPowerState(gBattery\Connected, gBattery\Charging)
+  If relative = #False And status\Capacity > 0 And status\Capacity <> -1
+    gBattery\RemainingMWh = status\Capacity
+  EndIf
+  If status\Voltage > 0 And status\Voltage <> -1
+    gBattery\VoltageMV = status\Voltage
+  EndIf
+  signedRate = status\Rate
+  If signedRate <> -1 And relative = #False
+    If signedRate < 0
+      gBattery\DischargeRateMW = -signedRate
+      gBattery\ChargeRateMW = 0.0
+    ElseIf signedRate > 0
+      gBattery\ChargeRateMW = signedRate
+      gBattery\DischargeRateMW = 0.0
+    Else
+      gBattery\ChargeRateMW = 0.0
+      gBattery\DischargeRateMW = 0.0
+    EndIf
+  EndIf
+  gBattery\DisconnectedBattery = Bool((status\PowerState & #BatteryPowerOnline) = 0 Or (status\PowerState & #BatteryPowerDischarging) Or gBattery\DischargeRateMW > 0.0)
+  If gBattery\FullMWh > 0.0 And gBattery\RemainingMWh > 0.0
+    percent = (gBattery\RemainingMWh / gBattery\FullMWh) * 100.0
+    If percent > 100.0 : percent = 100.0 : EndIf
+    gBattery\Percent = percent
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
 ; Compact elapsed-duration display for session, off-time, and daily summaries.
 Procedure.s FormatDurationSeconds(seconds.q)
   Protected hours.q
@@ -1062,10 +2309,92 @@ Procedure.s FormatDurationSeconds(seconds.q)
   ProcedureReturn Str(mins) + "m"
 EndProcedure
 
-; In-memory graph points are capped by both count and a 24-hour window. The CSV
-; remains the durable source and is reloaded at startup.
+Procedure.s MonthName(month.i)
+  Select month
+    Case 1 : ProcedureReturn "Jan"
+    Case 2 : ProcedureReturn "Feb"
+    Case 3 : ProcedureReturn "Mar"
+    Case 4 : ProcedureReturn "Apr"
+    Case 5 : ProcedureReturn "May"
+    Case 6 : ProcedureReturn "Jun"
+    Case 7 : ProcedureReturn "Jul"
+    Case 8 : ProcedureReturn "Aug"
+    Case 9 : ProcedureReturn "Sep"
+    Case 10 : ProcedureReturn "Oct"
+    Case 11 : ProcedureReturn "Nov"
+    Case 12 : ProcedureReturn "Dec"
+  EndSelect
+  ProcedureReturn ""
+EndProcedure
+
+Procedure.s DayOrdinalSuffix(day.i)
+  If day >= 11 And day <= 13
+    ProcedureReturn "th"
+  EndIf
+  Select day % 10
+    Case 1 : ProcedureReturn "st"
+    Case 2 : ProcedureReturn "nd"
+    Case 3 : ProcedureReturn "rd"
+  EndSelect
+  ProcedureReturn "th"
+EndProcedure
+
+Procedure.s BatteryGraphDateLabel(timestamp.q)
+  Protected day.i = Val(FormatDate("%dd", timestamp))
+  Protected month.i = Val(FormatDate("%mm", timestamp))
+  ProcedureReturn MonthName(month) + " " + Str(day) + DayOrdinalSuffix(day) + " " + Right(FormatDate("%yyyy", timestamp), 2)
+EndProcedure
+
+Procedure.i NormalizeBatteryGraphHours(hours.i)
+  Select hours
+    Case 6, 12, 18, 24, 36, 48, 60, 72
+      ProcedureReturn hours
+    Case 35
+      ProcedureReturn 36
+  EndSelect
+  ProcedureReturn #BatteryGraphDefaultHours
+EndProcedure
+
+Procedure.i BatteryGraphHoursIndex(hours.i)
+  Select NormalizeBatteryGraphHours(hours)
+    Case 6 : ProcedureReturn 0
+    Case 12 : ProcedureReturn 1
+    Case 18 : ProcedureReturn 2
+    Case 24 : ProcedureReturn 3
+    Case 36 : ProcedureReturn 4
+    Case 48 : ProcedureReturn 5
+    Case 60 : ProcedureReturn 6
+    Case 72 : ProcedureReturn 7
+  EndSelect
+  ProcedureReturn 3
+EndProcedure
+
+Procedure.i BatteryGraphHoursFromIndex(index.i)
+  Select index
+    Case 0 : ProcedureReturn 6
+    Case 1 : ProcedureReturn 12
+    Case 2 : ProcedureReturn 18
+    Case 3 : ProcedureReturn 24
+    Case 4 : ProcedureReturn 36
+    Case 5 : ProcedureReturn 48
+    Case 6 : ProcedureReturn 60
+    Case 7 : ProcedureReturn 72
+  EndSelect
+  ProcedureReturn #BatteryGraphDefaultHours
+EndProcedure
+
+Procedure.q BatteryGraphWindowSeconds()
+  ProcedureReturn NormalizeBatteryGraphHours(gSettings\BatteryGraphHours) * 3600
+EndProcedure
+
+Procedure.s BatteryGraphWindowTitle()
+  ProcedureReturn Str(NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)) + "-Hour Battery Percent"
+EndProcedure
+
+; In-memory graph points are capped by both count and the largest selectable
+; graph window. The CSV remains the durable source and is reloaded at startup.
 Procedure PruneBatteryGraph(now.q)
-  Protected cutoff.q = now - #BatteryGraphWindowSeconds
+  Protected cutoff.q = now - #BatteryGraphMaxWindowSeconds
   Protected removeCount.i
   Protected i.i
   While removeCount < gBatteryGraphCount - 1 And gBatteryGraph(removeCount)\Timestamp < cutoff
@@ -1081,12 +2410,30 @@ EndProcedure
 
 ; Add one visible graph point. Duplicate timestamps are ignored because WMI
 ; refresh and forced logging can happen in the same second during startup.
-Procedure AddBatteryGraphPoint(timestamp.q, percent.d, connected.i, charging.i)
+Procedure AddBatteryGraphPoint(timestamp.q, percent.d, connected.i, charging.i, energySaverOn.i = #False, disconnectedBattery.i = -1, remainingMWh.d = 0.0, fullMWh.d = 0.0, dischargeRateMW.d = 0.0, chargeRateMW.d = 0.0, screenOnKnown.i = #False, screenOn.i = #False, brightnessPercent.i = -1)
   Protected i.i
+  Protected phase.i
   If percent < 0.0
     ProcedureReturn
   EndIf
+  If disconnectedBattery < 0
+    disconnectedBattery = Bool(connected = #False)
+  EndIf
+  phase = BatteryOperatingPhase(connected, charging, disconnectedBattery)
   If gBatteryGraphCount > 0 And gBatteryGraph(gBatteryGraphCount - 1)\Timestamp = timestamp
+    gBatteryGraph(gBatteryGraphCount - 1)\Percent = percent
+    gBatteryGraph(gBatteryGraphCount - 1)\Connected = connected
+    gBatteryGraph(gBatteryGraphCount - 1)\Charging = charging
+    gBatteryGraph(gBatteryGraphCount - 1)\DisconnectedBattery = disconnectedBattery
+    gBatteryGraph(gBatteryGraphCount - 1)\RemainingMWh = remainingMWh
+    gBatteryGraph(gBatteryGraphCount - 1)\FullMWh = fullMWh
+    gBatteryGraph(gBatteryGraphCount - 1)\DischargeRateMW = dischargeRateMW
+    gBatteryGraph(gBatteryGraphCount - 1)\ChargeRateMW = chargeRateMW
+    gBatteryGraph(gBatteryGraphCount - 1)\EnergySaverOn = Bool(energySaverOn)
+    gBatteryGraph(gBatteryGraphCount - 1)\Phase = phase
+    gBatteryGraph(gBatteryGraphCount - 1)\ScreenOnKnown = Bool(screenOnKnown)
+    gBatteryGraph(gBatteryGraphCount - 1)\ScreenOn = Bool(screenOn)
+    gBatteryGraph(gBatteryGraphCount - 1)\BrightnessPercent = brightnessPercent
     ProcedureReturn
   EndIf
   If gBatteryGraphCount < #BatteryGraphMaxPoints
@@ -1094,6 +2441,16 @@ Procedure AddBatteryGraphPoint(timestamp.q, percent.d, connected.i, charging.i)
     gBatteryGraph(gBatteryGraphCount)\Percent = percent
     gBatteryGraph(gBatteryGraphCount)\Connected = connected
     gBatteryGraph(gBatteryGraphCount)\Charging = charging
+    gBatteryGraph(gBatteryGraphCount)\DisconnectedBattery = disconnectedBattery
+    gBatteryGraph(gBatteryGraphCount)\RemainingMWh = remainingMWh
+    gBatteryGraph(gBatteryGraphCount)\FullMWh = fullMWh
+    gBatteryGraph(gBatteryGraphCount)\DischargeRateMW = dischargeRateMW
+    gBatteryGraph(gBatteryGraphCount)\ChargeRateMW = chargeRateMW
+    gBatteryGraph(gBatteryGraphCount)\EnergySaverOn = Bool(energySaverOn)
+    gBatteryGraph(gBatteryGraphCount)\Phase = phase
+    gBatteryGraph(gBatteryGraphCount)\ScreenOnKnown = Bool(screenOnKnown)
+    gBatteryGraph(gBatteryGraphCount)\ScreenOn = Bool(screenOn)
+    gBatteryGraph(gBatteryGraphCount)\BrightnessPercent = brightnessPercent
     gBatteryGraphCount + 1
   Else
     For i = 1 To #BatteryGraphMaxPoints - 1
@@ -1103,6 +2460,16 @@ Procedure AddBatteryGraphPoint(timestamp.q, percent.d, connected.i, charging.i)
     gBatteryGraph(#BatteryGraphMaxPoints - 1)\Percent = percent
     gBatteryGraph(#BatteryGraphMaxPoints - 1)\Connected = connected
     gBatteryGraph(#BatteryGraphMaxPoints - 1)\Charging = charging
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\DisconnectedBattery = disconnectedBattery
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\RemainingMWh = remainingMWh
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\FullMWh = fullMWh
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\DischargeRateMW = dischargeRateMW
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\ChargeRateMW = chargeRateMW
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\EnergySaverOn = Bool(energySaverOn)
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\Phase = phase
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\ScreenOnKnown = Bool(screenOnKnown)
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\ScreenOn = Bool(screenOn)
+    gBatteryGraph(#BatteryGraphMaxPoints - 1)\BrightnessPercent = brightnessPercent
   EndIf
   PruneBatteryGraph(timestamp)
 EndProcedure
@@ -1110,7 +2477,7 @@ EndProcedure
 ; Average-breaks mark intervals that must not count as active battery drain:
 ; PC power events, app restarts, reinstall closes, or manual reset boundaries.
 Procedure PruneBatteryAverageBreaks(now.q)
-  Protected cutoff.q = now - #BatteryGraphWindowSeconds
+  Protected cutoff.q = now - #BatteryGraphMaxWindowSeconds
   Protected removeCount.i
   Protected i.i
   While removeCount < gBatteryAverageBreakCount And gBatteryAverageBreakTime(removeCount) < cutoff
@@ -1127,7 +2494,7 @@ EndProcedure
 ; App breaks are tracked separately from power breaks. They reset averages but
 ; do not create PC-off loss summaries or graph event markers.
 Procedure PruneBatteryAppBreaks(now.q)
-  Protected cutoff.q = now - #BatteryGraphWindowSeconds
+  Protected cutoff.q = now - #BatteryGraphMaxWindowSeconds
   Protected removeCount.i
   Protected i.i
   While removeCount < gBatteryAppBreakCount And gBatteryAppBreakTime(removeCount) < cutoff
@@ -1185,7 +2552,7 @@ EndProcedure
 
 ; Power event markers are kept for graph labels and session summaries.
 Procedure PruneBatteryEvents(now.q)
-  Protected cutoff.q = now - #BatteryGraphWindowSeconds
+  Protected cutoff.q = now - #BatteryGraphMaxWindowSeconds
   Protected removeCount.i
   Protected i.i
   While removeCount < gBatteryEventCount And gBatteryEvents(removeCount)\Timestamp < cutoff
@@ -1282,8 +2649,7 @@ Procedure.i BatteryIntervalHasPowerBreak(startTime.q, endTime.q)
   ProcedureReturn #False
 EndProcedure
 
-; Missing samples beyond this threshold are treated as offline-looking gaps
-; unless an app break explains the gap.
+; Missing samples beyond this threshold are candidates for offline-looking gaps.
 Procedure.i BatteryGraphFlatGapSeconds()
   Protected gap.i = (ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440) * 120) + 60
   Protected refreshGap.i = ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600) * 4
@@ -1296,10 +2662,33 @@ Procedure.i BatteryGraphFlatGapSeconds()
   ProcedureReturn gap
 EndProcedure
 
+; Decide whether two visible battery samples should be joined as offline/event
+; time. Short PowerPilot restarts are not red, but long app-closed gaps still
+; mean the graph had no active samples and should not inherit blue/green state.
+Procedure.i BatteryGraphOfflineGap(startTime.q, endTime.q)
+  Protected elapsed.q
+  If endTime < startTime
+    ProcedureReturn #True
+  EndIf
+  If BatteryIntervalHasPowerBreak(startTime, endTime)
+    ProcedureReturn #True
+  EndIf
+  elapsed = endTime - startTime
+  If elapsed <= BatteryGraphFlatGapSeconds()
+    ProcedureReturn #False
+  EndIf
+  If BatteryIntervalHasAppBreak(startTime, endTime)
+    ProcedureReturn Bool(elapsed >= #BatteryGraphLongAppGapSeconds)
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
 ; Reset the simple last-sample pair used by instant measured-percent drain.
 Procedure ResetBatteryAverageSamples()
   gBatteryLastSampleTime = 0
   gBatteryLastSamplePercent = 0.0
+  gBatteryLastSampleRemainingMWh = 0.0
+  gBatteryFlatSampleCount = 0
   gBatteryOnBatterySince = 0
 EndProcedure
 
@@ -1431,6 +2820,7 @@ Procedure.i CleanupOldPowerPilotVersions(deleteFiles.i = #False, logEvent.i = #T
   Protected closed.i
   Protected forced.i
   Protected removed.i
+  Protected cleanupText$
   Protected directory.i
   Protected fileName$
   Protected fullPath$
@@ -1458,7 +2848,10 @@ Procedure.i CleanupOldPowerPilotVersions(deleteFiles.i = #False, logEvent.i = #T
         If forced > 0
           WriteBatteryAppEvent("PowerPilot update close")
         EndIf
-        WriteBatteryAppEvent("PowerPilot cleaned " + Str(closed) + " old process(es) and " + Str(removed) + " old file(s)")
+        cleanupText$ = CleanupOldPowerPilotText(closed, removed)
+        If cleanupText$ <> ""
+          WriteBatteryAppEvent(cleanupText$)
+        EndIf
       EndIf
       ProcedureReturn #True
     EndIf
@@ -1509,7 +2902,10 @@ Procedure.i CleanupOldPowerPilotVersions(deleteFiles.i = #False, logEvent.i = #T
   EndIf
 
   If logEvent And (closed > 0 Or removed > 0)
-    WriteBatteryAppEvent("PowerPilot cleaned " + Str(closed) + " old process(es) and " + Str(removed) + " old file(s)")
+    cleanupText$ = CleanupOldPowerPilotText(closed, removed)
+    If cleanupText$ <> ""
+      WriteBatteryAppEvent(cleanupText$)
+    EndIf
   EndIf
   ProcedureReturn #True
 EndProcedure
@@ -1537,16 +2933,108 @@ Procedure.i BatteryGraphIndexAfter(timestamp.q)
 EndProcedure
 
 ; Compact event labels for graph markers and summaries.
+Procedure.i BatteryEventIsSleepHibernate(eventName$)
+  Protected lower$ = LCase(eventName$)
+  ProcedureReturn Bool((FindString(lower$, "sleep", 1) Or FindString(lower$, "suspend", 1)) And (FindString(lower$, "hibernate", 1) Or FindString(lower$, "hibernation", 1)))
+EndProcedure
+
 Procedure.s BatteryEventShortName(eventName$)
   Protected lower$ = LCase(eventName$)
-  If FindString(lower$, "improper", 1) : ProcedureReturn "!"
-  ElseIf FindString(lower$, "shutdown", 1) : ProcedureReturn "S"
-  ElseIf FindString(lower$, "startup", 1) : ProcedureReturn "P"
-  ElseIf FindString(lower$, "hibernate", 1) : ProcedureReturn "H"
-  ElseIf FindString(lower$, "sleep", 1) : ProcedureReturn "Z"
-  ElseIf FindString(lower$, "wake", 1) : ProcedureReturn "W"
+  Protected label$
+  If FindString(lower$, "improper", 1)
+    label$ + "!"
+  EndIf
+  If FindString(lower$, "sleep", 1) Or FindString(lower$, "suspend", 1)
+    label$ + "Z"
+  EndIf
+  If FindString(lower$, "hibernate", 1) Or FindString(lower$, "hibernation", 1)
+    label$ + "H"
+  EndIf
+  If FindString(lower$, "wake", 1) Or FindString(lower$, "resume", 1)
+    label$ + "W"
+  EndIf
+  If FindString(lower$, "shutdown", 1)
+    label$ + "S"
+  EndIf
+  If FindString(lower$, "startup", 1)
+    label$ + "P"
+  EndIf
+  If label$ <> ""
+    ProcedureReturn label$
   EndIf
   ProcedureReturn "E"
+EndProcedure
+
+Procedure.i BatterySleepHibernateEventCanSplit(eventTimestamp.q, graphStartTime.q, graphEndTime.q, graphLeft.i, graphXScale.d)
+  Protected i.i
+  Protected segmentStart.q
+  Protected segmentEnd.q
+  Protected segmentX.i
+  Protected eventX.i
+  If eventTimestamp < graphStartTime Or eventTimestamp > graphEndTime
+    ProcedureReturn #False
+  EndIf
+  For i = 1 To gBatteryGraphCount - 1
+    segmentStart = gBatteryGraph(i - 1)\Timestamp
+    segmentEnd = gBatteryGraph(i)\Timestamp
+    If segmentStart <= eventTimestamp And segmentEnd >= eventTimestamp
+      If BatteryGraphOfflineGap(segmentStart, segmentEnd)
+        If segmentStart < graphStartTime : segmentStart = graphStartTime : EndIf
+        segmentX = graphLeft + ((segmentStart - graphStartTime) * graphXScale)
+        eventX = graphLeft + ((eventTimestamp - graphStartTime) * graphXScale)
+        ProcedureReturn Bool(Abs(eventX - segmentX) >= 10)
+      EndIf
+      ProcedureReturn #False
+    EndIf
+  Next
+  ProcedureReturn #False
+EndProcedure
+
+Procedure.i BatteryIntervalHasSplittableSleepHibernateBreak(startTime.q, endTime.q, graphStartTime.q, graphEndTime.q, graphLeft.i, graphXScale.d)
+  Protected i.i
+  If endTime < startTime
+    ProcedureReturn #False
+  EndIf
+  For i = gBatteryEventCount - 1 To 0 Step -1
+    If gBatteryEvents(i)\Timestamp <= startTime
+      ProcedureReturn #False
+    EndIf
+    If gBatteryEvents(i)\Timestamp <= endTime And BatteryEventIsSleepHibernate(gBatteryEvents(i)\Name)
+      If BatterySleepHibernateEventCanSplit(gBatteryEvents(i)\Timestamp, graphStartTime, graphEndTime, graphLeft, graphXScale)
+        ProcedureReturn #True
+      EndIf
+    EndIf
+  Next
+  ProcedureReturn #False
+EndProcedure
+
+Procedure.i BatteryGraphSegmentVisible(index.i, startTime.q, endTime.q)
+  If index <= 0 Or index >= gBatteryGraphCount
+    ProcedureReturn #False
+  EndIf
+  ProcedureReturn Bool(gBatteryGraph(index - 1)\Timestamp <= endTime And gBatteryGraph(index)\Timestamp >= startTime)
+EndProcedure
+
+Procedure.d BatteryGraphSegmentPercentAt(index.i, timestamp.q)
+  Protected startSample.q
+  Protected endSample.q
+  Protected fraction.d
+  If index <= 0 Or index >= gBatteryGraphCount
+    ProcedureReturn 0.0
+  EndIf
+  startSample = gBatteryGraph(index - 1)\Timestamp
+  endSample = gBatteryGraph(index)\Timestamp
+  If endSample <= startSample
+    ProcedureReturn gBatteryGraph(index)\Percent
+  EndIf
+  If timestamp <= startSample
+    ProcedureReturn gBatteryGraph(index - 1)\Percent
+  EndIf
+  If timestamp >= endSample
+    ProcedureReturn gBatteryGraph(index)\Percent
+  EndIf
+  fraction = (timestamp - startSample) * 1.0 / (endSample - startSample)
+  ProcedureReturn gBatteryGraph(index - 1)\Percent + ((gBatteryGraph(index)\Percent - gBatteryGraph(index - 1)\Percent) * fraction)
 EndProcedure
 
 ; Build the Battery Stats tab text from in-memory graph/event data. Active drain
@@ -1571,7 +3059,6 @@ Procedure RefreshBatteryStatsSummary()
   Protected afterIndex.i
   Protected lastGap$
   Protected change.d
-  Protected flatGapSeconds.i = BatteryGraphFlatGapSeconds()
   If IsGadget(#GadgetBatterySessionSummary) = #False
     ProcedureReturn
   EndIf
@@ -1583,7 +3070,7 @@ Procedure RefreshBatteryStatsSummary()
     EndIf
   Next
   If lastEvent$ <> ""
-    session$ = "Last event: " + lastEvent$ + " at " + IsoTimestamp(lastEventTime) + " (" + FormatDurationSeconds(now - lastEventTime) + " ago)"
+    session$ = "Latest event: " + lastEvent$ + " at " + DisplayTimestamp(lastEventTime) + " (" + FormatDurationSeconds(now - lastEventTime) + " ago)"
     beforeIndex = BatteryGraphIndexBefore(lastEventTime)
     afterIndex = BatteryGraphIndexAfter(lastEventTime)
     If beforeIndex >= 0 And afterIndex >= 0 And afterIndex <> beforeIndex
@@ -1591,7 +3078,7 @@ Procedure RefreshBatteryStatsSummary()
       session$ + #CRLF$ + "Battery around event: " + StrD(gBatteryGraph(beforeIndex)\Percent, 1) + "% -> " + StrD(gBatteryGraph(afterIndex)\Percent, 1) + "% (" + StrD(change, 1) + "%)"
     EndIf
   Else
-    session$ = "No power session events recorded yet."
+    session$ = "No sleep, wake, shutdown, or startup event recorded yet."
   EndIf
   ; Daily min/max can include all graph points from today. Active drain below is
   ; more selective because it should reflect awake/on-battery runtime only.
@@ -1603,7 +3090,7 @@ Procedure RefreshBatteryStatsSummary()
     If i > 0 And gBatteryGraph(i)\Timestamp >= dayStart
       elapsed = gBatteryGraph(i)\Timestamp - gBatteryGraph(i - 1)\Timestamp
       If elapsed > 0
-        If BatteryIntervalHasPowerBreak(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp) Or (elapsed > flatGapSeconds And BatteryIntervalHasAppBreak(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp) = #False)
+        If BatteryGraphOfflineGap(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp)
           If gBatteryGraph(i - 1)\Percent > gBatteryGraph(i)\Percent
             change = gBatteryGraph(i - 1)\Percent - gBatteryGraph(i)\Percent
             offLoss + change
@@ -1622,40 +3109,41 @@ Procedure RefreshBatteryStatsSummary()
   If minPct <= 100.0
     daily$ = "Today: " + StrD(minPct, 1) + "% min, " + StrD(maxPct, 1) + "% max, " + FormatDurationSeconds(activeElapsed) + " active battery time"
     If activeElapsed >= 60 And activeDrain > 0.0
-      daily$ + #CRLF$ + "Active drain: " + StrD((activeDrain * 3600.0) / activeElapsed, 1) + "%/h over " + StrD(activeDrain, 1) + "%"
+      daily$ + #CRLF$ + "Avg active drain: " + StrD((activeDrain * 3600.0) / activeElapsed, 1) + "%/h while awake on battery"
+      daily$ + #CRLF$ + "Total battery used today: " + StrD(activeDrain, 1) + "% (recharging can make this over 100%)"
     Else
-      daily$ + #CRLF$ + "Active drain: waiting for more battery samples"
+      daily$ + #CRLF$ + "Active drain: waiting for more on-battery samples"
     EndIf
-    If gBattery\WearPercent >= 0.0
+    If gBatteryStableFullMWh > 0.0 And gBatteryStableDesignMWh > 0.0
+      daily$ + #CRLF$ + "Health: " + StrD(gBatteryStableWearPercent, 1) + "% wear stable, " + Str(gBattery\CycleCount) + " cycles"
+    ElseIf gBattery\WearPercent >= 0.0
       daily$ + #CRLF$ + "Health: " + StrD(gBattery\WearPercent, 1) + "% wear, " + Str(gBattery\CycleCount) + " cycles"
     EndIf
   Else
     daily$ = "Today: waiting for battery samples."
   EndIf
   If offCount > 0
-    off$ = "Off/sleep loss today: " + StrD(offLoss, 1) + "% across " + Str(offCount) + " gap(s)"
+    off$ = "Sleep/off loss today: " + StrD(offLoss, 1) + "% across " + Str(offCount) + " gap(s)"
     If lastGap$ <> ""
       off$ + #CRLF$ + "Latest gap: " + lastGap$
     EndIf
   Else
-    off$ = "Off/sleep loss today: none detected from retained samples."
+    off$ = "Sleep/off loss today: none detected from retained samples."
   EndIf
   SetGadgetText(#GadgetBatterySessionSummary, session$)
   SetGadgetText(#GadgetBatteryDailySummary, daily$)
   SetGadgetText(#GadgetBatteryOffLossSummary, off$)
+  RefreshBatteryAnalysisSummary()
 EndProcedure
 
 ; Rehydrate the graph and break/event arrays from retained CSV rows at startup
 ; so the graph and summaries have useful history before the next scheduled log.
 Procedure LoadBatteryGraphFromLog()
-  Protected file.i
   Protected line$
-  Protected timestamp$
-  Protected timestampValue.q
-  Protected fieldCount.i
-  Protected percent.d
-  Protected connected.i
-  Protected charging.i
+  Protected row.BatteryLogRow
+  Protected lastScreenEvent$
+  Protected screenOnKnown.i
+  Protected screenOn.i
   gBatteryGraphCount = 0
   gBatteryAverageBreakCount = 0
   gBatteryAppBreakCount = 0
@@ -1664,26 +3152,27 @@ Procedure LoadBatteryGraphFromLog()
   If ReadFile(0, BatteryLogPath())
     While Eof(0) = 0
       line$ = ReadString(0)
-      If Left(line$, 9) <> "timestamp" And CountString(line$, ",") >= 3
-        fieldCount = CountString(line$, ",") + 1
-        timestamp$ = StringField(line$, 1, ",")
-        timestampValue = ParseDate("%yyyy-%mm-%ddT%hh:%ii:%ss", timestamp$)
+      If ParseBatteryLogRow(line$, @row)
         ; Event rows become graph/session markers. App rows only become break
         ; points, which prevents reinstall/app restarts from looking like PC
         ; shutdowns or sleep gaps.
-        If fieldCount >= 19 And LCase(StringField(line$, 18, ",")) = "event"
-          AddBatteryEventPoint(timestampValue, StringField(line$, 19, ","))
-          If BatteryEventBreaksAverage(StringField(line$, 19, ","))
-            AddBatteryAverageBreak(timestampValue)
+        If row\RowType = "event"
+          AddBatteryEventPoint(row\Timestamp, row\EventName)
+          If BatteryEventBreaksAverage(row\EventName)
+            AddBatteryAverageBreak(row\Timestamp)
           EndIf
-        ElseIf fieldCount >= 19 And LCase(StringField(line$, 18, ",")) = "app"
-          AddBatteryAverageBreak(timestampValue)
-          AddBatteryAppBreak(timestampValue)
+        ElseIf row\RowType = "app"
+          AddBatteryAverageBreak(row\Timestamp)
+          AddBatteryAppBreak(row\Timestamp)
+        ElseIf row\RowType = "screen"
+          lastScreenEvent$ = LCase(row\ScreenEvent)
+        ElseIf row\RowType = "energy" Or row\RowType = "test"
+          Continue
         Else
-          percent = ValD(StringField(line$, 2, ","))
-          connected = Val(StringField(line$, 3, ","))
-          charging = Val(StringField(line$, 4, ","))
-          AddBatteryGraphPoint(timestampValue, percent, connected, charging)
+          screenOnKnown = Bool(lastScreenEvent$ = "screen off" Or lastScreenEvent$ = "screen on" Or lastScreenEvent$ = "screen dimmed")
+          screenOn = Bool(lastScreenEvent$ = "screen on" Or lastScreenEvent$ = "screen dimmed")
+          UpdateBatteryCapacityHealth(row\Timestamp, row\FullMWh, row\DesignMWh)
+          AddBatteryGraphPoint(row\Timestamp, row\BatteryPercent, row\Connected, row\Charging, row\EnergySaverOn, row\DisconnectedBattery, row\RemainingMWh, row\FullMWh, row\DischargeRateMW, row\ChargeRateMW, screenOnKnown, screenOn, row\ScreenBrightnessPercent)
         EndIf
       EndIf
     Wend
@@ -1864,26 +3353,338 @@ Procedure CleanupAppCloseShutdownEvents(bootTime.q)
   EndIf
 EndProcedure
 
+Procedure RecalculateBatteryPowerEstimates(now.q)
+  Protected i.i
+  Protected elapsed.q
+  Protected watts.d
+  Protected deltaMWh.d
+  Protected category.i
+  Protected maxInterval.i = BatteryGraphFlatGapSeconds()
+  Protected runtimeFullMWh.d = BatteryRuntimeFullMWh()
+  Protected normalCount.i
+  Protected offCount.i
+  Protected lowCount.i
+  Protected activeCount.i
+  Protected highCount.i
+  Dim normalWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim offWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim lowWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim activeWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim highWatts.d(#BatteryRollingMaxSamples - 1)
+  If gBatteryGraphCount < 2
+    ProcedureReturn
+  EndIf
+  For i = gBatteryGraphCount - 1 To 1 Step -1
+    If gBatteryGraph(i)\Timestamp < now - (ClampInt(gSettings\BatterySmoothingMinutes, 5, 240) * 60)
+      Break
+    EndIf
+    If gBatteryGraph(i - 1)\Phase <> #BatteryPhaseOnBatteryNormal Or gBatteryGraph(i)\Phase <> #BatteryPhaseOnBatteryNormal
+      Continue
+    EndIf
+    elapsed = gBatteryGraph(i)\Timestamp - gBatteryGraph(i - 1)\Timestamp
+    If elapsed < 10 Or elapsed > maxInterval
+      Continue
+    EndIf
+    If BatteryIntervalHasAverageBreak(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp) Or BatteryIntervalHasAppBreak(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp)
+      Continue
+    EndIf
+    deltaMWh = gBatteryGraph(i - 1)\RemainingMWh - gBatteryGraph(i)\RemainingMWh
+    If deltaMWh <= 0.0 And runtimeFullMWh > 0.0 And gBatteryGraph(i - 1)\Percent > gBatteryGraph(i)\Percent
+      deltaMWh = ((gBatteryGraph(i - 1)\Percent - gBatteryGraph(i)\Percent) / 100.0) * runtimeFullMWh
+    EndIf
+    If deltaMWh <= 0.0
+      Continue
+    EndIf
+    watts = (deltaMWh / (elapsed / 3600.0)) / 1000.0
+    If watts <= 0.0 Or watts > 60.0
+      Continue
+    EndIf
+    category = BatteryUseCategory(gBatteryGraph(i)\ScreenOnKnown, gBatteryGraph(i)\ScreenOn, gBatteryGraph(i)\BrightnessPercent, watts, gBatteryGraph(i)\EnergySaverOn)
+    If watts < 15.0 And normalCount < #BatteryRollingMaxSamples
+      normalWatts(normalCount) = watts
+      normalCount + 1
+    EndIf
+    Select category
+      Case #BatteryUseScreenOff
+        If offCount < #BatteryRollingMaxSamples
+          offWatts(offCount) = watts
+          offCount + 1
+        EndIf
+      Case #BatteryUseLowBrightness
+        If lowCount < #BatteryRollingMaxSamples
+          lowWatts(lowCount) = watts
+          lowCount + 1
+        EndIf
+      Case #BatteryUseHighLoad
+        If highCount < #BatteryRollingMaxSamples
+          highWatts(highCount) = watts
+          highCount + 1
+        EndIf
+      Default
+        If activeCount < #BatteryRollingMaxSamples
+          activeWatts(activeCount) = watts
+          activeCount + 1
+        EndIf
+    EndSelect
+  Next
+  SetBatteryEstimate(@gBatteryNormalEstimate, RobustAverageWatts(normalWatts(), normalCount), normalCount)
+  SetBatteryEstimate(@gBatteryScreenOffEstimate, RobustAverageWatts(offWatts(), offCount), offCount)
+  SetBatteryEstimate(@gBatteryLowBrightnessEstimate, RobustAverageWatts(lowWatts(), lowCount), lowCount)
+  SetBatteryEstimate(@gBatteryActiveEstimate, RobustAverageWatts(activeWatts(), activeCount), activeCount)
+  SetBatteryEstimate(@gBatteryHighLoadEstimate, RobustAverageWatts(highWatts(), highCount), highCount)
+EndProcedure
+
+Procedure.d BatteryPreferredRuntimeWatts()
+  Protected measuredW.d
+  Protected category.i
+  If gBattery\DischargeRateMW > 0.0
+    measuredW = gBattery\DischargeRateMW / 1000.0
+  EndIf
+  category = BatteryUseCategory(BatteryCurrentScreenOnKnown(), BatteryCurrentScreenOn(), gLastScreenBrightnessPercent, measuredW, gBattery\EnergySaverOn)
+  Select category
+    Case #BatteryUseScreenOff
+      If gBatteryScreenOffEstimate\Valid : ProcedureReturn gBatteryScreenOffEstimate\Watts : EndIf
+    Case #BatteryUseLowBrightness
+      If gBatteryLowBrightnessEstimate\Valid : ProcedureReturn gBatteryLowBrightnessEstimate\Watts : EndIf
+    Case #BatteryUseHighLoad
+      If gBatteryHighLoadEstimate\Valid : ProcedureReturn gBatteryHighLoadEstimate\Watts : EndIf
+    Default
+      If gBatteryActiveEstimate\Valid : ProcedureReturn gBatteryActiveEstimate\Watts : EndIf
+  EndSelect
+  If gBatteryNormalEstimate\Valid
+    ProcedureReturn gBatteryNormalEstimate\Watts
+  EndIf
+  If gBatteryActiveEstimate\Valid
+    ProcedureReturn gBatteryActiveEstimate\Watts
+  EndIf
+  If measuredW > 0.0 And measuredW < 15.0
+    ProcedureReturn measuredW
+  EndIf
+  ProcedureReturn 0.0
+EndProcedure
+
+Procedure.i BuildBatteryAnalysisFromLog(*analysis.BatteryAnalysis)
+  Protected line$
+  Protected row.BatteryLogRow
+  Protected previous.BatteryLogRow
+  Protected hasPrevious.i
+  Protected lastScreenEvent$
+  Protected screenOnKnown.i
+  Protected screenOn.i
+  Protected elapsed.q
+  Protected deltaMWh.d
+  Protected watts.d
+  Protected category.i
+  Protected normalCount.i
+  Protected offCount.i
+  Protected onCount.i
+  Protected chargeCount.i
+  Protected fullClusterCount.i
+  Protected stableFull.d
+  Protected clusterFull.d
+  Protected recalCount.i
+  Protected calibrationActive.i
+  Protected plateauCount.i
+  Dim normalWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim offWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim onWatts.d(#BatteryRollingMaxSamples - 1)
+  Dim chargeWatts.d(#BatteryRollingMaxSamples - 1)
+  If *analysis = 0
+    ProcedureReturn #False
+  EndIf
+  InitializeStructure(*analysis, BatteryAnalysis)
+  If ReadFile(0, BatteryLogPath()) = 0
+    ProcedureReturn #False
+  EndIf
+  While Eof(0) = 0
+    line$ = ReadString(0)
+    If ParseBatteryLogRow(line$, @row) = #False
+      Continue
+    EndIf
+    If row\DesignMWh > 0.0
+      *analysis\DesignMWh = row\DesignMWh
+    EndIf
+    If row\RowType = "screen"
+      lastScreenEvent$ = LCase(row\ScreenEvent)
+      Continue
+    EndIf
+    If row\RowType = "test"
+      hasPrevious = #False
+      Continue
+    EndIf
+    If row\RowType = "app" Or row\RowType = "event"
+      hasPrevious = #False
+      Continue
+    EndIf
+    If row\RowType <> "battery"
+      Continue
+    EndIf
+    If row\FullMWh > 0.0
+      If stableFull <= 0.0
+        stableFull = row\FullMWh
+        clusterFull = row\FullMWh
+        fullClusterCount = 1
+      ElseIf Abs(row\FullMWh - clusterFull) / clusterFull <= #BatteryCapacityRecalibrationThreshold
+        clusterFull = ((clusterFull * fullClusterCount) + row\FullMWh) / (fullClusterCount + 1)
+        fullClusterCount + 1
+        If fullClusterCount >= #BatteryStableCapacityMinSamples
+          stableFull = clusterFull
+        EndIf
+      Else
+        recalCount + 1
+        clusterFull = row\FullMWh
+        fullClusterCount = 1
+      EndIf
+    EndIf
+    If row\Phase = #BatteryPhasePluggedDischargingCalibration And calibrationActive = #False
+      *analysis\CalibrationSessions + 1
+      calibrationActive = #True
+    ElseIf row\Phase <> #BatteryPhasePluggedDischargingCalibration
+      calibrationActive = #False
+    EndIf
+    screenOnKnown = Bool(lastScreenEvent$ = "screen off" Or lastScreenEvent$ = "screen on" Or lastScreenEvent$ = "screen dimmed")
+    screenOn = Bool(lastScreenEvent$ = "screen on" Or lastScreenEvent$ = "screen dimmed")
+    If hasPrevious And previous\Phase = #BatteryPhaseOnBatteryNormal And row\Phase = #BatteryPhaseOnBatteryNormal
+      elapsed = row\Timestamp - previous\Timestamp
+      If elapsed >= 10 And elapsed <= BatteryGraphFlatGapSeconds()
+        deltaMWh = previous\RemainingMWh - row\RemainingMWh
+        If deltaMWh <= 0.0 And stableFull > 0.0 And previous\BatteryPercent > row\BatteryPercent
+          deltaMWh = ((previous\BatteryPercent - row\BatteryPercent) / 100.0) * stableFull
+        EndIf
+        If deltaMWh > 0.0
+          watts = (deltaMWh / (elapsed / 3600.0)) / 1000.0
+          If watts > 0.0 And watts < 60.0
+            category = BatteryUseCategory(screenOnKnown, screenOn, row\ScreenBrightnessPercent, watts, row\EnergySaverOn)
+            If watts < 15.0 And normalCount < #BatteryRollingMaxSamples
+              normalWatts(normalCount) = watts
+              normalCount + 1
+            EndIf
+            If category = #BatteryUseScreenOff And offCount < #BatteryRollingMaxSamples
+              offWatts(offCount) = watts
+              offCount + 1
+            ElseIf category <> #BatteryUseScreenOff And category <> #BatteryUseHighLoad And onCount < #BatteryRollingMaxSamples
+              onWatts(onCount) = watts
+              onCount + 1
+            EndIf
+          EndIf
+        ElseIf row\BatteryPercent < #BatteryLowGaugePercent And previous\DischargeRateMW > 0.0 And Abs(previous\BatteryPercent - row\BatteryPercent) < 0.02 And Abs(previous\RemainingMWh - row\RemainingMWh) < 1.0
+          plateauCount + 1
+        Else
+          plateauCount = 0
+        EndIf
+      EndIf
+    ElseIf hasPrevious And previous\Phase = #BatteryPhaseCharging And row\Phase = #BatteryPhaseCharging
+      elapsed = row\Timestamp - previous\Timestamp
+      If elapsed >= 10 And elapsed <= BatteryGraphFlatGapSeconds()
+        deltaMWh = row\RemainingMWh - previous\RemainingMWh
+        If deltaMWh > 0.0
+          watts = (deltaMWh / (elapsed / 3600.0)) / 1000.0
+          If watts > 0.0 And watts < 120.0 And chargeCount < #BatteryRollingMaxSamples
+            chargeWatts(chargeCount) = watts
+            chargeCount + 1
+          EndIf
+        EndIf
+      EndIf
+    EndIf
+    If plateauCount >= 2
+      *analysis\LowBatteryPlateau = #True
+    EndIf
+    previous = row
+    hasPrevious = #True
+  Wend
+  CloseFile(0)
+  *analysis\LatestStableFullMWh = stableFull
+  *analysis\RecalibrationCount = recalCount
+  *analysis\NormalWatts = RobustAverageWatts(normalWatts(), normalCount)
+  *analysis\ScreenOffWatts = RobustAverageWatts(offWatts(), offCount)
+  *analysis\ScreenOnWatts = RobustAverageWatts(onWatts(), onCount)
+  *analysis\ChargingWatts = RobustAverageWatts(chargeWatts(), chargeCount)
+  *analysis\ChargingSamples = chargeCount
+  If *analysis\LatestStableFullMWh <= 0.0
+    *analysis\LatestStableFullMWh = gBatteryStableFullMWh
+  EndIf
+  If *analysis\DesignMWh <= 0.0
+    *analysis\DesignMWh = gBatteryStableDesignMWh
+  EndIf
+  If *analysis\LatestStableFullMWh > 0.0 And *analysis\DesignMWh > 0.0
+    *analysis\WearPercent = 100.0 - ((*analysis\LatestStableFullMWh / *analysis\DesignMWh) * 100.0)
+    If *analysis\WearPercent < 0.0 : *analysis\WearPercent = 0.0 : EndIf
+  EndIf
+  If *analysis\LatestStableFullMWh > 0.0 And *analysis\ScreenOffWatts > 0.0
+    *analysis\LowPowerRuntimeMinutes = ((*analysis\LatestStableFullMWh / 1000.0) / *analysis\ScreenOffWatts) * 60.0
+  EndIf
+  If *analysis\LatestStableFullMWh > 0.0 And *analysis\ScreenOnWatts > 0.0
+    *analysis\ActiveRuntimeMinutes = ((*analysis\LatestStableFullMWh / 1000.0) / *analysis\ScreenOnWatts) * 60.0
+  EndIf
+  If *analysis\LowBatteryPlateau
+    *analysis\Warnings = "Low-battery gauge plateau detected; estimate may be unreliable."
+  EndIf
+  If recalCount > 0
+    If *analysis\Warnings <> "" : *analysis\Warnings + " " : EndIf
+    *analysis\Warnings + "Capacity gauge recalibration detected."
+  EndIf
+  If *analysis\LatestStableFullMWh > 0.0
+    UpdateBatteryCapacityHealth(Date(), *analysis\LatestStableFullMWh, *analysis\DesignMWh)
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.s FormatWh(mWh.d)
+  If mWh <= 0.0
+    ProcedureReturn "Unknown"
+  EndIf
+  ProcedureReturn StrD(mWh / 1000.0, 1) + " Wh"
+EndProcedure
+
+Procedure.s FormatWattsOrUnknown(watts.d)
+  If watts <= 0.0
+    ProcedureReturn "Unknown"
+  EndIf
+  ProcedureReturn StrD(watts, 1) + " W"
+EndProcedure
+
+Procedure RefreshBatteryAnalysisSummary()
+  Protected analysis.BatteryAnalysis
+  Protected text$
+  If IsGadget(#GadgetBatteryAnalysisSummary) = #False
+    ProcedureReturn
+  EndIf
+  If BuildBatteryAnalysisFromLog(@analysis) = #False
+    SetGadgetTextIfChanged(#GadgetBatteryAnalysisSummary, "Waiting for retained battery rows.")
+    ProcedureReturn
+  EndIf
+  text$ = "Stable full: " + FormatWh(analysis\LatestStableFullMWh) + " / design " + FormatWh(analysis\DesignMWh)
+  If analysis\WearPercent > 0.0
+    text$ + ", wear " + StrD(analysis\WearPercent, 1) + "%"
+  EndIf
+  text$ + #CRLF$ + "Normal: " + FormatWattsOrUnknown(analysis\NormalWatts) + " avg, screen off " + FormatWattsOrUnknown(analysis\ScreenOffWatts) + ", screen on " + FormatWattsOrUnknown(analysis\ScreenOnWatts)
+  text$ + #CRLF$ + "Runtime: low power " + FormatBatteryMinutes(analysis\LowPowerRuntimeMinutes) + ", active " + FormatBatteryMinutes(analysis\ActiveRuntimeMinutes)
+  text$ + #CRLF$ + "Calibration sessions: " + Str(analysis\CalibrationSessions) + ", recalibrations: " + Str(analysis\RecalibrationCount)
+  text$ + #CRLF$ + "Charging curve: " + FormatWattsOrUnknown(analysis\ChargingWatts) + " avg from " + Str(analysis\ChargingSamples) + " span(s)"
+  If gBattery\EstimateLowConfidence And analysis\Warnings = ""
+    analysis\Warnings = "Low-battery gauge plateau detected; estimate may be unreliable."
+  EndIf
+  If analysis\Warnings <> ""
+    text$ + #CRLF$ + analysis\Warnings
+  EndIf
+  SetGadgetTextIfChanged(#GadgetBatteryAnalysisSummary, text$)
+EndProcedure
+
 ; Learn an initial drain rate from retained history. Only continuous on-battery
 ; sample spans count; power/app/event breaks and large gaps are skipped.
 Procedure.d BatteryFullLogDrainPctPerHour()
   Protected file.i
   Protected line$
-  Protected fieldCount.i
-  Protected rowType$
-  Protected timestamp.q
+  Protected row.BatteryLogRow
+  Protected previous.BatteryLogRow
   Protected previousTime.q
   Protected elapsed.q
-  Protected percent.d
-  Protected previousPercent.d
-  Protected connected.i
-  Protected previousConnected.i
-  Protected charging.i
-  Protected previousCharging.i
   Protected hasPrevious.i
   Protected activeElapsed.q
-  Protected drainTotal.d
-  Protected intervalDrain.d
+  Protected drainMWhTotal.d
+  Protected intervalMWh.d
+  Protected runtimeFullMWh.d
+  Protected drainPctPerHour.d
   Protected maxGap.i = BatteryGraphFlatGapSeconds()
   PruneBatteryLog()
   file = ReadFile(#PB_Any, BatteryLogPath())
@@ -1892,48 +3693,47 @@ Procedure.d BatteryFullLogDrainPctPerHour()
   EndIf
   While Eof(file) = 0
     line$ = ReadString(file)
-    If Left(line$, 9) = "timestamp" Or Trim(line$) = ""
+    If ParseBatteryLogRow(line$, @row) = #False
       Continue
     EndIf
-    fieldCount = CountString(line$, ",") + 1
-    rowType$ = ""
-    If fieldCount >= 19
-      rowType$ = LCase(StringField(line$, 18, ","))
-    EndIf
-    If rowType$ = "event" Or rowType$ = "app"
+    If row\RowType = "event" Or row\RowType = "app"
       hasPrevious = #False
       Continue
     EndIf
-    If CountString(line$, ",") < 3
+    If row\RowType = "screen" Or row\RowType = "energy" Or row\RowType = "test"
       Continue
     EndIf
-    timestamp = ParseDate("%yyyy-%mm-%ddT%hh:%ii:%ss", StringField(line$, 1, ","))
-    percent = ValD(StringField(line$, 2, ","))
-    connected = Val(StringField(line$, 3, ","))
-    charging = Val(StringField(line$, 4, ","))
-    If timestamp <= 0 Or percent <= 0.0
+    If row\Timestamp <= 0 Or row\BatteryPercent <= 0.0
       hasPrevious = #False
       Continue
     EndIf
-    If hasPrevious And previousConnected = #False And connected = #False And previousCharging = #False And charging = #False
-      elapsed = timestamp - previousTime
+    If hasPrevious And previous\Phase = #BatteryPhaseOnBatteryNormal And row\Phase = #BatteryPhaseOnBatteryNormal
+      elapsed = row\Timestamp - previousTime
       If elapsed >= 10 And elapsed <= maxGap
-        intervalDrain = previousPercent - percent
-        If intervalDrain > 0.0 And intervalDrain < 20.0
-          drainTotal + intervalDrain
+        intervalMWh = previous\RemainingMWh - row\RemainingMWh
+        If intervalMWh <= 0.0 And previous\FullMWh > 0.0 And previous\BatteryPercent > row\BatteryPercent
+          intervalMWh = ((previous\BatteryPercent - row\BatteryPercent) / 100.0) * previous\FullMWh
+        EndIf
+        If intervalMWh > 0.0 And intervalMWh < 12000.0
+          drainMWhTotal + intervalMWh
           activeElapsed + elapsed
         EndIf
       EndIf
     EndIf
-    previousTime = timestamp
-    previousPercent = percent
-    previousConnected = connected
-    previousCharging = charging
+    previousTime = row\Timestamp
+    previous = row
     hasPrevious = #True
   Wend
   CloseFile(file)
-  If activeElapsed >= 300 And drainTotal > 0.0
-    ProcedureReturn (drainTotal * 3600.0) / activeElapsed
+  runtimeFullMWh = BatteryRuntimeFullMWh()
+  If runtimeFullMWh <= 0.0 And gBattery\FullMWh > 0.0
+    runtimeFullMWh = gBattery\FullMWh
+  EndIf
+  If activeElapsed >= 300 And drainMWhTotal > 0.0 And runtimeFullMWh > 0.0
+    drainPctPerHour = ((drainMWhTotal * 3600.0) / activeElapsed / runtimeFullMWh) * 100.0
+    If drainPctPerHour > 0.0 And drainPctPerHour < 200.0
+      ProcedureReturn drainPctPerHour
+    EndIf
   EndIf
   ProcedureReturn 0.0
 EndProcedure
@@ -1954,6 +3754,33 @@ Procedure AutoSetInitialBatteryDrainFromLog()
   EndIf
 EndProcedure
 
+Procedure.i BatteryAppEventDebounceSeconds(eventName$)
+  Protected lower$ = LCase(eventName$)
+  If lower$ = "powerpilot start" Or lower$ = "powerpilot update close" Or Left(lower$, 8) = "cleaned "
+    ProcedureReturn 60
+  EndIf
+  ProcedureReturn 0
+EndProcedure
+
+Procedure.i RecentBatteryAppEvent(eventName$, seconds.i)
+  Protected line$
+  Protected row.BatteryLogRow
+  Protected latest.q
+  If seconds <= 0 Or FileSize(BatteryLogPath()) <= 0
+    ProcedureReturn #False
+  EndIf
+  If ReadFile(0, BatteryLogPath())
+    While Eof(0) = 0
+      line$ = ReadString(0)
+      If ParseBatteryLogRow(line$, @row) And row\RowType = "app" And LCase(row\EventName) = LCase(eventName$)
+        latest = row\Timestamp
+      EndIf
+    Wend
+    CloseFile(0)
+  EndIf
+  ProcedureReturn Bool(latest > 0 And Date() - latest <= seconds)
+EndProcedure
+
 ; App rows include lifecycle and short status messages. They reset averages and
 ; appear in the PowerPilot Log, but are not PC power events.
 Procedure WriteBatteryAppEvent(eventName$)
@@ -1967,7 +3794,11 @@ Procedure WriteBatteryAppEvent(eventName$)
   If eventName$ = ""
     ProcedureReturn
   EndIf
+  If RecentBatteryAppEvent(eventName$, BatteryAppEventDebounceSeconds(eventName$))
+    ProcedureReturn
+  EndIf
   EnsureSettingsDirectory()
+  EnsureBatteryLogHeaderCurrent()
   writeHeader = Bool(FileSize(path$) <= 0)
   file = OpenFile(#PB_Any, path$)
   If file
@@ -1979,7 +3810,7 @@ Procedure WriteBatteryAppEvent(eventName$)
     For i = 1 To 17
       line$ + ","
     Next
-    line$ + "app," + eventName$
+    line$ + "app," + eventName$ + ",,,"
     WriteStringN(file, line$)
     CloseFile(file)
     AddBatteryAverageBreak(timestamp)
@@ -2004,6 +3835,7 @@ Procedure WriteBatteryEvent(eventName$)
     ProcedureReturn
   EndIf
   EnsureSettingsDirectory()
+  EnsureBatteryLogHeaderCurrent()
   writeHeader = Bool(FileSize(path$) <= 0)
   file = OpenFile(#PB_Any, path$)
   If file
@@ -2015,7 +3847,7 @@ Procedure WriteBatteryEvent(eventName$)
     For i = 1 To 17
       line$ + ","
     Next
-    line$ + "event," + eventName$
+    line$ + "event," + eventName$ + ",,,"
     WriteStringN(file, line$)
     CloseFile(file)
     AddBatteryEventPoint(timestamp, eventName$)
@@ -2027,6 +3859,1081 @@ Procedure WriteBatteryEvent(eventName$)
     RefreshBatteryLogPreview()
     RefreshBatteryStatsSummary()
   EndIf
+EndProcedure
+
+; Screen rows capture display state transitions without treating them as PC
+; sleep/shutdown events or app breaks. Brightness is the last scheduled sample.
+Procedure WriteBatteryScreenEvent(eventName$)
+  Protected path$ = BatteryLogPath()
+  Protected file.i
+  Protected writeHeader.i
+  Protected line$
+  Protected timestamp.q = Date()
+  Protected i.i
+  eventName$ = CleanBatteryEventName(eventName$)
+  If eventName$ = "" Or eventName$ = gLastScreenEvent$
+    ProcedureReturn
+  EndIf
+  EnsureSettingsDirectory()
+  EnsureBatteryLogHeaderCurrent()
+  writeHeader = Bool(FileSize(path$) <= 0)
+  file = OpenFile(#PB_Any, path$)
+  If file
+    FileSeek(file, Lof(file))
+    If writeHeader
+      WriteStringN(file, BatteryLogHeader())
+    EndIf
+    line$ = IsoTimestamp(timestamp)
+    For i = 1 To 17
+      line$ + ","
+    Next
+    line$ + "screen,," + eventName$ + "," + BatteryLogBrightnessText() + ","
+    WriteStringN(file, line$)
+    CloseFile(file)
+    gLastScreenEvent$ = eventName$
+    PruneBatteryLog()
+    RefreshBatteryLogPreview()
+  EndIf
+EndProcedure
+
+; Energy Saver rows show when Windows Energy Saver turns on/off. They do not
+; break battery averages because the laptop is still awake and measurable.
+Procedure WriteBatteryEnergySaverEvent(energySaverOn.i)
+  Protected path$ = BatteryLogPath()
+  Protected file.i
+  Protected writeHeader.i
+  Protected line$
+  Protected timestamp.q = Date()
+  Protected i.i
+  Protected eventName$
+  energySaverOn = Bool(energySaverOn)
+  If energySaverOn
+    eventName$ = "Energy Saver on"
+  Else
+    eventName$ = "Energy Saver off"
+  EndIf
+  EnsureSettingsDirectory()
+  EnsureBatteryLogHeaderCurrent()
+  writeHeader = Bool(FileSize(path$) <= 0)
+  file = OpenFile(#PB_Any, path$)
+  If file
+    FileSeek(file, Lof(file))
+    If writeHeader
+      WriteStringN(file, BatteryLogHeader())
+    EndIf
+    line$ = IsoTimestamp(timestamp)
+    For i = 1 To 17
+      line$ + ","
+    Next
+    line$ + "energy," + eventName$ + ",,," + Str(energySaverOn)
+    WriteStringN(file, line$)
+    CloseFile(file)
+    PruneBatteryLog()
+    RefreshBatteryLogPreview()
+  EndIf
+EndProcedure
+
+Procedure ResetBatteryTestWorkflowState()
+  gBatteryTestLenovoReset = #False
+  gBatteryTestLenovoSawPluggedDrain = #False
+  gBatteryTestLenovoSawCharging = #False
+  gBatteryTestVendorAuto = #False
+EndProcedure
+
+Procedure BeginBatteryTestSession(workflow$)
+  If gBattery\Valid = #False
+    RefreshBattery(#True)
+  EndIf
+  gBatteryTestActive = #True
+  gBatteryTestHasSummary = #False
+  gBatteryTestWorkflow$ = workflow$
+  gBatteryTestReportPath$ = ""
+  gBatteryTestStartTime = Date()
+  If gBattery\Valid
+    gBatteryTestStartTime = gBattery\Timestamp
+    gBatteryTestStartPercent = gBattery\Percent
+    gBatteryTestStartRemainingMWh = gBattery\RemainingMWh
+    gBatteryTestLastRemainingMWh = gBattery\RemainingMWh
+  Else
+    gBatteryTestStartPercent = 0.0
+    gBatteryTestStartRemainingMWh = 0.0
+    gBatteryTestLastRemainingMWh = 0.0
+  EndIf
+  gBatteryTestEndTime = 0
+  gBatteryTestEndPercent = gBatteryTestStartPercent
+  gBatteryTestEndRemainingMWh = gBatteryTestStartRemainingMWh
+  gBatteryTestLastTime = gBatteryTestStartTime
+  gBatteryTestLastLogTime = gBatteryTestStartTime
+  gBatteryTestUsedMWh = 0.0
+  gBatteryTestChargedMWh = 0.0
+  gBatteryTestDischargeSeconds = 0
+  gBatteryTestChargeSeconds = 0
+  gBatteryTestDischargeWattSeconds = 0.0
+  gBatteryTestChargeWattSeconds = 0.0
+EndProcedure
+
+Procedure.s BatteryTestPhase()
+  If gBatteryTestActive = #False And gBatteryTestHasSummary
+    ProcedureReturn "Complete"
+  EndIf
+  If gBattery\Valid = #False
+    ProcedureReturn "Idle"
+  EndIf
+  If gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False
+    ProcedureReturn "Plugged in, discharging"
+  EndIf
+  If gBattery\Charging
+    ProcedureReturn "Charging"
+  EndIf
+  If gBattery\Connected = #False And gBattery\DisconnectedBattery
+    ProcedureReturn "On battery"
+  EndIf
+  ProcedureReturn "Idle"
+EndProcedure
+
+Procedure.s BatteryTestMode()
+  If gBatteryTestActive = #False And gBatteryTestHasSummary
+    If gBatteryTestWorkflow$ = "Lenovo calibration reset"
+      ProcedureReturn "Lenovo reset complete"
+    EndIf
+    ProcedureReturn "Complete"
+  EndIf
+  If gBatteryTestActive And gBatteryTestWorkflow$ <> ""
+    ProcedureReturn gBatteryTestWorkflow$
+  EndIf
+  If gBattery\Valid = #False
+    ProcedureReturn "Monitor"
+  EndIf
+  If gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False
+    ProcedureReturn "Vendor calibration detected"
+  EndIf
+  If gBatteryTestActive And gBattery\Charging
+    ProcedureReturn "Charge recovery"
+  EndIf
+  If gBatteryTestActive
+    ProcedureReturn "Manual discharge test"
+  EndIf
+  ProcedureReturn "Monitor"
+EndProcedure
+
+Procedure.s BatteryTestGuide()
+  Protected mode$ = BatteryTestMode()
+  If mode$ = "Complete" Or mode$ = "Lenovo reset complete"
+    If gBatteryTestReportPath$ <> ""
+      ProcedureReturn "Review the summary, copy it, or open the saved report."
+    EndIf
+    ProcedureReturn "Review the summary or copy the report."
+  EndIf
+  If mode$ = "Lenovo calibration reset"
+    If gBattery\Valid = #False
+      ProcedureReturn "Waiting for battery data."
+    EndIf
+    If gBattery\Connected = #False
+      ProcedureReturn "Waiting for the charger. Keep Lenovo calibration selected."
+    EndIf
+    If gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False
+      ProcedureReturn "Lenovo plugged-in discharge is active. PowerPilot is controlling drain load."
+    EndIf
+    If gBattery\Charging
+      ProcedureReturn "Charge recovery is running. PowerPilot has stopped the drain helper."
+    EndIf
+    If gBatteryTestLenovoSawCharging
+      ProcedureReturn "Waiting for Lenovo to finish at idle after charging."
+    EndIf
+    ProcedureReturn "Waiting for Lenovo to enter plugged-in discharge mode."
+  EndIf
+  If mode$ = "Vendor calibration detected"
+    ProcedureReturn "PowerPilot is watching the plugged-in discharge phase. Keep Lenovo calibration running."
+  EndIf
+  If mode$ = "Charge recovery"
+    ProcedureReturn "Charging is being tracked back to the configured full target."
+  EndIf
+  If mode$ = "Manual discharge test"
+    If gBattery\Valid = #False
+      ProcedureReturn "Waiting for battery data."
+    EndIf
+    If gBattery\Connected And gBattery\Charging = #False And gBattery\DisconnectedBattery = #False
+      ProcedureReturn "Unplug the charger to begin the discharge part."
+    EndIf
+    If gBattery\DisconnectedBattery
+      ProcedureReturn "Let the laptop discharge, then plug it in to track charge recovery."
+    EndIf
+    If gBattery\Charging
+      ProcedureReturn "Charge recovery is being tracked back to the configured full target."
+    EndIf
+  EndIf
+  ProcedureReturn "Start a manual test, or leave this open while vendor calibration runs."
+EndProcedure
+
+Procedure.s BatteryTestElapsedText(seconds.q)
+  If seconds < 0
+    seconds = 0
+  EndIf
+  ProcedureReturn FormatBatteryMinutes(seconds / 60)
+EndProcedure
+
+Procedure.d BatteryTestAverageDischargeWatts()
+  If gBatteryTestDischargeSeconds <= 0
+    ProcedureReturn 0.0
+  EndIf
+  If gBatteryTestDischargeWattSeconds > 0.0
+    ProcedureReturn gBatteryTestDischargeWattSeconds / gBatteryTestDischargeSeconds
+  EndIf
+  ProcedureReturn (gBatteryTestUsedMWh * 3.6) / gBatteryTestDischargeSeconds
+EndProcedure
+
+Procedure.d BatteryTestAverageChargeWatts()
+  If gBatteryTestChargeSeconds <= 0
+    ProcedureReturn 0.0
+  EndIf
+  If gBatteryTestChargeWattSeconds > 0.0
+    ProcedureReturn gBatteryTestChargeWattSeconds / gBatteryTestChargeSeconds
+  EndIf
+  ProcedureReturn (gBatteryTestChargedMWh * 3.6) / gBatteryTestChargeSeconds
+EndProcedure
+
+Procedure.d BatteryTestUsableMWh()
+  Protected usableMWh.d
+  Protected floorMWh.d
+  Protected percent.d
+  Protected runtimeFullMWh.d = BatteryRuntimeFullMWh()
+  If gBattery\Valid = #False
+    ProcedureReturn 0.0
+  EndIf
+  If runtimeFullMWh > 0.0
+    usableMWh = ((gBattery\Percent - gSettings\BatteryMinPercent) / 100.0) * runtimeFullMWh
+  Else
+    percent = gBattery\Percent
+    If percent < 1.0
+      percent = 1.0
+    EndIf
+    floorMWh = gBattery\RemainingMWh * (gSettings\BatteryMinPercent / percent)
+    usableMWh = gBattery\RemainingMWh - floorMWh
+  EndIf
+  If usableMWh < 0.0
+    usableMWh = 0.0
+  EndIf
+  ProcedureReturn usableMWh
+EndProcedure
+
+Procedure.d BatteryTestCurrentDischargeWatts()
+  If gBattery\Valid = #False Or gBattery\DisconnectedBattery = #False Or gBattery\Charging
+    ProcedureReturn 0.0
+  EndIf
+  If gBattery\DischargeRateMW > 0.0
+    ProcedureReturn gBattery\DischargeRateMW / 1000.0
+  EndIf
+  ProcedureReturn 0.0
+EndProcedure
+
+Procedure.i BatteryTestFastEstimateMinutes()
+  Protected watts.d = BatteryTestCurrentDischargeWatts()
+  Protected usableMWh.d = BatteryTestUsableMWh()
+  If watts <= 0.0 Or usableMWh <= 0.0
+    ProcedureReturn -1
+  EndIf
+  ProcedureReturn ((usableMWh / 1000.0) / watts) * 60.0
+EndProcedure
+
+Procedure.s BatteryTestCapacityNotes()
+  Protected health.d
+  Protected observed.d
+  Protected notes$
+  Protected runtimeFullMWh.d = BatteryRuntimeFullMWh()
+  If runtimeFullMWh > 0.0 And gBatteryStableDesignMWh > 0.0
+    health = (runtimeFullMWh / gBatteryStableDesignMWh) * 100.0
+    notes$ = StrD(runtimeFullMWh, 0) + " / " + StrD(gBatteryStableDesignMWh, 0) + " mWh stable, " + StrD(health, 1) + "% of design"
+    If gBatteryCapacityRecalibrationDetected
+      notes$ + #CRLF$ + "Recent full-charge jumps are labeled as capacity gauge recalibration."
+    EndIf
+  ElseIf gBattery\FullMWh > 0.0 And gBattery\DesignMWh > 0.0
+    health = (gBattery\FullMWh / gBattery\DesignMWh) * 100.0
+    notes$ = StrD(gBattery\FullMWh, 0) + " / " + StrD(gBattery\DesignMWh, 0) + " mWh, " + StrD(health, 1) + "% of design"
+  ElseIf gBattery\FullMWh > 0.0
+    notes$ = "Full-charge capacity " + StrD(gBattery\FullMWh, 0) + " mWh. Design capacity unavailable."
+  Else
+    notes$ = "Full/design capacity unavailable from Windows."
+  EndIf
+  If runtimeFullMWh > 0.0 And (gBatteryTestUsedMWh > 0.0 Or gBatteryTestChargedMWh > 0.0)
+    observed = ((gBatteryTestUsedMWh + gBatteryTestChargedMWh) / runtimeFullMWh) * 100.0
+    notes$ + #CRLF$ + "Observed movement: about " + StrD(observed, 1) + "% of full capacity"
+  EndIf
+  ProcedureReturn notes$
+EndProcedure
+
+Procedure.s YesNo(value.i)
+  If value
+    ProcedureReturn "Yes"
+  EndIf
+  ProcedureReturn "No"
+EndProcedure
+
+Procedure.s BatteryTestReport()
+  Protected now.q = Date()
+  Protected endTime.q
+  Protected endPercent.d
+  Protected endRemaining.d
+  Protected elapsed.q
+  Protected report$
+  Protected workflow$
+  Protected result$
+  If gBatteryTestActive = #False And gBatteryTestHasSummary = #False
+    ProcedureReturn "No test running." + #CRLF$ + #CRLF$ + "Start a manual test, start Lenovo reset, or leave this tab open while vendor calibration runs."
+  EndIf
+  workflow$ = gBatteryTestWorkflow$
+  If workflow$ = ""
+    workflow$ = BatteryTestMode()
+  EndIf
+  If gBatteryTestActive
+    endTime = now
+    endPercent = gBattery\Percent
+    endRemaining = gBattery\RemainingMWh
+  Else
+    endTime = gBatteryTestEndTime
+    endPercent = gBatteryTestEndPercent
+    endRemaining = gBatteryTestEndRemainingMWh
+  EndIf
+  elapsed = endTime - gBatteryTestStartTime
+  If gBatteryTestHasSummary And workflow$ = "Lenovo calibration reset" And gBatteryTestLenovoSawPluggedDrain And gBatteryTestLenovoSawCharging
+    result$ = "Lenovo battery calibration reset completed."
+  ElseIf gBatteryTestHasSummary And workflow$ = "Lenovo calibration reset"
+    result$ = "Lenovo battery calibration reset ended before all expected phases were observed."
+  ElseIf gBatteryTestHasSummary
+    result$ = "Battery test completed."
+  Else
+    result$ = "Battery test is still running."
+  EndIf
+  report$ = "PowerPilot Battery Test Report" + #CRLF$
+  report$ + "Generated " + DisplayTimestamp(now) + #CRLF$
+  report$ + "Workflow " + workflow$ + #CRLF$
+  report$ + "Phase    " + BatteryTestPhase() + #CRLF$
+  report$ + "Result   " + result$ + #CRLF$ + #CRLF$
+  report$ + "Timeline" + #CRLF$
+  report$ + "Start   " + DisplayTimestamp(gBatteryTestStartTime)
+  If gBatteryTestActive = #False And gBatteryTestHasSummary
+    report$ + #CRLF$ + "End     " + DisplayTimestamp(gBatteryTestEndTime) + #CRLF$
+  Else
+    report$ + #CRLF$ + "Now     " + DisplayTimestamp(now) + #CRLF$
+  EndIf
+  report$ + "Elapsed " + BatteryTestElapsedText(elapsed) + " total" + #CRLF$
+  report$ + "Discharge time " + BatteryTestElapsedText(gBatteryTestDischargeSeconds) + #CRLF$
+  report$ + "Charge time    " + BatteryTestElapsedText(gBatteryTestChargeSeconds) + #CRLF$ + #CRLF$
+  report$ + "Battery movement" + #CRLF$
+  report$ + "Percent " + StrD(gBatteryTestStartPercent, 1) + "% -> " + StrD(endPercent, 1) + "%" + #CRLF$
+  report$ + "mWh     " + StrD(gBatteryTestStartRemainingMWh, 0) + " -> " + StrD(endRemaining, 0) + #CRLF$
+  report$ + "Moved   " + StrD(gBatteryTestUsedMWh, 0) + " mWh used, " + StrD(gBatteryTestChargedMWh, 0) + " mWh charged" + #CRLF$
+  report$ + "Power   " + StrD(BatteryTestAverageDischargeWatts(), 2) + " W average discharging, " + StrD(BatteryTestAverageChargeWatts(), 2) + " W average charging" + #CRLF$ + #CRLF$
+  If workflow$ = "Lenovo calibration reset"
+    report$ + "Lenovo reset phases" + #CRLF$
+    report$ + "Plugged-in discharge observed: " + YesNo(gBatteryTestLenovoSawPluggedDrain) + #CRLF$
+    report$ + "Charge recovery observed:       " + YesNo(gBatteryTestLenovoSawCharging) + #CRLF$
+    report$ + "Configured drain target:        " + Str(gSettings\BatteryCalibrationDrainMinutes) + " min" + #CRLF$ + #CRLF$
+  EndIf
+  report$ + "Capacity notes" + #CRLF$
+  report$ + BatteryTestCapacityNotes() + #CRLF$ + #CRLF$
+  report$ + "Interpretation" + #CRLF$
+  report$ + "PowerPilot records Windows battery telemetry and local CPU-load actions. It cannot command Lenovo firmware calibration directly; it verifies the reset workflow from the observed plugged-in discharge, charge recovery, and final idle states."
+  ProcedureReturn report$
+EndProcedure
+
+Procedure.s BatteryTestShortSummary()
+  ProcedureReturn "used " + StrD(gBatteryTestUsedMWh, 0) + " mWh charged " + StrD(gBatteryTestChargedMWh, 0) + " mWh avg discharging " + StrD(BatteryTestAverageDischargeWatts(), 2) + " W avg charging " + StrD(BatteryTestAverageChargeWatts(), 2) + " W"
+EndProcedure
+
+Procedure.s SaveBatteryTestReportFile(prefix$)
+  Protected path$
+  Protected file.i
+  EnsureBatteryReportDirectory()
+  path$ = BatteryReportDirectory() + "\" + BatteryReportFileName(prefix$)
+  file = CreateFile(#PB_Any, path$)
+  If file
+    WriteStringN(file, BatteryTestReport())
+    CloseFile(file)
+    gBatteryTestReportPath$ = path$
+    LogAction("Battery test report saved.")
+    ProcedureReturn path$
+  EndIf
+  LogAction("Battery test report save failed.")
+  ProcedureReturn ""
+EndProcedure
+
+Procedure OpenLatestBatteryTestReport()
+  Protected path$ = LatestBatteryReportPath()
+  If path$ <> "" And FileSize(path$) >= 0
+    RunProgram("explorer.exe", QuoteArgument(path$), "")
+    LogAction("Battery test report opened.")
+  Else
+    LogAction("No battery test report found.")
+    MessageRequester(#AppName$, "No battery test report has been saved yet.", #PB_MessageRequester_Info)
+  EndIf
+EndProcedure
+
+Procedure WriteBatteryTestRow(eventName$, includeBattery.i = #True)
+  Protected path$ = BatteryLogPath()
+  Protected file.i
+  Protected writeHeader.i
+  Protected line$
+  Protected timestamp.q = Date()
+  Protected i.i
+  eventName$ = "BATTERY TEST " + CleanBatteryEventName(eventName$)
+  EnsureSettingsDirectory()
+  EnsureBatteryLogHeaderCurrent()
+  writeHeader = Bool(FileSize(path$) <= 0)
+  file = OpenFile(#PB_Any, path$)
+  If file
+    FileSeek(file, Lof(file))
+    If writeHeader
+      WriteStringN(file, BatteryLogHeader())
+    EndIf
+    line$ = IsoTimestamp(timestamp)
+    If includeBattery And gBattery\Valid
+      line$ + "," + StrD(gBattery\Percent, 2)
+      line$ + "," + Str(gBattery\Connected)
+      line$ + "," + Str(gBattery\Charging)
+      line$ + "," + Str(gBattery\DisconnectedBattery)
+      line$ + "," + StrD(gBattery\RemainingMWh, 0)
+      line$ + "," + StrD(gBattery\FullMWh, 0)
+      line$ + "," + StrD(gBattery\DesignMWh, 0)
+      line$ + "," + StrD(gBattery\WearPercent, 1)
+      line$ + "," + StrD(gBattery\DischargeRateMW, 0)
+      line$ + "," + StrD(gBattery\ChargeRateMW, 0)
+      line$ + "," + Str(gBattery\RuntimeMinutes)
+      line$ + "," + Str(gBattery\EstimateMinutes)
+      line$ + "," + Str(gBattery\InstantEstimateMinutes)
+      line$ + "," + StrD(gBattery\InstantDrainPctPerHour, 2)
+      If gBattery\Charging
+        line$ + "," + StrD(gBattery\SmoothedChargePctPerHour, 2)
+      Else
+        line$ + "," + StrD(gBattery\SmoothedDrainPctPerHour, 2)
+      EndIf
+      line$ + "," + Str(gBattery\CycleCount)
+    Else
+      For i = 1 To 17
+        line$ + ","
+      Next
+    EndIf
+    line$ + ",test," + eventName$ + ",," + BatteryLogBrightnessText()
+    If gBattery\Valid
+      line$ + "," + Str(gBattery\EnergySaverOn)
+    Else
+      line$ + ","
+    EndIf
+    WriteStringN(file, line$)
+    CloseFile(file)
+    PruneBatteryLog()
+    RefreshBatteryLogPreview()
+  EndIf
+EndProcedure
+
+Procedure StartBatteryTestLog()
+  If gBatteryTestActive
+    MessageRequester(#AppName$, "End the current battery test before starting another one.", #PB_MessageRequester_Info)
+    ProcedureReturn
+  EndIf
+  ResetBatteryTestWorkflowState()
+  BeginBatteryTestSession("Manual discharge test")
+  WriteBatteryTestRow("start manual discharge test - " + BatteryTestPhase(), #True)
+  RefreshBatteryTestDisplay()
+EndProcedure
+
+Procedure StartLenovoCalibrationReset()
+  If gBatteryTestActive
+    MessageRequester(#AppName$, "End the current battery test before starting Lenovo reset.", #PB_MessageRequester_Info)
+    ProcedureReturn
+  EndIf
+  If IsGadget(#GadgetBatteryLoadMinutes)
+    gSettings\BatteryCalibrationDrainMinutes = ClampInt(GetGadgetState(#GadgetBatteryLoadMinutes), 15, 720)
+    SaveSettings()
+  EndIf
+  ResetBatteryTestWorkflowState()
+  BeginBatteryTestSession("Lenovo calibration reset")
+  gBatteryTestLenovoReset = #True
+  WriteBatteryTestRow("start Lenovo calibration reset - " + BatteryTestPhase(), #True)
+  If gBattery\Valid And gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False
+    gBatteryTestLenovoSawPluggedDrain = #True
+    StartAutoDrainTarget()
+    WriteBatteryTestRow("Lenovo reset drain helper auto started", #True)
+  EndIf
+  RefreshBatteryTestDisplay()
+EndProcedure
+
+Procedure EndBatteryTestLog()
+  If gBatteryTestActive = #False
+    ProcedureReturn
+  EndIf
+  RefreshBatteryTest()
+  gBatteryTestActive = #False
+  gBatteryTestHasSummary = #True
+  gBatteryTestEndTime = Date()
+  If gBattery\Valid
+    gBatteryTestEndTime = gBattery\Timestamp
+    gBatteryTestEndPercent = gBattery\Percent
+    gBatteryTestEndRemainingMWh = gBattery\RemainingMWh
+  Else
+    gBatteryTestEndPercent = gBatteryTestStartPercent
+    gBatteryTestEndRemainingMWh = gBatteryTestStartRemainingMWh
+  EndIf
+  gBatteryAutoDrainActive = #False
+  StopBatteryCpuLoad(#False)
+  WriteBatteryTestRow("end - " + BatteryTestShortSummary(), #True)
+  If gBatteryTestLenovoReset
+    SaveBatteryTestReportFile("lenovo_calibration_reset_manual_end")
+  EndIf
+  gBatteryTestLenovoReset = #False
+  gBatteryTestVendorAuto = #False
+  RefreshBatteryTestDisplay()
+EndProcedure
+
+Procedure CopyBatteryTestReport()
+  SetClipboardText(BatteryTestReport())
+EndProcedure
+
+Procedure BatteryCpuLoadWorker(index.i)
+  Protected busyMs.i
+  Protected startMs.q
+  Protected spin.q
+  While gBatteryCpuLoadStop = #False
+    busyMs = ClampInt(gBatteryCpuLoadTarget, 0, 100)
+    If busyMs > 0
+      startMs = ElapsedMilliseconds()
+      While ElapsedMilliseconds() - startMs < busyMs And gBatteryCpuLoadStop = #False
+        spin + 1
+        If spin > 1000000000
+          spin = index
+        EndIf
+      Wend
+    EndIf
+    If busyMs < 100
+      Delay(100 - busyMs)
+    Else
+      Delay(1)
+    EndIf
+  Wend
+EndProcedure
+
+Procedure RefreshBatteryCpuLoadDisplay()
+  Protected status$
+  Protected autoStatus$
+  Protected remaining.q
+  If IsGadget(#GadgetBatteryLoadStatus) = #False
+    ProcedureReturn
+  EndIf
+  If gBatteryCpuLoadTarget > 0 And gBatteryCpuLoadThreadCount > 0
+    status$ = Str(gBatteryCpuLoadTarget) + "% across " + Str(gBatteryCpuLoadThreadCount) + " thread(s)"
+  ElseIf gBatteryAutoDrainActive And gBatteryAutoDrainReason$ <> ""
+    status$ = gBatteryAutoDrainReason$
+  Else
+    status$ = "Off"
+  EndIf
+  If gBatteryAutoDrainActive
+    remaining = gBatteryAutoDrainEndTime - Date()
+    If remaining < 0
+      remaining = 0
+    EndIf
+    autoStatus$ = "Auto to " + FormatDate("%hh:%ii", gBatteryAutoDrainEndTime) + ", " + BatteryTestElapsedText(remaining) + " left"
+    SetGadgetTextIfChanged(#GadgetBatteryLoadAuto, "Stop auto")
+  Else
+    autoStatus$ = "Auto off"
+    SetGadgetTextIfChanged(#GadgetBatteryLoadAuto, "Auto target")
+  EndIf
+  SetGadgetTextIfChanged(#GadgetBatteryLoadStatus, status$)
+  SetGadgetTextIfChanged(#GadgetBatteryLoadAutoStatus, autoStatus$)
+  If IsGadget(#GadgetBatteryLoadTestMode)
+    SetGadgetState(#GadgetBatteryLoadTestMode, Bool(gBatteryDrainHelperTestMode))
+  EndIf
+  If IsGadget(#GadgetBatteryLoadStop)
+    DisableGadget(#GadgetBatteryLoadStop, Bool(gBatteryCpuLoadTarget <= 0))
+  EndIf
+EndProcedure
+
+Procedure SetBatteryDrainHelperTestMode(enabled.i)
+  enabled = Bool(enabled)
+  If gBatteryDrainHelperTestMode = enabled
+    ProcedureReturn
+  EndIf
+  gBatteryDrainHelperTestMode = enabled
+  gBatteryDrainHelperTraceLastTime = 0
+  If gBatteryDrainHelperTestMode
+    WriteBatteryTestRow("drain helper test mode on", #True)
+  Else
+    WriteBatteryTestRow("drain helper test mode off", #True)
+  EndIf
+  RefreshBatteryCpuLoadDisplay()
+EndProcedure
+
+Procedure WriteBatteryDrainHelperTrace(reason$, targetMinutes.d, currentMinutes.d, errorMinutes.d, measuredW.d, usableMWh.d, selectedLoad.i, force.i = #False, targetW.d = 0.0, errorW.d = 0.0, phase$ = "")
+  Protected now.q = Date()
+  Protected eventName$
+  If gBatteryDrainHelperTestMode = #False And gBatteryAutoDrainActive = #False
+    ProcedureReturn
+  EndIf
+  If force = #False And gBatteryDrainHelperTraceLastTime > 0 And now - gBatteryDrainHelperTraceLastTime < #BatteryDrainHelperTraceSeconds
+    ProcedureReturn
+  EndIf
+  gBatteryDrainHelperTraceLastTime = now
+  If phase$ = ""
+    phase$ = BatteryPhaseName(gBattery\Phase)
+  EndIf
+  eventName$ = "drain helper tick " + reason$
+  eventName$ + " target_watts " + StrD(targetW, 2)
+  eventName$ + " measured_watts " + StrD(measuredW, 2)
+  eventName$ + " error_watts " + StrD(errorW, 2)
+  eventName$ + " cpu_load_target " + Str(selectedLoad)
+  eventName$ + " integral " + StrD(gBatteryAutoDrainIntegral, 2)
+  eventName$ + " phase " + phase$
+  eventName$ + " estimated_minutes " + StrD(currentMinutes, 1)
+  eventName$ + " target_minutes " + StrD(targetMinutes, 1)
+  eventName$ + " usable_mwh " + StrD(usableMWh, 0)
+  WriteBatteryTestRow(eventName$, #True)
+EndProcedure
+
+Procedure StartBatteryCpuLoad(target.i)
+  Protected logical.i
+  Protected i.i
+  target = ClampInt(target, 0, 100)
+  If target <= 0
+    StopBatteryCpuLoad(Bool(gBatteryAutoDrainActive = #False))
+    ProcedureReturn
+  EndIf
+  If gBatteryCpuLoadThreadCount <= 0
+    logical = ClampInt(CountCPUs(), 1, 64)
+    gBatteryCpuLoadStop = #False
+    gBatteryCpuLoadThreadCount = logical
+    For i = 0 To logical - 1
+      gBatteryCpuLoadThreads(i) = CreateThread(@BatteryCpuLoadWorker(), i)
+    Next
+  EndIf
+  gBatteryCpuLoadTarget = target
+  WriteBatteryTestRow("CPU load target " + Str(target) + "%", #True)
+  RefreshBatteryCpuLoadDisplay()
+EndProcedure
+
+Procedure StepBatteryCpuLoad()
+  Protected target.i = gBatteryCpuLoadTarget + 25
+  gBatteryAutoDrainActive = #False
+  If target > 100
+    target = 100
+  EndIf
+  StartBatteryCpuLoad(target)
+EndProcedure
+
+Procedure StartAutoDrainTarget()
+  If IsGadget(#GadgetBatteryLoadMinutes)
+    gBatteryAutoDrainMinutes = ClampInt(GetGadgetState(#GadgetBatteryLoadMinutes), 15, 720)
+  Else
+    gBatteryAutoDrainMinutes = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
+  EndIf
+  gSettings\BatteryCalibrationDrainMinutes = gBatteryAutoDrainMinutes
+  SaveSettings()
+  If gBatteryTestActive = #False
+    StartBatteryTestLog()
+  EndIf
+  gBatteryAutoDrainActive = #True
+  gBatteryAutoDrainEndTime = Date() + (gBatteryAutoDrainMinutes * 60)
+  gBatteryAutoDrainLastAdjust = 0
+  gBatteryAutoDrainIntegral = 0.0
+  gBatteryAutoDrainFilteredW = 0.0
+  gBatteryAutoDrainReason$ = "Starting"
+  WriteBatteryTestRow("auto drain target " + Str(gBatteryAutoDrainMinutes) + " min, end " + FormatDate("%hh:%ii", gBatteryAutoDrainEndTime), #True)
+  WriteBatteryDrainHelperTrace("start", gBatteryAutoDrainMinutes, -1.0, 0.0, 0.0, BatteryTestUsableMWh(), gBatteryCpuLoadTarget, #True)
+  If gBattery\Valid And gBattery\DisconnectedBattery And gBattery\Charging = #False
+    If BatteryOperatingPhase(gBattery\Connected, gBattery\Charging, gBattery\DisconnectedBattery) = #BatteryPhasePluggedDischargingCalibration
+      gBatteryAutoDrainReason$ = "Starting at 10%"
+      StartBatteryCpuLoad(10)
+    Else
+      gBatteryAutoDrainReason$ = "Starting at 25%"
+      StartBatteryCpuLoad(25)
+    EndIf
+    gBatteryAutoDrainLastAdjust = Date()
+  Else
+    UpdateAutoDrainTarget(#True)
+  EndIf
+  RefreshBatteryCpuLoadDisplay()
+EndProcedure
+
+Procedure ToggleAutoDrainTarget()
+  If gBatteryAutoDrainActive
+    WriteBatteryDrainHelperTrace("manual stop", 0.0, -1.0, 0.0, BatteryTestCurrentDischargeWatts(), BatteryTestUsableMWh(), 0, #True)
+    gBatteryAutoDrainActive = #False
+    StopBatteryCpuLoad(#False)
+    WriteBatteryTestRow("auto drain target stopped", #True)
+  Else
+    StartAutoDrainTarget()
+  EndIf
+  RefreshBatteryCpuLoadDisplay()
+EndProcedure
+
+Procedure UpdateAutoDrainTarget(force.i = #False)
+  Protected now.q = Date()
+  Protected elapsed.q
+  Protected remainingSeconds.q
+  Protected targetMinutes.d
+  Protected currentMinutes.d
+  Protected targetW.d
+  Protected errorW.d
+  Protected deadbandW.d
+  Protected kp.d
+  Protected ki.d
+  Protected maxStep.d = #BatteryAutoDrainMaxStep
+  Protected usableMWh.d
+  Protected measuredW.d
+  Protected controlW.d
+  Protected errorMinutes.d
+  Protected desiredLoad.d
+  Protected delta.d
+  Protected target.i
+  Protected phase.i
+  Protected runtimeFullMWh.d
+  If gBatteryAutoDrainActive = #False
+    ProcedureReturn
+  EndIf
+  If gBattery\Valid = #False
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  phase = BatteryOperatingPhase(gBattery\Connected, gBattery\Charging, gBattery\DisconnectedBattery)
+  remainingSeconds = gBatteryAutoDrainEndTime - now
+  If remainingSeconds <= 0
+    gBatteryAutoDrainReason$ = "Behind target"
+    WriteBatteryDrainHelperTrace("behind target", 0.0, -1.0, 0.0, 0.0, BatteryTestUsableMWh(), 100, #True, 0.0, 0.0, BatteryPhaseName(phase))
+    StartBatteryCpuLoad(100)
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  If gBattery\Charging
+    If gBatteryCpuLoadTarget > 0 Or gBatteryAutoDrainActive
+      WriteBatteryDrainHelperTrace("charging stop", remainingSeconds / 60.0, -1.0, 0.0, 0.0, BatteryTestUsableMWh(), 0, #True, 0.0, 0.0, BatteryPhaseName(phase))
+      gBatteryAutoDrainActive = #False
+      StopBatteryCpuLoad(#False)
+      WriteBatteryTestRow("auto drain stopped - charge recovery started", #True)
+    EndIf
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  If gBattery\DisconnectedBattery = #False
+    gBatteryAutoDrainReason$ = "Waiting for discharging"
+    WriteBatteryDrainHelperTrace("wait discharging", remainingSeconds / 60.0, -1.0, 0.0, 0.0, 0.0, gBatteryCpuLoadTarget, #False, 0.0, 0.0, BatteryPhaseName(phase))
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  usableMWh = BatteryTestUsableMWh()
+  runtimeFullMWh = BatteryRuntimeFullMWh()
+  If usableMWh <= 0.0
+    WriteBatteryDrainHelperTrace("empty target reached", remainingSeconds / 60.0, 0.0, 0.0, 0.0, usableMWh, 0, #True, 0.0, 0.0, BatteryPhaseName(phase))
+    gBatteryAutoDrainActive = #False
+    StopBatteryCpuLoad(#False)
+    WriteBatteryTestRow("auto drain target reached", #True)
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  measuredW = BatteryTestCurrentDischargeWatts()
+  If measuredW <= 0.0
+    If runtimeFullMWh > 0.0 And gBattery\EstimateValid And gBattery\EstimateMinutes > 0
+      measuredW = (usableMWh / 1000.0) / (gBattery\EstimateMinutes / 60.0)
+    EndIf
+  EndIf
+  If measuredW <= 0.0 And runtimeFullMWh > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0
+    measuredW = ((runtimeFullMWh * (gBattery\SmoothedDrainPctPerHour / 100.0)) / 1000.0)
+  EndIf
+  If measuredW <= 0.0
+    gBatteryAutoDrainReason$ = "Starting load"
+    If phase = #BatteryPhasePluggedDischargingCalibration
+      target = 10
+    Else
+      target = 25
+    EndIf
+    WriteBatteryDrainHelperTrace("no watts start load", remainingSeconds / 60.0, -1.0, 0.0, measuredW, usableMWh, target, #True, 0.0, 0.0, BatteryPhaseName(phase))
+    StartBatteryCpuLoad(target)
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  If force = #False And gBatteryAutoDrainLastAdjust > 0 And now - gBatteryAutoDrainLastAdjust < #BatteryAutoDrainMinHoldSeconds
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  If gBatteryAutoDrainFilteredW <= 0.0 Or force
+    gBatteryAutoDrainFilteredW = measuredW
+  Else
+    gBatteryAutoDrainFilteredW = (gBatteryAutoDrainFilteredW * 0.65) + (measuredW * 0.35)
+  EndIf
+  controlW = gBatteryAutoDrainFilteredW
+  If controlW <= 0.0
+    controlW = measuredW
+  EndIf
+  targetMinutes = remainingSeconds / 60.0
+  targetW = (usableMWh / targetMinutes / 1000.0) * 60.0
+  currentMinutes = ((usableMWh / 1000.0) / controlW) * 60.0
+  deadbandW = targetW * 0.08
+  If deadbandW < 0.35 : deadbandW = 0.35 : EndIf
+  If deadbandW > 1.25 : deadbandW = 1.25 : EndIf
+  If phase = #BatteryPhasePluggedDischargingCalibration
+    deadbandW + 0.25
+    maxStep = 5.0
+  EndIf
+  errorMinutes = currentMinutes - targetMinutes
+  errorW = targetW - controlW
+  If Abs(errorW) <= deadbandW
+    gBatteryAutoDrainReason$ = "On target"
+    gBatteryAutoDrainLastAdjust = now
+    If Abs(gBatteryAutoDrainIntegral) > 0.01
+      gBatteryAutoDrainIntegral * 0.80
+    EndIf
+    WriteBatteryDrainHelperTrace("on target", targetMinutes, currentMinutes, errorMinutes, controlW, usableMWh, gBatteryCpuLoadTarget, #False, targetW, errorW, BatteryPhaseName(phase))
+    RefreshBatteryCpuLoadDisplay()
+    ProcedureReturn
+  EndIf
+  elapsed = #BatteryAutoDrainAdjustSeconds
+  If gBatteryAutoDrainLastAdjust > 0 And now > gBatteryAutoDrainLastAdjust
+    elapsed = now - gBatteryAutoDrainLastAdjust
+  EndIf
+  If gBatteryCpuLoadTarget <= 0 And errorW < 0.0
+    gBatteryAutoDrainIntegral = 0.0
+  ElseIf gBatteryCpuLoadTarget >= 100 And errorW > 0.0
+    gBatteryAutoDrainIntegral = gBatteryAutoDrainIntegral
+  Else
+    gBatteryAutoDrainIntegral + (errorW * (elapsed / 60.0))
+  EndIf
+  If gBatteryAutoDrainIntegral > 30.0 : gBatteryAutoDrainIntegral = 30.0 : EndIf
+  If gBatteryAutoDrainIntegral < -30.0 : gBatteryAutoDrainIntegral = -30.0 : EndIf
+  If phase = #BatteryPhasePluggedDischargingCalibration
+    kp = 5.0
+    ki = 1.2
+  Else
+    kp = 7.0
+    ki = 1.8
+  EndIf
+  desiredLoad = gBatteryCpuLoadTarget + (errorW * kp) + (gBatteryAutoDrainIntegral * ki)
+  delta = desiredLoad - gBatteryCpuLoadTarget
+  If delta > maxStep
+    delta = maxStep
+  ElseIf delta < -maxStep
+    delta = -maxStep
+  EndIf
+  If delta > 0.0 And delta < 1.0
+    delta = 1.0
+  ElseIf delta < 0.0 And delta > -1.0
+    delta = -1.0
+  EndIf
+  target = ClampInt(gBatteryCpuLoadTarget + Round(delta, #PB_Round_Nearest), 0, 100)
+  If target = 0 And errorW > deadbandW
+    target = 10
+  EndIf
+  If target > gBatteryCpuLoadTarget
+    gBatteryAutoDrainReason$ = "Adding load"
+  ElseIf target < gBatteryCpuLoadTarget
+    gBatteryAutoDrainReason$ = "Reducing load"
+  Else
+    gBatteryAutoDrainReason$ = "Holding load"
+  EndIf
+  If target <> gBatteryCpuLoadTarget Or force
+    StartBatteryCpuLoad(target)
+  EndIf
+  gBatteryAutoDrainLastAdjust = now
+  WriteBatteryDrainHelperTrace(gBatteryAutoDrainReason$, targetMinutes, currentMinutes, errorMinutes, controlW, usableMWh, target, #False, targetW, errorW, BatteryPhaseName(phase))
+  RefreshBatteryCpuLoadDisplay()
+EndProcedure
+
+Procedure StopBatteryCpuLoad(logEvent.i = #True)
+  Protected i.i
+  Protected hadLoad.i = Bool(gBatteryCpuLoadTarget > 0 Or gBatteryCpuLoadThreadCount > 0)
+  If logEvent
+    gBatteryAutoDrainActive = #False
+  EndIf
+  gBatteryCpuLoadTarget = 0
+  If gBatteryAutoDrainActive = #False
+    gBatteryAutoDrainReason$ = ""
+    gBatteryAutoDrainFilteredW = 0.0
+  EndIf
+  If gBatteryCpuLoadThreadCount > 0
+    gBatteryCpuLoadStop = #True
+    For i = 0 To gBatteryCpuLoadThreadCount - 1
+      If gBatteryCpuLoadThreads(i)
+        WaitThread(gBatteryCpuLoadThreads(i), 500)
+        gBatteryCpuLoadThreads(i) = 0
+      EndIf
+    Next
+    gBatteryCpuLoadThreadCount = 0
+  EndIf
+  If logEvent And hadLoad
+    WriteBatteryTestRow("CPU load stopped", #True)
+  EndIf
+  RefreshBatteryCpuLoadDisplay()
+EndProcedure
+
+Procedure CompleteLenovoCalibrationReset()
+  If gBatteryTestActive = #False Or gBatteryTestLenovoReset = #False
+    ProcedureReturn
+  EndIf
+  gBatteryTestActive = #False
+  gBatteryTestHasSummary = #True
+  gBatteryTestEndTime = Date()
+  If gBattery\Valid
+    gBatteryTestEndTime = gBattery\Timestamp
+    gBatteryTestEndPercent = gBattery\Percent
+    gBatteryTestEndRemainingMWh = gBattery\RemainingMWh
+  Else
+    gBatteryTestEndPercent = gBatteryTestStartPercent
+    gBatteryTestEndRemainingMWh = gBatteryTestStartRemainingMWh
+  EndIf
+  gBatteryAutoDrainActive = #False
+  StopBatteryCpuLoad(#False)
+  WriteBatteryTestRow("Lenovo calibration reset completed - " + BatteryTestShortSummary(), #True)
+  SaveBatteryTestReportFile("lenovo_calibration_reset_completed")
+  gBatteryTestLenovoReset = #False
+  gBatteryTestVendorAuto = #False
+  RefreshBatteryTestDisplay()
+EndProcedure
+
+Procedure RefreshBatteryTest()
+  Protected now.q
+  Protected elapsed.q
+  Protected watts.d
+  Protected deltaMWh.d
+  Protected phase$
+  Protected calibrationNow.i
+  If gBattery\Valid = #False
+    RefreshBatteryTestDisplay()
+    ProcedureReturn
+  EndIf
+  phase$ = BatteryTestPhase()
+  calibrationNow = Bool(gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False)
+  If calibrationNow And gBatteryTestActive = #False And gBatteryTestHasSummary = #False
+    ResetBatteryTestWorkflowState()
+    BeginBatteryTestSession("Vendor calibration detected")
+    gBatteryTestVendorAuto = #True
+    gBatteryTestCalibrationActive = #True
+    gBatteryTestCalibrationKnown = #True
+    WriteBatteryTestRow("start vendor calibration monitor - plugged in discharging", #True)
+  EndIf
+  If gBatteryTestCalibrationKnown = #False Or calibrationNow <> gBatteryTestCalibrationActive
+    If calibrationNow
+      WriteBatteryTestRow("vendor calibration detected - plugged in discharging", #True)
+    ElseIf gBatteryTestCalibrationKnown
+      WriteBatteryTestRow("vendor calibration ended - " + phase$, #True)
+    EndIf
+    gBatteryTestCalibrationActive = calibrationNow
+    gBatteryTestCalibrationKnown = #True
+  EndIf
+  If gBatteryTestLenovoReset
+    If calibrationNow And gBatteryTestLenovoSawPluggedDrain = #False
+      BeginBatteryTestSession("Lenovo calibration reset")
+      gBatteryTestLenovoReset = #True
+      gBatteryTestLenovoSawPluggedDrain = #True
+      gBatteryTestLenovoSawCharging = #False
+      WriteBatteryTestRow("Lenovo reset plugged-in discharge started", #True)
+      If gBatteryAutoDrainActive = #False
+        StartAutoDrainTarget()
+      EndIf
+    EndIf
+    If gBattery\Charging
+      If gBatteryTestLenovoSawCharging = #False
+        WriteBatteryTestRow("Lenovo reset charge recovery started", #True)
+      EndIf
+      gBatteryTestLenovoSawCharging = #True
+      If gBatteryAutoDrainActive Or gBatteryCpuLoadTarget > 0
+        gBatteryAutoDrainActive = #False
+        StopBatteryCpuLoad(#False)
+        WriteBatteryTestRow("Lenovo reset drain helper stopped for charging", #True)
+      EndIf
+    EndIf
+  EndIf
+  If gBatteryTestActive = #False
+    RefreshBatteryTestDisplay()
+    ProcedureReturn
+  EndIf
+  now = gBattery\Timestamp
+  If gBatteryTestLastTime > 0 And now > gBatteryTestLastTime
+    elapsed = now - gBatteryTestLastTime
+    deltaMWh = gBatteryTestLastRemainingMWh - gBattery\RemainingMWh
+    If deltaMWh > 0.0
+      gBatteryTestUsedMWh + deltaMWh
+    ElseIf deltaMWh < 0.0
+      gBatteryTestChargedMWh + Abs(deltaMWh)
+    EndIf
+    If gBattery\DisconnectedBattery And gBattery\Charging = #False
+      gBatteryTestDischargeSeconds + elapsed
+      watts = gBattery\DischargeRateMW / 1000.0
+      If watts > 0.0
+        gBatteryTestDischargeWattSeconds + (watts * elapsed)
+      EndIf
+    ElseIf gBattery\Charging
+      gBatteryTestChargeSeconds + elapsed
+      watts = gBattery\ChargeRateMW / 1000.0
+      If watts > 0.0
+        gBatteryTestChargeWattSeconds + (watts * elapsed)
+      EndIf
+    EndIf
+  EndIf
+  gBatteryTestLastTime = now
+  gBatteryTestLastRemainingMWh = gBattery\RemainingMWh
+  If now - gBatteryTestLastLogTime >= #BatteryTestSampleSeconds
+    WriteBatteryTestRow("sample - " + phase$ + " elapsed " + BatteryTestElapsedText(now - gBatteryTestStartTime), #True)
+    gBatteryTestLastLogTime = now
+  EndIf
+  UpdateAutoDrainTarget()
+  If gBatteryTestLenovoReset And gBatteryTestLenovoSawPluggedDrain And gBatteryTestLenovoSawCharging
+    If gBattery\Connected And gBattery\DisconnectedBattery = #False And gBattery\Charging = #False
+      CompleteLenovoCalibrationReset()
+      ProcedureReturn
+    EndIf
+  EndIf
+  RefreshBatteryTestDisplay()
+EndProcedure
+
+Procedure RefreshBatteryTestDisplay()
+  Protected phase$
+  Protected estimate$
+  Protected fastEstimate.i
+  Protected elapsed.q
+  Protected summary$
+  If MainWindowVisible() = #False
+    ProcedureReturn
+  EndIf
+  If IsGadget(#GadgetBatteryTestPhase) = #False
+    ProcedureReturn
+  EndIf
+  phase$ = BatteryTestPhase()
+  If gBattery\Valid
+    fastEstimate = BatteryTestFastEstimateMinutes()
+    If gBattery\Charging And gBattery\EstimateValid
+      estimate$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + " to full target"
+    ElseIf gBattery\DisconnectedBattery And fastEstimate >= 0
+      estimate$ = FormatBatteryMinutes(fastEstimate) + " to empty target"
+    ElseIf gBattery\DisconnectedBattery And gBattery\EstimateValid
+      estimate$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + " average"
+    ElseIf gBattery\RuntimeValid
+      estimate$ = FormatBatteryMinutes(gBattery\RuntimeMinutes) + " Windows"
+    Else
+      estimate$ = "Calculating"
+    EndIf
+    SetGadgetTextIfChanged(#GadgetBatteryTestPercent, StrD(gBattery\Percent, 1) + "%")
+    SetGadgetTextIfChanged(#GadgetBatteryTestRemaining, StrD(gBattery\RemainingMWh, 0) + " mWh")
+    SetGadgetTextIfChanged(#GadgetBatteryTestWatts, FormatSignedBatteryWatts(gBattery\DischargeRateMW, gBattery\ChargeRateMW))
+    SetGadgetTextIfChanged(#GadgetBatteryTestEstimate, estimate$)
+  Else
+    SetGadgetTextIfChanged(#GadgetBatteryTestPercent, "Unknown")
+    SetGadgetTextIfChanged(#GadgetBatteryTestRemaining, "Unknown")
+    SetGadgetTextIfChanged(#GadgetBatteryTestWatts, "Unknown")
+    SetGadgetTextIfChanged(#GadgetBatteryTestEstimate, "Unknown")
+  EndIf
+  If gBatteryTestActive
+    elapsed = Date() - gBatteryTestStartTime
+  ElseIf gBatteryTestHasSummary
+    elapsed = gBatteryTestEndTime - gBatteryTestStartTime
+  Else
+    elapsed = 0
+  EndIf
+  SetGadgetTextIfChanged(#GadgetBatteryTestPhase, phase$)
+  SetGadgetTextIfChanged(#GadgetBatteryTestMode, BatteryTestMode())
+  SetGadgetTextIfChanged(#GadgetBatteryTestGuide, BatteryTestGuide())
+  SetGadgetTextIfChanged(#GadgetBatteryTestElapsed, BatteryTestElapsedText(elapsed))
+  summary$ = BatteryTestReport()
+  SetGadgetTextIfChanged(#GadgetBatteryTestSummary, summary$)
+  DisableGadget(#GadgetBatteryTestStart, Bool(gBatteryTestActive))
+  DisableGadget(#GadgetBatteryTestLenovo, Bool(gBatteryTestActive))
+  DisableGadget(#GadgetBatteryTestEnd, Bool(gBatteryTestActive = #False))
+  DisableGadget(#GadgetBatteryTestOpenReport, Bool(LatestBatteryReportPath() = ""))
+  RefreshBatteryCpuLoadDisplay()
 EndProcedure
 
 ; At app startup, compare current boot time with the saved boot time. If the PC
@@ -2061,6 +4968,11 @@ Procedure QueryBatteryStatic(force.i = #False)
   If force = #False And gSettings\BatteryLastStaticQuery > 0 And now - gSettings\BatteryLastStaticQuery < #BatteryStaticRefreshSeconds
     ProcedureReturn
   EndIf
+  If QueryNativeBatteryData()
+    gSettings\BatteryLastStaticQuery = now
+    SaveSettings()
+    ProcedureReturn
+  EndIf
   ; root\wmi normally provides full-charge capacity and cycle count. Design
   ; capacity is less consistent across devices, so the command falls back
   ; through BatteryStaticData, Win32_Battery, then powercfg /batteryreport.
@@ -2081,6 +4993,7 @@ Procedure QueryBatteryStatic(force.i = #False)
           If gBattery\WearPercent < 0.0 : gBattery\WearPercent = 0.0 : EndIf
         EndIf
       EndIf
+      UpdateBatteryCapacityHealth(now, gBattery\FullMWh, gBattery\DesignMWh)
       If cycle >= 0
         gBattery\CycleCount = cycle
       EndIf
@@ -2101,6 +5014,12 @@ Procedure QueryBatteryStatus()
   Protected percent.d
   Protected runtimeSeconds.q
   Protected runtimeMinutes.q
+  Protected discharging.i
+  If QueryNativeBatteryData()
+    gBatteryNativeFallbackUsed = #False
+    ProcedureReturn
+  EndIf
+  gBatteryNativeFallbackUsed = #True
   output$ = PowerShellCapture("$ErrorActionPreference='SilentlyContinue'; $s=Get-CimInstance -Namespace root\wmi -ClassName BatteryStatus | Select-Object -First 1; $r=Get-CimInstance -Namespace root\wmi -ClassName BatteryRuntime | Select-Object -First 1; $w=Get-CimInstance -ClassName Win32_Battery | Select-Object -First 1; if ($s) { 'status|Active=' + $s.Active + '|PowerOnline=' + $s.PowerOnline + '|Charging=' + $s.Charging + '|Discharging=' + $s.Discharging + '|RemainingCapacity=' + $s.RemainingCapacity + '|ChargeRate=' + $s.ChargeRate + '|DischargeRate=' + $s.DischargeRate + '|Voltage=' + $s.Voltage + '|EstimatedRuntimeSeconds=' + $(if ($r) {$r.EstimatedRuntime} else {-1}) + '|Win32EstimatedMinutes=' + $(if ($w) {$w.EstimatedRunTime} else {-1}) }")
   For i = 1 To CountString(output$, #LF$) + 1
     line$ = Trim(StringField(output$, i, #LF$))
@@ -2109,10 +5028,13 @@ Procedure QueryBatteryStatus()
       gBattery\Timestamp = Date()
       gBattery\Connected = BatteryBool(BatteryFieldValue(line$, "PowerOnline"))
       gBattery\Charging = BatteryBool(BatteryFieldValue(line$, "Charging"))
-      gBattery\DisconnectedBattery = Bool(gBattery\Connected = #False)
+      discharging = BatteryBool(BatteryFieldValue(line$, "Discharging"))
+      gBattery\EnergySaverOn = WindowsEnergySaverActive()
+      RememberBatteryPowerState(gBattery\Connected, gBattery\Charging)
       gBattery\RemainingMWh = ValD(BatteryFieldValue(line$, "RemainingCapacity"))
       gBattery\ChargeRateMW = ValD(BatteryFieldValue(line$, "ChargeRate"))
       gBattery\DischargeRateMW = ValD(BatteryFieldValue(line$, "DischargeRate"))
+      gBattery\DisconnectedBattery = Bool(gBattery\Connected = #False Or discharging Or gBattery\DischargeRateMW > 0.0)
       gBattery\VoltageMV = ValD(BatteryFieldValue(line$, "Voltage"))
       runtimeSeconds = Val(BatteryFieldValue(line$, "EstimatedRuntimeSeconds"))
       runtimeMinutes = Val(BatteryFieldValue(line$, "Win32EstimatedMinutes"))
@@ -2142,7 +5064,8 @@ Procedure QueryBatteryStatus()
     gBattery\Timestamp = Date()
     gBattery\Connected = Bool(status\ACLineStatus <> 0)
     gBattery\Charging = Bool(status\BatteryFlag & 8)
-    gBattery\DisconnectedBattery = Bool(status\ACLineStatus = 0)
+    gBattery\EnergySaverOn = WindowsEnergySaverActive()
+    RememberBatteryPowerState(gBattery\Connected, gBattery\Charging)
     If status\BatteryLifePercent <= 100
       gBattery\Percent = status\BatteryLifePercent
     EndIf
@@ -2152,6 +5075,7 @@ Procedure QueryBatteryStatus()
     Else
       gBattery\RuntimeMinutes = -1
     EndIf
+    gBattery\DisconnectedBattery = Bool(status\ACLineStatus = 0 Or (gBattery\Charging = #False And gBattery\RuntimeValid))
   EndIf
 EndProcedure
 
@@ -2175,13 +5099,14 @@ Procedure.d BatteryAverageDrainPctPerHour(now.q)
     maxInterval = 600
   EndIf
   PruneBatteryAverageBreaks(now)
-  ; Walk backward from the current point and stop at AC power, a break row, a
-  ; large gap, or the configured glide-window boundary.
+  ; Walk backward from the current point and stop at charging/idle AC power, a
+  ; break row, a large gap, or the configured glide-window boundary. Some
+  ; vendor calibration modes stay plugged in while deliberately discharging.
   For i = gBatteryGraphCount - 1 To 0 Step -1
     If gBatteryGraph(i)\Timestamp <= 0 Or gBatteryGraph(i)\Timestamp > previousTime
       Continue
     EndIf
-    If gBatteryGraph(i)\Connected
+    If gBatteryGraph(i)\Connected And (gBatteryGraph(i)\Charging Or gBatteryGraph(i)\Percent <= previousPercent)
       Break
     EndIf
     If gBatteryGraph(i)\Timestamp < windowStart
@@ -2213,7 +5138,7 @@ Procedure.d BatteryAverageDrainPctPerHour(now.q)
       activeElapsed = elapsed
     EndIf
   EndIf
-  If activeElapsed >= 10 And totalDrain > 0.0
+  If activeElapsed >= #BatteryAverageMinSeconds And totalDrain > 0.0
     drain = (totalDrain * 3600.0) / activeElapsed
     If drain > 0.0 And drain < 200.0
       ProcedureReturn drain
@@ -2222,8 +5147,147 @@ Procedure.d BatteryAverageDrainPctPerHour(now.q)
   ProcedureReturn 0.0
 EndProcedure
 
-; Combine firmware/WMI discharge rate, measured percent drop, and retained-log
-; learning into average and instant remaining-time estimates.
+Procedure.d BatteryAverageChargePctPerHour(now.q)
+  Protected windowStart.q = now - (ClampInt(gSettings\BatterySmoothingMinutes, 5, 240) * 60)
+  Protected i.i
+  Protected previousTime.q = now
+  Protected previousPercent.d = gBattery\Percent
+  Protected elapsed.q
+  Protected charge.d
+  Protected totalCharge.d
+  Protected activeElapsed.q
+  Protected maxInterval.i = (ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440) * 120) + 60
+  Protected refreshInterval.i = ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600) * 4
+  If refreshInterval > maxInterval
+    maxInterval = refreshInterval
+  EndIf
+  If maxInterval < 600
+    maxInterval = 600
+  EndIf
+  PruneBatteryAverageBreaks(now)
+  For i = gBatteryGraphCount - 1 To 0 Step -1
+    If gBatteryGraph(i)\Timestamp <= 0 Or gBatteryGraph(i)\Timestamp > previousTime
+      Continue
+    EndIf
+    If gBatteryGraph(i)\Connected = #False Or gBatteryGraph(i)\Charging = #False
+      Break
+    EndIf
+    If gBatteryGraph(i)\Timestamp < windowStart
+      Break
+    EndIf
+    If BatteryIntervalHasAverageBreak(gBatteryGraph(i)\Timestamp, previousTime)
+      Break
+    EndIf
+    elapsed = previousTime - gBatteryGraph(i)\Timestamp
+    If elapsed > maxInterval
+      Break
+    EndIf
+    If elapsed >= 10
+      charge = previousPercent - gBatteryGraph(i)\Percent
+      If charge > 0.0
+        totalCharge + charge
+      EndIf
+      activeElapsed + elapsed
+    EndIf
+    previousTime = gBatteryGraph(i)\Timestamp
+    previousPercent = gBatteryGraph(i)\Percent
+  Next
+  If activeElapsed = 0 And gBatteryLastSampleTime > 0 And gBatteryLastSampleTime < now And BatteryIntervalHasAverageBreak(gBatteryLastSampleTime, now) = #False
+    elapsed = now - gBatteryLastSampleTime
+    If elapsed >= 10 And elapsed <= maxInterval And gBatteryLastSamplePercent < gBattery\Percent
+      totalCharge = gBattery\Percent - gBatteryLastSamplePercent
+      activeElapsed = elapsed
+    EndIf
+  EndIf
+  If activeElapsed >= 60 And totalCharge > 0.0
+    charge = (totalCharge * 3600.0) / activeElapsed
+    If charge > 0.0 And charge < 200.0
+      ProcedureReturn charge
+    EndIf
+  EndIf
+  ProcedureReturn 0.0
+EndProcedure
+
+Procedure.d BatteryChargingTaperFactor(percent.d, targetPercent.d)
+  Protected ratio.d
+  Protected factor.d
+  If targetPercent <= 0.0
+    ProcedureReturn 1.0
+  EndIf
+  ratio = percent / targetPercent
+  If ratio < 0.0 : ratio = 0.0 : EndIf
+  If ratio > 1.0 : ratio = 1.0 : EndIf
+  factor = 1.0 - (0.72 * ratio * ratio * ratio)
+  If factor < 0.18 : factor = 0.18 : EndIf
+  ProcedureReturn factor
+EndProcedure
+
+Procedure.d BatteryChargingTaperAdjustedRatePctPerHour(ratePctPerHour.d, currentPercent.d, previousPercent.d, targetPercent.d)
+  Protected currentFactor.d
+  Protected targetFactor.d
+  Protected previousFactor.d
+  Protected futureAverageFactor.d
+  Protected observedNextFactor.d
+  Protected adjustedFactor.d
+  If ratePctPerHour <= 0.0
+    ProcedureReturn 0.0
+  EndIf
+  If targetPercent <= currentPercent
+    ProcedureReturn ratePctPerHour
+  EndIf
+  currentFactor = BatteryChargingTaperFactor(currentPercent, targetPercent)
+  targetFactor = BatteryChargingTaperFactor(targetPercent, targetPercent)
+  futureAverageFactor = (currentFactor + targetFactor) / 2.0
+  If previousPercent > 0.0 And previousPercent < currentPercent
+    previousFactor = BatteryChargingTaperFactor(previousPercent, targetPercent)
+    If previousFactor > 0.0
+      observedNextFactor = currentFactor * (currentFactor / previousFactor)
+      If observedNextFactor < targetFactor
+        observedNextFactor = targetFactor
+      EndIf
+      futureAverageFactor = (futureAverageFactor + ((observedNextFactor + targetFactor) / 2.0)) / 2.0
+    EndIf
+  EndIf
+  If currentFactor <= 0.0
+    ProcedureReturn ratePctPerHour
+  EndIf
+  adjustedFactor = futureAverageFactor / currentFactor
+  If adjustedFactor < 0.20 : adjustedFactor = 0.20 : EndIf
+  If adjustedFactor > 1.00 : adjustedFactor = 1.00 : EndIf
+  ProcedureReturn ratePctPerHour * adjustedFactor
+EndProcedure
+
+Procedure.i RememberLearnedChargingRate(ratePctPerHour.d)
+  Protected count.i
+  Protected weight.i
+  Protected learned.d
+  If ratePctPerHour <= 0.0 Or ratePctPerHour >= 200.0
+    ProcedureReturn #False
+  EndIf
+  count = ClampInt(gSettings\BatteryChargeLearningCount, 0, #BatteryChargeLearningCap)
+  If count <= 0 Or gSettings\BatteryLastChargePctPerHour <= 0.0
+    learned = ratePctPerHour
+    count = 1
+  Else
+    weight = count
+    If weight >= #BatteryChargeLearningCap
+      weight = #BatteryChargeLearningCap - 1
+    EndIf
+    learned = ((gSettings\BatteryLastChargePctPerHour * weight) + ratePctPerHour) / (weight + 1)
+    If count < #BatteryChargeLearningCap
+      count + 1
+    EndIf
+  EndIf
+  If Abs(gSettings\BatteryLastChargePctPerHour - learned) >= 0.05 Or gSettings\BatteryChargeLearningCount <> count
+    gSettings\BatteryLastChargePctPerHour = learned
+    gSettings\BatteryChargeLearningCount = count
+    ProcedureReturn #True
+  EndIf
+  ProcedureReturn #False
+EndProcedure
+
+; Combine firmware/WMI charge/discharge rates, measured percent movement, and
+; retained-log learning into average and instant time estimates.
 Procedure UpdateBatteryEstimate()
   Protected now.q = gBattery\Timestamp
   Protected elapsed.q
@@ -2231,13 +5295,29 @@ Procedure UpdateBatteryEstimate()
   Protected sampleDrain.d
   Protected instantDrain.d
   Protected averageDrain.d
+  Protected liveCharge.d
+  Protected sampleCharge.d
+  Protected instantCharge.d
+  Protected averageCharge.d
+  Protected adjustedInstantCharge.d
+  Protected adjustedAverageCharge.d
   Protected remainingPercent.d
+  Protected targetPercent.d
+  Protected chargeRemainingPercent.d
+  Protected runtimeFullMWh.d
+  Protected estimateWatts.d
+  Protected usableMWh.d
+  Protected phase.i
   If gBattery\Valid = #False
     ProcedureReturn
   EndIf
+  phase = BatteryOperatingPhase(gBattery\Connected, gBattery\Charging, gBattery\DisconnectedBattery)
+  gBattery\Phase = phase
+  UpdateBatteryCapacityHealth(now, gBattery\FullMWh, gBattery\DesignMWh)
+  runtimeFullMWh = BatteryRuntimeFullMWh()
 
-  ; Seed the first display from retained history or user setting so startup does
-  ; not show "Calculating" until a full hour has passed.
+  ; Seed discharge display from retained history or user setting so startup does
+  ; not show "Calculating" until a full active-battery window has passed.
   If gBattery\SmoothedDrainPctPerHour <= 0.0
     If gSettings\BatteryLastDrainPctPerHour > 0.0
       gBattery\SmoothedDrainPctPerHour = gSettings\BatteryLastDrainPctPerHour
@@ -2246,20 +5326,25 @@ Procedure UpdateBatteryEstimate()
     EndIf
   EndIf
 
-  If gBattery\DisconnectedBattery
+  If phase = #BatteryPhaseOnBatteryNormal
     If gBatteryOnBatterySince = 0
       gBatteryOnBatterySince = now
     EndIf
+    RecalculateBatteryPowerEstimates(now)
     ; Instant drain prefers current WMI discharge rate because it reflects the
     ; present workload. Measured percent drop is used to stabilize/fill gaps.
-    If gBattery\FullMWh > 0.0 And gBattery\DischargeRateMW > 0.0
-      liveDrain = (gBattery\DischargeRateMW / gBattery\FullMWh) * 100.0
+    If runtimeFullMWh > 0.0 And gBattery\DischargeRateMW > 0.0
+      liveDrain = (gBattery\DischargeRateMW / runtimeFullMWh) * 100.0
       instantDrain = liveDrain
     EndIf
     If gBatteryLastSampleTime > 0 And gBatteryLastSamplePercent > gBattery\Percent
       elapsed = now - gBatteryLastSampleTime
       If elapsed >= 10
-        sampleDrain = ((gBatteryLastSamplePercent - gBattery\Percent) * 3600.0) / elapsed
+        If gBatteryLastSampleRemainingMWh > 0.0 And gBattery\RemainingMWh > 0.0 And gBatteryLastSampleRemainingMWh > gBattery\RemainingMWh And runtimeFullMWh > 0.0
+          sampleDrain = (((gBatteryLastSampleRemainingMWh - gBattery\RemainingMWh) / runtimeFullMWh) * 100.0 * 3600.0) / elapsed
+        Else
+          sampleDrain = ((gBatteryLastSamplePercent - gBattery\Percent) * 3600.0) / elapsed
+        EndIf
         If sampleDrain > 0.0 And sampleDrain < 200.0
           If instantDrain <= 0.0
             instantDrain = sampleDrain
@@ -2272,14 +5357,14 @@ Procedure UpdateBatteryEstimate()
         EndIf
       EndIf
     EndIf
-    If liveDrain > 0.0 And liveDrain < 200.0
-      ; Average drain is entirely time/sample based, excluding sleep, hibernate,
-      ; shutdown, app restart, and other break rows.
+    estimateWatts = BatteryPreferredRuntimeWatts()
+    If estimateWatts > 0.0 And estimateWatts < 60.0 And runtimeFullMWh > 0.0
+      averageDrain = ((estimateWatts * 1000.0) / runtimeFullMWh) * 100.0
+      gBattery\SmoothedDrainPctPerHour = averageDrain
+    ElseIf liveDrain > 0.0 And liveDrain < 200.0
       averageDrain = BatteryAverageDrainPctPerHour(now)
       If averageDrain > 0.0
         gBattery\SmoothedDrainPctPerHour = averageDrain
-      Else
-        gBattery\SmoothedDrainPctPerHour = liveDrain
       EndIf
     EndIf
     ; Remaining time is calculated to the configured floor, default 5 percent,
@@ -2294,15 +5379,103 @@ Procedure UpdateBatteryEstimate()
       gBattery\InstantEstimateMinutes = -1
       gBattery\InstantEstimateValid = #False
     EndIf
-    If remainingPercent > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0
+    usableMWh = BatteryTestUsableMWh()
+    If usableMWh > 0.0 And estimateWatts > 0.0
+      gBattery\EstimateMinutes = ((usableMWh / 1000.0) / estimateWatts) * 60.0
+      gBattery\EstimateValid = #True
+    ElseIf remainingPercent > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0
       gBattery\EstimateMinutes = (remainingPercent / gBattery\SmoothedDrainPctPerHour) * 60.0
       gBattery\EstimateValid = #True
     Else
       gBattery\EstimateMinutes = -1
       gBattery\EstimateValid = #False
     EndIf
+    gBattery\LowBatteryPlateau = #False
+    If gBatteryLastSampleTime > 0 And gBattery\DischargeRateMW > 0.0
+      If Abs(gBatteryLastSamplePercent - gBattery\Percent) < 0.02 And Abs(gBatteryLastSampleRemainingMWh - gBattery\RemainingMWh) < 1.0
+        gBatteryFlatSampleCount + 1
+      Else
+        gBatteryFlatSampleCount = 0
+      EndIf
+      If gBatteryFlatSampleCount >= 2
+        gBattery\LowBatteryPlateau = #True
+      EndIf
+    EndIf
+    gBattery\EstimateLowConfidence = Bool(gBattery\Percent < #BatteryLowGaugePercent Or gBattery\LowBatteryPlateau)
+  ElseIf gBattery\Charging
+    gBatteryOnBatterySince = 0
+    gBatteryFlatSampleCount = 0
+    gBattery\EstimateLowConfidence = #False
+    gBattery\LowBatteryPlateau = #False
+    targetPercent = BatteryEffectiveMaxPercent()
+    chargeRemainingPercent = targetPercent - gBattery\Percent
+    If gBattery\SmoothedChargePctPerHour <= 0.0 And gSettings\BatteryLastChargePctPerHour > 0.0
+      gBattery\SmoothedChargePctPerHour = gSettings\BatteryLastChargePctPerHour
+    EndIf
+
+    If runtimeFullMWh > 0.0 And gBattery\ChargeRateMW > 0.0
+      liveCharge = (gBattery\ChargeRateMW / runtimeFullMWh) * 100.0
+      instantCharge = liveCharge
+    EndIf
+    If gBatteryLastSampleTime > 0 And gBatteryLastSamplePercent < gBattery\Percent
+      elapsed = now - gBatteryLastSampleTime
+      If elapsed >= 10
+        sampleCharge = ((gBattery\Percent - gBatteryLastSamplePercent) * 3600.0) / elapsed
+        If sampleCharge > 0.0 And sampleCharge < 200.0
+          If instantCharge <= 0.0
+            instantCharge = sampleCharge
+          EndIf
+          If liveCharge > 0.0
+            liveCharge = (liveCharge + sampleCharge) / 2.0
+          Else
+            liveCharge = sampleCharge
+          EndIf
+        EndIf
+      EndIf
+    EndIf
+
+    averageCharge = BatteryAverageChargePctPerHour(now)
+    If averageCharge <= 0.0
+      averageCharge = liveCharge
+    EndIf
+    If averageCharge <= 0.0 And gSettings\BatteryLastChargePctPerHour > 0.0
+      averageCharge = gSettings\BatteryLastChargePctPerHour
+    EndIf
+    If averageCharge > 0.0 And averageCharge < 200.0
+      gBattery\SmoothedChargePctPerHour = averageCharge
+    EndIf
+
+    adjustedInstantCharge = BatteryChargingTaperAdjustedRatePctPerHour(instantCharge, gBattery\Percent, gBatteryLastSamplePercent, targetPercent)
+    adjustedAverageCharge = BatteryChargingTaperAdjustedRatePctPerHour(gBattery\SmoothedChargePctPerHour, gBattery\Percent, gBatteryLastSamplePercent, targetPercent)
+    If chargeRemainingPercent <= 0.0
+      gBattery\InstantDrainPctPerHour = 0.0
+      gBattery\InstantEstimateMinutes = 0
+      gBattery\InstantEstimateValid = #True
+      gBattery\EstimateMinutes = 0
+      gBattery\EstimateValid = #True
+    Else
+      If adjustedInstantCharge > 0.0 And adjustedInstantCharge < 200.0
+        gBattery\InstantDrainPctPerHour = adjustedInstantCharge
+        gBattery\InstantEstimateMinutes = (chargeRemainingPercent / adjustedInstantCharge) * 60.0
+        gBattery\InstantEstimateValid = #True
+      Else
+        gBattery\InstantDrainPctPerHour = 0.0
+        gBattery\InstantEstimateMinutes = -1
+        gBattery\InstantEstimateValid = #False
+      EndIf
+      If adjustedAverageCharge > 0.0 And adjustedAverageCharge < 200.0
+        gBattery\EstimateMinutes = (chargeRemainingPercent / adjustedAverageCharge) * 60.0
+        gBattery\EstimateValid = #True
+      Else
+        gBattery\EstimateMinutes = -1
+        gBattery\EstimateValid = #False
+      EndIf
+    EndIf
   Else
     gBatteryOnBatterySince = 0
+    gBatteryFlatSampleCount = 0
+    gBattery\EstimateLowConfidence = #False
+    gBattery\LowBatteryPlateau = #False
     gBattery\EstimateMinutes = -1
     gBattery\EstimateValid = #False
     gBattery\InstantDrainPctPerHour = 0.0
@@ -2312,6 +5485,7 @@ Procedure UpdateBatteryEstimate()
 
   gBatteryLastSampleTime = now
   gBatteryLastSamplePercent = gBattery\Percent
+  gBatteryLastSampleRemainingMWh = gBattery\RemainingMWh
 EndProcedure
 
 ; Write a battery sample row when the interval elapses, or immediately on
@@ -2321,6 +5495,7 @@ Procedure WriteBatteryLog(force.i = #False)
   Protected file.i
   Protected writeHeader.i
   Protected line$
+  Protected smoothedRateForLog.d
   Protected intervalSeconds.i = ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440) * 60
   If gSettings\BatteryLogEnabled = #False Or gBattery\Valid = #False
     ProcedureReturn
@@ -2328,10 +5503,21 @@ Procedure WriteBatteryLog(force.i = #False)
   If force = #False And gLastBatteryLogTime > 0 And gBattery\Timestamp - gLastBatteryLogTime < intervalSeconds
     ProcedureReturn
   EndIf
+  If ShouldQueryScreenBrightness()
+    gLastScreenBrightnessPercent = QueryScreenBrightnessPercent()
+  Else
+    gLastScreenBrightnessPercent = -1
+  EndIf
   EnsureSettingsDirectory()
+  EnsureBatteryLogHeaderCurrent()
   writeHeader = Bool(FileSize(path$) <= 0)
   file = OpenFile(#PB_Any, path$)
   If file
+    If gBattery\Charging
+      smoothedRateForLog = gBattery\SmoothedChargePctPerHour
+    Else
+      smoothedRateForLog = gBattery\SmoothedDrainPctPerHour
+    EndIf
     FileSeek(file, Lof(file))
     If writeHeader
       WriteStringN(file, BatteryLogHeader())
@@ -2353,35 +5539,55 @@ Procedure WriteBatteryLog(force.i = #False)
     line$ + "," + Str(gBattery\EstimateMinutes)
     line$ + "," + Str(gBattery\InstantEstimateMinutes)
     line$ + "," + StrD(gBattery\InstantDrainPctPerHour, 2)
-    line$ + "," + StrD(gBattery\SmoothedDrainPctPerHour, 2)
+    line$ + "," + StrD(smoothedRateForLog, 2)
     line$ + "," + Str(gBattery\CycleCount)
-    line$ + ",battery,"
+    line$ + ",battery,,," + BatteryLogBrightnessText()
+    line$ + "," + Str(gBattery\EnergySaverOn)
     WriteStringN(file, line$)
     CloseFile(file)
     PruneBatteryLog()
     gLastBatteryLogTime = gBattery\Timestamp
-    If gBattery\SmoothedDrainPctPerHour > 0.0
+    If gBattery\Charging And smoothedRateForLog > 0.0
+      If RememberLearnedChargingRate(smoothedRateForLog)
+        SaveSettings()
+      EndIf
+    ElseIf gBattery\DisconnectedBattery And gBattery\SmoothedDrainPctPerHour > 0.0
       gSettings\BatteryLastDrainPctPerHour = gBattery\SmoothedDrainPctPerHour
       SaveSettings()
     EndIf
-    AddBatteryGraphPoint(gBattery\Timestamp, gBattery\Percent, gBattery\Connected, gBattery\Charging)
+    AddBatteryGraphPoint(gBattery\Timestamp, gBattery\Percent, gBattery\Connected, gBattery\Charging, gBattery\EnergySaverOn, gBattery\DisconnectedBattery, gBattery\RemainingMWh, gBattery\FullMWh, gBattery\DischargeRateMW, gBattery\ChargeRateMW, BatteryCurrentScreenOnKnown(), BatteryCurrentScreenOn(), gLastScreenBrightnessPercent)
     RefreshBatteryLogPreview()
   EndIf
 EndProcedure
 
+; Use two cadences: the visible window follows the user setting, while tray mode
+; backs off to a slower floor to reduce idle wakeups and battery-driver reads.
+Procedure.i DesiredBatteryRefreshSeconds()
+  Protected seconds.i = ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)
+  If BatteryTestTabVisible()
+    ProcedureReturn 1
+  EndIf
+  If MainWindowVisible() = #False And seconds < #BatteryHiddenRefreshSeconds
+    seconds = #BatteryHiddenRefreshSeconds
+  EndIf
+  ProcedureReturn seconds
+EndProcedure
+
 ; Refresh live battery data on the configured cadence. Static capacity data is
 ; queried only when missing or once per day to keep startup/refresh light.
-Procedure RefreshBattery(force.i = #False)
+Procedure RefreshBattery(force.i = #False, forceLog.i = #False)
   Protected now.q = Date()
-  If force = #False And gLastBatteryRefresh > 0 And now - gLastBatteryRefresh < ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)
+  If force = #False And gLastBatteryRefresh > 0 And now - gLastBatteryRefresh < DesiredBatteryRefreshSeconds()
     ProcedureReturn
   EndIf
   QueryBatteryStatic(Bool(gBattery\FullMWh <= 0.0))
   QueryBatteryStatus()
   If gBattery\Valid
+    TrackEnergySaverLogState()
     UpdateBatteryEstimate()
-    AddBatteryGraphPoint(gBattery\Timestamp, gBattery\Percent, gBattery\Connected, gBattery\Charging)
-    WriteBatteryLog()
+    AddBatteryGraphPoint(gBattery\Timestamp, gBattery\Percent, gBattery\Connected, gBattery\Charging, gBattery\EnergySaverOn, gBattery\DisconnectedBattery, gBattery\RemainingMWh, gBattery\FullMWh, gBattery\DischargeRateMW, gBattery\ChargeRateMW, BatteryCurrentScreenOnKnown(), BatteryCurrentScreenOn(), gLastScreenBrightnessPercent)
+    WriteBatteryLog(forceLog)
+    RefreshBatteryTest()
   EndIf
   gLastBatteryRefresh = now
   RefreshBatteryDisplay()
@@ -2446,6 +5652,8 @@ Procedure EnsurePowerApi()
     gPowerGetEffectiveOverlayScheme = GetFunction(gPowrProfLibrary, "PowerGetEffectiveOverlayScheme")
     gPowerGetUserConfiguredACPowerMode = GetFunction(gPowrProfLibrary, "PowerGetUserConfiguredACPowerMode")
     gPowerGetUserConfiguredDCPowerMode = GetFunction(gPowrProfLibrary, "PowerGetUserConfiguredDCPowerMode")
+    gPowerReadACValueIndex = GetFunction(gPowrProfLibrary, "PowerReadACValueIndex")
+    gPowerReadDCValueIndex = GetFunction(gPowrProfLibrary, "PowerReadDCValueIndex")
   EndIf
 EndProcedure
 
@@ -2640,6 +5848,18 @@ Procedure.i ApplyMaintenanceThrottling(enable.i, force.i = #False)
   ProcedureReturn changed
 EndProcedure
 
+; Deep idle saver also marks PowerPilot itself as background/EcoQoS while the
+; window is hidden. Clear it when visible so the GUI stays responsive.
+Procedure ApplySelfDeepIdleThrottle()
+  Protected enable.i = Bool(gSettings\DeepIdleSaver And MainWindowVisible() = #False)
+  If enable = gSelfEcoThrottleActive
+    ProcedureReturn
+  EndIf
+  If SetProcessEcoThrottle(GetCurrentProcessId_(), enable)
+    gSelfEcoThrottleActive = enable
+  EndIf
+EndProcedure
+
 ; powercfg /L prints plan names in parentheses; this extracts the display name.
 Procedure.s SchemeNameFromPowerCfgLine(line$)
   Protected p1.i = FindString(line$, "(", 1)
@@ -2766,6 +5986,34 @@ Procedure.i ConfigureBatterySleepFloor(schemeGuid$)
   ProcedureReturn #True
 EndProcedure
 
+; Windows Energy Saver is a hidden power setting. Threshold 100 alone can make
+; Settings show "turns on at 100%" while the always-use policy stays off, so
+; PowerPilot writes both the threshold and policy values for its plans.
+Procedure.i ConfigureEnergySaverPolicy(planName$, schemeGuid$)
+  Protected acThreshold.i = 0
+  Protected dcThreshold.i = #EnergySaverWindowsThreshold
+  Protected acPolicy.i = #EnergySaverPolicyUser
+  Protected dcPolicy.i = #EnergySaverPolicyUser
+  If schemeGuid$ = ""
+    ProcedureReturn #False
+  EndIf
+  If gSettings\EnergySaverMode = #EnergySaverPowerPilotControlled
+    If planName$ = #PlanBattery$
+      acThreshold = 100
+      dcThreshold = 100
+      acPolicy = #EnergySaverPolicyAggressive
+      dcPolicy = #EnergySaverPolicyAggressive
+    Else
+      dcThreshold = 0
+    EndIf
+  EndIf
+  TrySetSchemeValue(schemeGuid$, #True, #EnergySaverSubgroup$, #EnergySaverPolicySetting$, acPolicy)
+  TrySetSchemeValue(schemeGuid$, #False, #EnergySaverSubgroup$, #EnergySaverPolicySetting$, dcPolicy)
+  TrySetSchemeValue(schemeGuid$, #True, #EnergySaverSubgroup$, #EnergySaverThresholdSetting$, acThreshold)
+  TrySetSchemeValue(schemeGuid$, #False, #EnergySaverSubgroup$, #EnergySaverThresholdSetting$, dcThreshold)
+  ProcedureReturn #True
+EndProcedure
+
 ; Apply all PowerPilot-owned processor settings to one Windows scheme. The
 ; visible plan editor controls the headline values; this routine also sets
 ; hidden ramp, boost-policy, cooling, and parking values for consistency.
@@ -2844,6 +6092,7 @@ Procedure.i ConfigureScheme(*plan.PlanDefinition, schemeGuid$)
   SetFrequencyCaps(schemeGuid$, #False, *plan\DcFreqMHz)
   SetSchemeValue(schemeGuid$, #False, "SUB_PROCESSOR", "SYSCOOLPOL", *plan\DcCooling)
   ConfigureBatterySleepFloor(schemeGuid$)
+  ConfigureEnergySaverPolicy(*plan\Name, schemeGuid$)
 
   ; Profile-specific hidden boost/ramp tuning. These calls are optional because
   ; many firmware packages hide or omit some aliases.
@@ -3035,16 +6284,45 @@ Procedure.i ApplyBatterySleepFloorToManagedPlans()
   ProcedureReturn changed
 EndProcedure
 
-; Installer entry point. Keep the app registered for startup and repair missing
-; plans, but do not recreate existing plans on every update.
+; Reapply only Windows Energy Saver settings to existing managed plans when the
+; Plans tab Energy Saver mode changes.
+Procedure.i ApplyEnergySaverPolicyToManagedPlans()
+  Protected i.i
+  Protected guid$
+  Protected changed.i
+  Protected activeGuid$
+  Protected activeName$
+  For i = 0 To 2
+    guid$ = GetSchemeGuidByName(gPlans(i)\Name)
+    If guid$ <> ""
+      If ConfigureEnergySaverPolicy(gPlans(i)\Name, guid$)
+        changed + 1
+      EndIf
+    EndIf
+  Next
+  If changed > 0
+    activeGuid$ = GetActiveSchemeGuid()
+    activeName$ = GetSchemeNameByGuid(activeGuid$, #True)
+    If IsManagedPlanName(activeName$)
+      RunPowerCfg("/SETACTIVE " + activeGuid$)
+      gCachedActiveGuid$ = ""
+      gCachedActiveName$ = ""
+      gLastObservedActiveGuid$ = ""
+    EndIf
+  EndIf
+  ProcedureReturn changed
+EndProcedure
+
+; Installer entry point. Persist the user's startup preference and repair missing
+; plans. The installer owns the actual Windows startup registration.
 Procedure.i InstallRefresh()
   gSettings\AutoStartWithApp = #True
   SaveSettings()
-  SetStartupRegistry(#True)
   If ManagedPlansInstalled() = #False
     ProcedureReturn CreateManagedPlansFromBase(GetActiveSchemeGuid(), #False)
   EndIf
   ApplyBatterySleepFloorToManagedPlans()
+  ApplyEnergySaverPolicyToManagedPlans()
   ProcedureReturn #True
 EndProcedure
 
@@ -3110,6 +6388,30 @@ Procedure.i MainWindowVisible()
     ProcedureReturn #False
   EndIf
   ProcedureReturn Bool(IsWindowVisible_(WindowID(#WindowMain)) <> 0)
+EndProcedure
+
+Procedure.i EnsureSingleInstance()
+  gSingleInstanceMutex = CreateMutex_(0, #True, "Local\PowerPilot.SingleInstance")
+  If gSingleInstanceMutex And GetLastError_() = #ERROR_ALREADY_EXISTS
+    CloseHandle_(gSingleInstanceMutex)
+    gSingleInstanceMutex = 0
+    ProcedureReturn #False
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i BatteryGraphTabVisible()
+  If MainWindowVisible() = #False Or IsGadget(#GadgetPanel) = #False
+    ProcedureReturn #False
+  EndIf
+  ProcedureReturn Bool(GetGadgetState(#GadgetPanel) = #TabBatteryGraph)
+EndProcedure
+
+Procedure.i BatteryTestTabVisible()
+  If MainWindowVisible() = #False Or IsGadget(#GadgetPanel) = #False
+    ProcedureReturn #False
+  EndIf
+  ProcedureReturn Bool(GetGadgetState(#GadgetPanel) = #TabBatteryTest)
 EndProcedure
 
 Procedure SetGadgetTextIfChanged(gadget.i, text$)
@@ -3593,12 +6895,69 @@ Procedure.s ResolveAmdIntegratedGpuName(cpuName$)
   ProcedureReturn ""
 EndProcedure
 
-Procedure.s CpuInferredIntegratedGpuName()
-  ProcedureReturn ResolveAmdIntegratedGpuName(CpuBrand())
+; Intel Windows adapter names can be generic ("Intel Graphics" or
+; "Intel Arc Graphics"). When the CPU brand gives a safe SKU hint, replace that
+; generic text with the actual integrated GPU marketing name.
+Procedure.i IsGenericIntelIntegratedGpuName(hardwareName$)
+  Protected lowered$ = LCase(Trim(hardwareName$))
+  ProcedureReturn Bool(lowered$ = "intel graphics" Or lowered$ = "intel arc graphics" Or lowered$ = "intel uhd graphics" Or lowered$ = "intel hd graphics")
 EndProcedure
 
-; Clean Windows display adapter names and replace generic AMD iGPU names when a
-; CPU-family inference is available.
+Procedure.s ResolveIntelIntegratedGpuName(cpuName$)
+  Protected cpuMatchText$ = BuildCpuMatchText(cpuName$)
+  If cpuMatchText$ = "" Or FindString(cpuMatchText$, " intel ", 1) = 0
+    ProcedureReturn ""
+  EndIf
+
+  ; Core Ultra Series 2 "V" laptop processors, formerly Lunar Lake.
+  If CpuMatchAny(cpuMatchText$, "ultra 9 288v,ultra 7 268v,ultra 7 266v,ultra 7 258v,ultra 7 256v")
+    ProcedureReturn "Intel Arc 140V GPU"
+  EndIf
+  If CpuMatchAny(cpuMatchText$, "ultra 5 238v,ultra 5 236v,ultra 5 228v,ultra 5 226v")
+    ProcedureReturn "Intel Arc 130V GPU"
+  EndIf
+
+  ; Core Ultra Series 2 H laptop processors expose named 140T/130T iGPUs.
+  If CpuMatchAny(cpuMatchText$, "ultra 9 285h,ultra 7 265h,ultra 7 255h")
+    ProcedureReturn "Intel Arc 140T GPU"
+  EndIf
+  If CpuMatchAny(cpuMatchText$, "ultra 5 235h,ultra 5 225h")
+    ProcedureReturn "Intel Arc 130T GPU"
+  EndIf
+
+  ; Core Ultra Series 1 H laptop processors use built-in Intel Arc Graphics.
+  If CpuMatchAny(cpuMatchText$, "ultra 9 185h,ultra 7 165h,ultra 7 155h,ultra 5 135h,ultra 5 125h")
+    ProcedureReturn "Intel Arc Graphics"
+  EndIf
+
+  ; Recent mobile Core i5/i7/i9 parts often report generic graphics names. Use
+  ; Intel's official "eligible" wording where the exact branding depends on SKU
+  ; and memory configuration.
+  If CpuMatchAny(cpuMatchText$, "13th gen intel core i9,13th gen intel core i7,13th gen intel core i5,12th gen intel core i9,12th gen intel core i7,12th gen intel core i5,11th gen intel core i7,11th gen intel core i5")
+    ProcedureReturn "Intel Iris Xe Graphics eligible"
+  EndIf
+  If CpuMatchAny(cpuMatchText$, "14th gen intel core")
+    ProcedureReturn "Intel UHD Graphics for 14th Gen Intel Processors"
+  EndIf
+  If CpuMatchAny(cpuMatchText$, "13th gen intel core i3,12th gen intel core i3")
+    ProcedureReturn "Intel UHD Graphics"
+  EndIf
+  If CpuMatchAny(cpuMatchText$, "11th gen intel core i3")
+    ProcedureReturn "Intel UHD Graphics for 11th Gen Intel Processors"
+  EndIf
+  ProcedureReturn ""
+EndProcedure
+
+Procedure.s CpuInferredIntegratedGpuName()
+  Protected resolved$ = ResolveAmdIntegratedGpuName(CpuBrand())
+  If resolved$ = ""
+    resolved$ = ResolveIntelIntegratedGpuName(CpuBrand())
+  EndIf
+  ProcedureReturn resolved$
+EndProcedure
+
+; Clean Windows display adapter names and replace generic integrated GPU names
+; when a CPU-family inference is available.
 Procedure.s NormalizeGpuHardwareName(hardwareName$)
   Protected cleaned$ = Trim(hardwareName$)
   Protected resolved$
@@ -3620,6 +6979,11 @@ Procedure.s NormalizeGpuHardwareName(hardwareName$)
     If resolved$ <> ""
       cleaned$ = resolved$
     EndIf
+  ElseIf IsGenericIntelIntegratedGpuName(cleaned$)
+    resolved$ = CpuInferredIntegratedGpuName()
+    If resolved$ <> ""
+      cleaned$ = resolved$
+    EndIf
   EndIf
   ProcedureReturn Trim(cleaned$)
 EndProcedure
@@ -3627,7 +6991,31 @@ EndProcedure
 ; Used to annotate likely integrated GPUs in the Overview tab.
 Procedure.i IsLikelyIntegratedGpuName(name$)
   Protected lower$ = LCase(name$)
-  ProcedureReturn Bool(FindString(lower$, "radeon 680m", 1) Or FindString(lower$, "radeon 660m", 1) Or FindString(lower$, "radeon 610m", 1) Or FindString(lower$, "radeon 740m", 1) Or FindString(lower$, "radeon 760m", 1) Or FindString(lower$, "radeon 780m", 1) Or FindString(lower$, "radeon 840m", 1) Or FindString(lower$, "radeon 860m", 1) Or FindString(lower$, "radeon 880m", 1) Or FindString(lower$, "radeon 890m", 1) Or FindString(lower$, "vega", 1) Or FindString(lower$, "uhd", 1) Or FindString(lower$, "iris", 1) Or FindString(lower$, "xe graphics", 1))
+  If FindString(lower$, "iris xe max", 1)
+    ProcedureReturn #False
+  EndIf
+  ProcedureReturn Bool(FindString(lower$, "radeon 680m", 1) Or FindString(lower$, "radeon 660m", 1) Or FindString(lower$, "radeon 610m", 1) Or FindString(lower$, "radeon 740m", 1) Or FindString(lower$, "radeon 760m", 1) Or FindString(lower$, "radeon 780m", 1) Or FindString(lower$, "radeon 840m", 1) Or FindString(lower$, "radeon 860m", 1) Or FindString(lower$, "radeon 880m", 1) Or FindString(lower$, "radeon 890m", 1) Or FindString(lower$, "vega", 1) Or FindString(lower$, "uhd", 1) Or FindString(lower$, "iris", 1) Or FindString(lower$, "xe graphics", 1) Or FindString(lower$, "intel graphics", 1) Or FindString(lower$, "intel arc graphics", 1) Or FindString(lower$, "arc 130v", 1) Or FindString(lower$, "arc 140v", 1) Or FindString(lower$, "arc 130t", 1) Or FindString(lower$, "arc 140t", 1) Or FindString(lower$, "arc b370", 1) Or FindString(lower$, "arc b390", 1))
+EndProcedure
+
+; Used to annotate common separate laptop/desktop GPUs without changing the
+; Windows active/primary connection flags collected by BuildGpuInfo().
+Procedure.i IsLikelyDiscreteGpuName(name$, vendor$ = "")
+  Protected lower$ = LCase(name$)
+  Protected lowerVendor$ = LCase(vendor$)
+
+  If IsLikelyIntegratedGpuName(name$)
+    ProcedureReturn #False
+  EndIf
+  If lowerVendor$ = "nvidia" Or FindString(lower$, "nvidia", 1) Or FindString(lower$, "geforce", 1) Or FindString(lower$, "quadro", 1)
+    ProcedureReturn #True
+  EndIf
+  If FindString(lower$, "radeon rx", 1) Or FindString(lower$, "radeon pro", 1)
+    ProcedureReturn #True
+  EndIf
+  If FindString(lower$, "intel arc a", 1) Or FindString(lower$, "intel arc pro", 1) Or FindString(lower$, "iris xe max", 1)
+    ProcedureReturn #True
+  EndIf
+  ProcedureReturn #False
 EndProcedure
 
 ; Vendor decoding from PCI vendor id fragments exposed by DISPLAY_DEVICE.
@@ -3685,6 +7073,9 @@ Procedure.s BuildGpuInfo()
   Protected line$
   Protected key$
   Protected text$
+  Protected isIntegrated.i
+  Protected foundIntegrated.i
+  Protected inferredName$
   NewMap seenGpu.i()
 
   Repeat
@@ -3708,8 +7099,12 @@ Procedure.s BuildGpuInfo()
         flags$ + "primary"
       EndIf
       line$ = name$
-      If IsLikelyIntegratedGpuName(name$)
+      isIntegrated = IsLikelyIntegratedGpuName(name$)
+      If isIntegrated
         line$ + " [iGPU]"
+        foundIntegrated = #True
+      ElseIf IsLikelyDiscreteGpuName(name$, vendor$)
+        line$ + " [dGPU]"
       EndIf
       If vendor$ <> "Unknown vendor" And FindString(LCase(line$), LCase(vendor$), 1) = 0
         line$ + " (" + vendor$ + ")"
@@ -3726,8 +7121,13 @@ Procedure.s BuildGpuInfo()
     index + 1
   ForEver
 
+  inferredName$ = CpuInferredIntegratedGpuName()
+  If text$ <> "" And foundIntegrated = #False And inferredName$ <> "" And FindMapElement(seenGpu(), LCase(inferredName$)) = #False
+    text$ + #LF$ + inferredName$ + " [iGPU, inferred]"
+  EndIf
+
   If text$ = ""
-    name$ = CpuInferredIntegratedGpuName()
+    name$ = inferredName$
     If name$ <> ""
       text$ = name$ + " [iGPU, CPU inferred]"
     Else
@@ -3755,15 +7155,13 @@ EndProcedure
 ; Per-user startup registration. The installer is elevated, but the app startup
 ; entry must be HKCU so PowerPilot runs non-elevated for the local user.
 Procedure.i SetStartupRegistry(enabled.i)
-  Protected runKey$ = "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
-  Protected dataArg$ = Chr(92) + Chr(34) + ProgramFilename() + Chr(92) + Chr(34) + " /tray"
-  Protected args$
+  Protected ps$
   If enabled
-    args$ = "add " + QuoteArgument(runKey$) + " /v " + QuoteArgument(#AppRunKey$) + " /t REG_SZ /d " + QuoteArgument(dataArg$) + " /f"
+    ps$ = "$q=[char]34; $cmd=$q + " + PowerShellLiteral(ProgramFilename()) + " + $q + ' /tray'; New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name " + PowerShellLiteral(#AppRunKey$) + " -Value $cmd"
   Else
-    args$ = "delete " + QuoteArgument(runKey$) + " /v " + QuoteArgument(#AppRunKey$) + " /f"
+    ps$ = "Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name " + PowerShellLiteral(#AppRunKey$) + " -ErrorAction SilentlyContinue"
   EndIf
-  ProcedureReturn Bool(RunExitCode("reg.exe", args$) = 0)
+  ProcedureReturn Bool(RunExitCode("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + QuoteArgument(ps$), "", 10000) = 0)
 EndProcedure
 
 ; Installer/uninstaller helper for removing user settings when requested.
@@ -3880,25 +7278,33 @@ Procedure ResetSelectedPlan()
   RefreshPlanList(#True)
 EndProcedure
 
-; Push loaded settings into Overview, PowerPilot Log, and Battery Stats controls.
+; Push loaded settings into Overview, Plans, PowerPilot Log, and Battery Stats controls.
 Procedure ApplySettingsToGui()
   SetGadgetState(#GadgetAutoStart, Bool(gSettings\AutoStartWithApp))
   SetGadgetState(#GadgetKeepSettings, Bool(gSettings\KeepSettingsOnReinstall))
   SetGadgetState(#GadgetThrottleMaintenance, Bool(gSettings\ThrottleMaintenance))
   SetGadgetState(#GadgetDeepIdleSaver, Bool(gSettings\DeepIdleSaver))
+  If IsGadget(#GadgetEnergySaverMode) : SetGadgetState(#GadgetEnergySaverMode, ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled)) : EndIf
   SetGadgetState(#GadgetShowToolTips, Bool(gSettings\ShowToolTips))
   If IsGadget(#GadgetBatteryLogEnabled) : SetGadgetState(#GadgetBatteryLogEnabled, Bool(gSettings\BatteryLogEnabled)) : EndIf
   If IsGadget(#GadgetBatteryLogMinutes) : SetGadgetState(#GadgetBatteryLogMinutes, ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440)) : EndIf
   If IsGadget(#GadgetBatteryRefreshSeconds) : SetGadgetState(#GadgetBatteryRefreshSeconds, ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)) : EndIf
-  If IsGadget(#GadgetBatteryMinPercent) : SetGadgetState(#GadgetBatteryMinPercent, ClampInt(gSettings\BatteryMinPercent, 1, 99)) : EndIf
+  If IsGadget(#GadgetBatteryMinPercent) : SetGadgetState(#GadgetBatteryMinPercent, ClampInt(gSettings\BatteryMinPercent, 0, 99)) : EndIf
   If IsGadget(#GadgetBatteryMaxPercent) : SetGadgetState(#GadgetBatteryMaxPercent, ClampInt(gSettings\BatteryMaxPercent, gSettings\BatteryMinPercent + 1, 100)) : EndIf
   If IsGadget(#GadgetBatteryLimiterEnabled) : SetGadgetState(#GadgetBatteryLimiterEnabled, Bool(gSettings\BatteryLimiterEnabled)) : EndIf
   If IsGadget(#GadgetBatteryLimiterMaxPercent) : SetGadgetState(#GadgetBatteryLimiterMaxPercent, ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100)) : EndIf
   If IsGadget(#GadgetBatterySmoothingMinutes) : SetGadgetState(#GadgetBatterySmoothingMinutes, ClampInt(gSettings\BatterySmoothingMinutes, 5, 240)) : EndIf
   If IsGadget(#GadgetBatteryStartupDrain) : SetGadgetState(#GadgetBatteryStartupDrain, ClampInt(gSettings\BatteryStartupDrainPctPerHour, 1, 100)) : EndIf
+  If IsGadget(#GadgetBatteryLoadMinutes) : SetGadgetState(#GadgetBatteryLoadMinutes, ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)) : EndIf
+  If IsGadget(#GadgetBatteryGraphHours) : SetGadgetState(#GadgetBatteryGraphHours, BatteryGraphHoursIndex(gSettings\BatteryGraphHours)) : EndIf
+  If IsGadget(gFrameBatteryGraph) : SetGadgetTextIfChanged(gFrameBatteryGraph, BatteryGraphWindowTitle()) : EndIf
   If IsGadget(#GadgetLogShowAverage) : SetGadgetState(#GadgetLogShowAverage, Bool(gSettings\BatteryLogShowAverage)) : EndIf
   If IsGadget(#GadgetLogShowInstant) : SetGadgetState(#GadgetLogShowInstant, Bool(gSettings\BatteryLogShowInstant)) : EndIf
+  If IsGadget(#GadgetLogShowWindows) : SetGadgetState(#GadgetLogShowWindows, Bool(gSettings\BatteryLogShowWindows)) : EndIf
   If IsGadget(#GadgetLogShowConnected) : SetGadgetState(#GadgetLogShowConnected, Bool(gSettings\BatteryLogShowConnected)) : EndIf
+  If IsGadget(#GadgetLogShowPower) : SetGadgetState(#GadgetLogShowPower, Bool(gSettings\BatteryLogShowPower)) : EndIf
+  If IsGadget(#GadgetLogShowScreen) : SetGadgetState(#GadgetLogShowScreen, Bool(gSettings\BatteryLogShowScreen)) : EndIf
+  If IsGadget(#GadgetLogShowBrightness) : SetGadgetState(#GadgetLogShowBrightness, Bool(gSettings\BatteryLogShowBrightness)) : EndIf
   If IsGadget(#GadgetLogShowEvents) : SetGadgetState(#GadgetLogShowEvents, Bool(gSettings\BatteryLogShowEvents)) : EndIf
   ApplyToolTips()
 EndProcedure
@@ -3920,16 +7326,24 @@ Procedure SaveBatterySettingsFromGui()
   If IsGadget(#GadgetBatteryLimiterMaxPercent) : gSettings\BatteryLimiterMaxPercent = GetGadgetState(#GadgetBatteryLimiterMaxPercent) : EndIf
   If IsGadget(#GadgetBatterySmoothingMinutes) : gSettings\BatterySmoothingMinutes = GetGadgetState(#GadgetBatterySmoothingMinutes) : EndIf
   If IsGadget(#GadgetBatteryStartupDrain) : gSettings\BatteryStartupDrainPctPerHour = GetGadgetState(#GadgetBatteryStartupDrain) : EndIf
+  If IsGadget(#GadgetBatteryLoadMinutes) : gSettings\BatteryCalibrationDrainMinutes = GetGadgetState(#GadgetBatteryLoadMinutes) : EndIf
+  If IsGadget(#GadgetBatteryGraphHours) : gSettings\BatteryGraphHours = BatteryGraphHoursFromIndex(GetGadgetState(#GadgetBatteryGraphHours)) : EndIf
   If IsGadget(#GadgetLogShowAverage) : gSettings\BatteryLogShowAverage = GetGadgetState(#GadgetLogShowAverage) : EndIf
   If IsGadget(#GadgetLogShowInstant) : gSettings\BatteryLogShowInstant = GetGadgetState(#GadgetLogShowInstant) : EndIf
+  If IsGadget(#GadgetLogShowWindows) : gSettings\BatteryLogShowWindows = GetGadgetState(#GadgetLogShowWindows) : EndIf
   If IsGadget(#GadgetLogShowConnected) : gSettings\BatteryLogShowConnected = GetGadgetState(#GadgetLogShowConnected) : EndIf
+  If IsGadget(#GadgetLogShowPower) : gSettings\BatteryLogShowPower = GetGadgetState(#GadgetLogShowPower) : EndIf
+  If IsGadget(#GadgetLogShowScreen) : gSettings\BatteryLogShowScreen = GetGadgetState(#GadgetLogShowScreen) : EndIf
+  If IsGadget(#GadgetLogShowBrightness) : gSettings\BatteryLogShowBrightness = GetGadgetState(#GadgetLogShowBrightness) : EndIf
   If IsGadget(#GadgetLogShowEvents) : gSettings\BatteryLogShowEvents = GetGadgetState(#GadgetLogShowEvents) : EndIf
   gSettings\BatteryLogIntervalMinutes = ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440)
   gSettings\BatteryRefreshSeconds = ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)
-  gSettings\BatteryMinPercent = ClampInt(gSettings\BatteryMinPercent, 1, 99)
+  gSettings\BatteryMinPercent = ClampInt(gSettings\BatteryMinPercent, 0, 99)
   gSettings\BatteryMaxPercent = ClampInt(gSettings\BatteryMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatteryLimiterMaxPercent = ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatterySmoothingMinutes = ClampInt(gSettings\BatterySmoothingMinutes, 5, 240)
+  gSettings\BatteryCalibrationDrainMinutes = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
+  gSettings\BatteryGraphHours = NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)
   If gSettings\BatteryStartupDrainPctPerHour <= 0.0
     gSettings\BatteryStartupDrainPctPerHour = 12.0
   EndIf
@@ -3975,7 +7389,7 @@ Procedure.i CaptureBatteryLogColumnWidths(saveIfChanged.i = #False)
   If IsGadget(#GadgetBatteryLogPreview) = #False
     ProcedureReturn #False
   EndIf
-  For column = 0 To 6
+  For column = 0 To #BatteryLogVisibleColumns - 1
     width = GetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, column)
     If width > 0 And width <> BatteryLogColumnWidth(column)
       SetBatteryLogColumnWidthSetting(column, width)
@@ -3998,9 +7412,12 @@ Procedure ApplyBatteryLogColumnWidths()
   SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, BatteryLogColumnWidth(1), 1)
   SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowAverage) * BatteryLogColumnWidth(2), 2)
   SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowInstant) * BatteryLogColumnWidth(3), 3)
-  SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, BatteryLogColumnWidth(4), 4)
+  SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowWindows) * BatteryLogColumnWidth(4), 4)
   SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowInstant) * BatteryLogColumnWidth(5), 5)
   SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowConnected) * BatteryLogColumnWidth(6), 6)
+  SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowPower) * BatteryLogColumnWidth(7), 7)
+  SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowScreen) * BatteryLogColumnWidth(8), 8)
+  SetGadgetItemAttribute(#GadgetBatteryLogPreview, #PB_Ignore, #PB_ListIcon_ColumnWidth, Bool(gSettings\BatteryLogShowBrightness) * BatteryLogColumnWidth(9), 9)
 EndProcedure
 
 ; Clear retained history and live estimate state, then immediately sample again
@@ -4023,7 +7440,10 @@ Procedure ResetBatteryStats()
   gBattery\InstantEstimateValid = #False
   gBattery\InstantDrainPctPerHour = 0.0
   gBattery\SmoothedDrainPctPerHour = gSettings\BatteryStartupDrainPctPerHour
+  gBattery\SmoothedChargePctPerHour = 0.0
   gSettings\BatteryLastDrainPctPerHour = gSettings\BatteryStartupDrainPctPerHour
+  gSettings\BatteryLastChargePctPerHour = 0.0
+  gSettings\BatteryChargeLearningCount = 0
   SaveSettings()
   If IsGadget(#GadgetBatteryLogPreview)
     ClearGadgetItems(#GadgetBatteryLogPreview)
@@ -4037,7 +7457,7 @@ EndProcedure
 
 ; Format one visible log row for tab-separated clipboard copy.
 Procedure.s BatteryLogPreviewRowText(row.i)
-  Protected columns.i = 7
+  Protected columns.i = #BatteryLogVisibleColumns
   Protected i.i
   Protected text$
   For i = 0 To columns - 1
@@ -4146,19 +7566,67 @@ Procedure ImportSettings()
   EndIf
 EndProcedure
 
-; Save Overview startup/maintenance settings.
+Procedure OpenReadmeDocument()
+  Protected path$ = GetPathPart(ProgramFilename()) + "README.txt"
+  If FileSize(path$) < 0
+    path$ = GetCurrentDirectory() + "README.txt"
+  EndIf
+  If FileSize(path$) < 0
+    path$ = GetPathPart(ProgramFilename()) + "README.md"
+  EndIf
+  If FileSize(path$) < 0
+    path$ = GetCurrentDirectory() + "README.md"
+  EndIf
+  If FileSize(path$) >= 0
+    RunProgram("explorer.exe", QuoteArgument(path$), "")
+    LogAction("README opened.")
+  Else
+    LogAction("README was not found beside PowerPilot.")
+    MessageRequester(#AppName$, "README was not found beside PowerPilot.", #PB_MessageRequester_Warning)
+  EndIf
+EndProcedure
+
+Procedure OpenLicenseDocument()
+  Protected path$ = GetPathPart(ProgramFilename()) + "LICENSE.txt"
+  If FileSize(path$) < 0
+    path$ = GetCurrentDirectory() + "LICENSE.txt"
+  EndIf
+  If FileSize(path$) < 0
+    path$ = GetPathPart(ProgramFilename()) + "LICENSE"
+  EndIf
+  If FileSize(path$) < 0
+    path$ = GetCurrentDirectory() + "LICENSE"
+  EndIf
+  If FileSize(path$) >= 0
+    RunProgram("explorer.exe", QuoteArgument(path$), "")
+    LogAction("LICENSE opened.")
+  Else
+    LogAction("LICENSE was not found beside PowerPilot.")
+    MessageRequester(#AppName$, "LICENSE was not found beside PowerPilot.", #PB_MessageRequester_Warning)
+  EndIf
+EndProcedure
+
+; Save startup, idle, tooltip, and managed-plan Energy Saver settings.
 Procedure SaveSettingsFromGui()
   Protected batteryGuid$
+  Protected oldEnergySaverMode.i = gSettings\EnergySaverMode
   gSettings\AutoStartWithApp = GetGadgetState(#GadgetAutoStart)
   gSettings\KeepSettingsOnReinstall = GetGadgetState(#GadgetKeepSettings)
   gSettings\ThrottleMaintenance = GetGadgetState(#GadgetThrottleMaintenance)
   gSettings\DeepIdleSaver = GetGadgetState(#GadgetDeepIdleSaver)
+  If IsGadget(#GadgetEnergySaverMode)
+    gSettings\EnergySaverMode = GetGadgetState(#GadgetEnergySaverMode)
+  EndIf
+  gSettings\EnergySaverMode = ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled)
   gSettings\ShowToolTips = GetGadgetState(#GadgetShowToolTips)
   SaveSettings()
   SetStartupRegistry(gSettings\AutoStartWithApp)
   batteryGuid$ = GetSchemeGuidByName(#PlanBattery$)
   If batteryGuid$ <> ""
     ConfigureScheme(@gPlans(2), batteryGuid$)
+  EndIf
+  If oldEnergySaverMode <> gSettings\EnergySaverMode
+    ApplyEnergySaverPolicyToManagedPlans()
   EndIf
   ApplyMaintenanceThrottling(IsEfficiencyPowerMode(GetWindowsPowerModeGuid()), #True)
   RefreshActiveTimer()
@@ -4177,11 +7645,23 @@ Procedure RefreshBatteryLogPreview()
   Protected instantField.i
   Protected instantValueField.i
   Protected instantValue$
+  Protected instantTime$
+  Protected instantDrain$
   Protected runtimeField.i
   Protected runtimeValue$
+  Protected powerValue$
+  Protected connected.i
+  Protected dischargeField.i
+  Protected chargeField.i
+  Protected screenEvent$
+  Protected brightness$
   Protected isEvent.i
   Protected rowType$
+  Protected displayTimestamp$
   If IsGadget(#GadgetBatteryLogPreview) = #False
+    ProcedureReturn
+  EndIf
+  If MainWindowVisible() = #False
     ProcedureReturn
   EndIf
   CaptureBatteryLogColumnWidths(#False)
@@ -4193,19 +7673,37 @@ Procedure RefreshBatteryLogPreview()
       line$ = ReadString(0)
       If Left(line$, 9) <> "timestamp" And Trim(line$) <> ""
         fieldCount = CountString(line$, ",") + 1
+        displayTimestamp$ = BatteryLogTimestampForDisplay(StringField(line$, 1, ","))
         rowType$ = ""
         If fieldCount >= 19
           rowType$ = LCase(StringField(line$, 18, ","))
         EndIf
-        isEvent = Bool(rowType$ = "event" Or rowType$ = "app")
+        screenEvent$ = ""
+        brightness$ = ""
+        If fieldCount >= 20
+          screenEvent$ = StringField(line$, 20, ",")
+        EndIf
+        If fieldCount >= 21
+          brightness$ = StringField(line$, 21, ",")
+        EndIf
+        If brightness$ <> ""
+          brightness$ + "%"
+        EndIf
+        isEvent = Bool(rowType$ = "event" Or rowType$ = "app" Or rowType$ = "screen" Or rowType$ = "energy" Or rowType$ = "test")
         If isEvent
           If gSettings\BatteryLogShowEvents = #False
             Continue
           EndIf
-          If rowType$ = "app"
-            AddGadgetItem(#GadgetBatteryLogPreview, -1, StringField(line$, 1, ",") + Chr(10) + "APP" + Chr(10) + StringField(line$, 19, ",") + Chr(10) + "" + Chr(10) + "" + Chr(10) + "" + Chr(10) + "")
+          If rowType$ = "screen"
+            AddGadgetItem(#GadgetBatteryLogPreview, -1, BatteryLogListRow(displayTimestamp$, "SCREEN", "", "", "", "", "", "", screenEvent$, brightness$))
+          ElseIf rowType$ = "energy"
+            AddGadgetItem(#GadgetBatteryLogPreview, -1, BatteryLogListRow(displayTimestamp$, "ENERGY", StringField(line$, 19, ","), "", "", "", "", "", "", ""))
+          ElseIf rowType$ = "app"
+            AddGadgetItem(#GadgetBatteryLogPreview, -1, BatteryLogListRow(displayTimestamp$, "APP", StringField(line$, 19, ","), "", "", "", "", "", screenEvent$, brightness$))
+          ElseIf rowType$ = "test"
+            AddGadgetItem(#GadgetBatteryLogPreview, -1, BatteryLogListRow(displayTimestamp$, "TEST", StringField(line$, 19, ","), "", "", "", StringField(line$, 3, ","), FormatSignedBatteryWatts(ValD(StringField(line$, 10, ",")), ValD(StringField(line$, 11, ","))), screenEvent$, brightness$))
           Else
-            AddGadgetItem(#GadgetBatteryLogPreview, -1, StringField(line$, 1, ",") + Chr(10) + "EVENT" + Chr(10) + StringField(line$, 19, ",") + Chr(10) + "" + Chr(10) + "" + Chr(10) + "" + Chr(10) + "")
+            AddGadgetItem(#GadgetBatteryLogPreview, -1, BatteryLogListRow(displayTimestamp$, "EVENT", StringField(line$, 19, ","), "", "", "", "", "", screenEvent$, brightness$))
           EndIf
         Else
           ; Legacy rows from earlier builds have fewer columns, so field indexes
@@ -4214,28 +7712,38 @@ Procedure RefreshBatteryLogPreview()
           runtimeField = 12
           instantField = 0
           instantValueField = 0
+          dischargeField = 0
+          chargeField = 0
           If fieldCount >= 17
             averageField = 13
             runtimeField = 12
             instantField = 14
             instantValueField = 15
+            dischargeField = 10
+            chargeField = 11
           ElseIf fieldCount >= 16
             averageField = 13
             runtimeField = 12
             instantField = 14
           EndIf
-          runtimeValue$ = FormatBatteryMinutes(Val(StringField(line$, runtimeField, ",")))
+          connected = Val(StringField(line$, 3, ","))
+          runtimeValue$ = FormatBatteryRuntimeMinutes(Val(StringField(line$, runtimeField, ",")), connected)
           If instantField > 0
-            instantValue$ = FormatBatteryMinutes(Val(StringField(line$, instantField, ",")))
+            instantTime$ = FormatBatteryMinutes(Val(StringField(line$, instantField, ",")))
           Else
-            instantValue$ = "Unknown"
+            instantTime$ = "Unknown"
           EndIf
           If instantValueField > 0
-            instantValue$ + Chr(10) + StrD(ValD(StringField(line$, instantValueField, ",")), 1) + "%/h"
+            instantDrain$ = StrD(ValD(StringField(line$, instantValueField, ",")), 1) + "%/h"
           Else
-            instantValue$ + Chr(10) + ""
+            instantDrain$ = ""
           EndIf
-          AddGadgetItem(#GadgetBatteryLogPreview, -1, StringField(line$, 1, ",") + Chr(10) + StringField(line$, 2, ",") + "%" + Chr(10) + FormatBatteryMinutes(Val(StringField(line$, averageField, ","))) + Chr(10) + instantValue$ + Chr(10) + runtimeValue$ + Chr(10) + StringField(line$, 3, ","))
+          If dischargeField > 0 And chargeField > 0
+            powerValue$ = FormatSignedBatteryWatts(ValD(StringField(line$, dischargeField, ",")), ValD(StringField(line$, chargeField, ",")))
+          Else
+            powerValue$ = ""
+          EndIf
+          AddGadgetItem(#GadgetBatteryLogPreview, -1, BatteryLogListRow(displayTimestamp$, StringField(line$, 2, ",") + "%", FormatBatteryMinutes(Val(StringField(line$, averageField, ","))), instantTime$, runtimeValue$, instantDrain$, StringField(line$, 3, ","), powerValue$, screenEvent$, brightness$))
         EndIf
         added + 1
       EndIf
@@ -4250,38 +7758,179 @@ EndProcedure
 
 ; Update the Battery Graph tab and redraw graph/stats after every battery
 ; refresh. Unknown text is only shown when no valid battery provider responded.
+Procedure RefreshPowerPilotDrawDisplay()
+  Protected now.q = Date()
+  Protected nowCpu.q = CurrentProcessCpuTime100Ns()
+  Protected cpuSeconds.d
+  Protected elapsedSeconds.d
+  Protected totalLogicalCpuSeconds.d
+  Protected oneCorePercent.d
+  Protected processCpuShare.d
+  Protected estimatedMw.d
+  Protected drainBasisMW.d
+  Protected drainBasisEstimated.i
+  Protected drainBasisPctPerHour.d
+  Protected windowMinutes.d
+  Protected ppSeconds.q
+  Protected windowStart.q
+  Protected runtimeFullMWh.d = BatteryRuntimeFullMWh()
+  Protected startIndex.i = -1
+  Protected i.i
+  Protected suffix$
+  If gBatteryNativeFallbackUsed
+    suffix$ = " fallback"
+  EndIf
+  If IsGadget(#GadgetPowerPilotDraw) = #False
+    ProcedureReturn
+  EndIf
+  If nowCpu <= 0
+    SetGadgetTextIfChanged(#GadgetPowerPilotDraw, "Unavailable" + suffix$)
+    ProcedureReturn
+  EndIf
+  AddPowerPilotUsePoint(now, nowCpu)
+  If gPowerPilotUsePointCount < 2
+    SetGadgetTextIfChanged(#GadgetPowerPilotDraw, "Sampling 60s" + suffix$)
+    ProcedureReturn
+  EndIf
+  windowStart = now - #PowerPilotUseWindowSeconds
+  For i = gPowerPilotUsePointCount - 1 To 0 Step -1
+    If gPowerPilotUsePoints(i)\Timestamp <= windowStart
+      startIndex = i
+      Break
+    EndIf
+  Next
+  If startIndex < 0
+    startIndex = 0
+  EndIf
+  elapsedSeconds = now - gPowerPilotUsePoints(startIndex)\Timestamp
+  cpuSeconds = (nowCpu - gPowerPilotUsePoints(startIndex)\CpuTime100Ns) / 10000000.0
+  If elapsedSeconds > 0.0
+    oneCorePercent = (cpuSeconds / elapsedSeconds) * 100.0
+  EndIf
+  drainBasisMW = gBattery\DischargeRateMW
+  If drainBasisMW <= 0.0 And runtimeFullMWh > 0.0
+    drainBasisPctPerHour = gBattery\SmoothedDrainPctPerHour
+    If drainBasisPctPerHour <= 0.0
+      drainBasisPctPerHour = gSettings\BatteryLastDrainPctPerHour
+    EndIf
+    If drainBasisPctPerHour <= 0.0
+      drainBasisPctPerHour = gSettings\BatteryStartupDrainPctPerHour
+    EndIf
+    If drainBasisPctPerHour > 0.0
+      drainBasisMW = runtimeFullMWh * (drainBasisPctPerHour / 100.0)
+      drainBasisEstimated = #True
+    EndIf
+  EndIf
+  totalLogicalCpuSeconds = elapsedSeconds * CountCPUs()
+  If totalLogicalCpuSeconds > 0.0 And drainBasisMW > 0.0
+    processCpuShare = cpuSeconds / totalLogicalCpuSeconds
+    If processCpuShare < 0.0 : processCpuShare = 0.0 : EndIf
+    If processCpuShare > 1.0 : processCpuShare = 1.0 : EndIf
+    estimatedMw = drainBasisMW * processCpuShare
+  EndIf
+  gPowerPilotCpuWindowSeconds = cpuSeconds
+  gPowerPilotCpuWindowOneCorePercent = oneCorePercent
+  gPowerPilotCpuWindowMw = estimatedMw
+  gPowerPilotCpuWindowDrainBasisMW = drainBasisMW
+  gPowerPilotCpuWindowDrainBasisEstimated = drainBasisEstimated
+  gPowerPilotCpuWindowDrainBasisPctPerHour = drainBasisPctPerHour
+  If gPowerPilotCpuWindowSeconds > 0.0 Or gPowerPilotCpuWindowOneCorePercent > 0.0
+    If drainBasisMW > 0.0 And gPowerPilotCpuWindowMw > 0.0 And runtimeFullMWh > 0.0
+      windowMinutes = (((BatteryEffectiveMaxPercent() - gSettings\BatteryMinPercent) / 100.0) * runtimeFullMWh / drainBasisMW) * 60.0
+      ppSeconds = Round(windowMinutes * 60.0 * (gPowerPilotCpuWindowMw / drainBasisMW), #PB_Round_Nearest)
+    EndIf
+    gPowerPilotCpuWindowSecondsCost = ppSeconds
+    SetGadgetTextIfChanged(#GadgetPowerPilotDraw, StrD(gPowerPilotCpuWindowMw, 2) + " mW, " + Str(ppSeconds) + " sec" + suffix$)
+  Else
+    SetGadgetTextIfChanged(#GadgetPowerPilotDraw, "Sampling 60s" + suffix$)
+  EndIf
+  RefreshPowerUseDetails()
+EndProcedure
+
+Procedure RefreshPowerUseDetails()
+  Protected summary$
+  Protected status$
+  Protected totalCpuPercent.d
+  If IsGadget(#GadgetPowerUseSummary) = #False
+    ProcedureReturn
+  EndIf
+  If gPowerPilotCpuWindowSeconds > 0.0 Or gPowerPilotCpuWindowOneCorePercent > 0.0
+    If CountCPUs() > 0
+      totalCpuPercent = gPowerPilotCpuWindowOneCorePercent / CountCPUs()
+    EndIf
+    summary$ = "CPU time in that 60s: " + StrD(gPowerPilotCpuWindowSeconds, 2) + " sec" + #CRLF$
+    summary$ + "CPU load: " + StrD(totalCpuPercent, 3) + "% of total logical CPU capacity" + #CRLF$
+    summary$ + "App power draw: about " + StrD(gPowerPilotCpuWindowMw, 2) + " mW" + #CRLF$
+    summary$ + "Full-to-empty battery cost: about " + Str(gPowerPilotCpuWindowSecondsCost) + " sec"
+  Else
+    summary$ = "Waiting for about 60 seconds of PowerPilot CPU-use samples."
+  EndIf
+  If gBatteryNativeFallbackUsed
+    status$ = "WMI battery fallback. Native battery reads were unavailable or failed."
+  Else
+    status$ = "Native Windows battery driver reads."
+  EndIf
+  If gBattery\DischargeRateMW > 0.0
+    status$ + #CRLF$ + "Total battery discharging now: " + StrD(gBattery\DischargeRateMW / 1000.0, 2) + " W"
+  ElseIf gPowerPilotCpuWindowDrainBasisEstimated And gPowerPilotCpuWindowDrainBasisMW > 0.0
+    status$ + #CRLF$ + "Discharging basis: about " + StrD(gPowerPilotCpuWindowDrainBasisMW / 1000.0, 2) + " W from " + StrD(gPowerPilotCpuWindowDrainBasisPctPerHour, 1) + "%/h."
+  ElseIf gPowerPilotCpuWindowDrainBasisMW > 0.0
+    status$ + #CRLF$ + "Discharging basis: about " + StrD(gPowerPilotCpuWindowDrainBasisMW / 1000.0, 2) + " W."
+  Else
+    status$ + #CRLF$ + "Discharging basis: unavailable."
+  EndIf
+  SetGadgetTextIfChanged(#GadgetPowerUseSummary, summary$)
+  SetGadgetTextIfChanged(#GadgetPowerUseStatus, status$)
+EndProcedure
+
 Procedure RefreshBatteryDisplay()
   Protected connection$
   Protected charging$
+  Protected state$
   Protected estimate$
   Protected instantEstimate$
   Protected runtime$
   Protected fullEstimate$
+  Protected nominalEstimate$
   Protected wear$
   Protected maxCapacity$
   Protected floorText$ = " to " + Str(gSettings\BatteryMinPercent) + "%"
+  Protected targetText$
   Protected ceilingPercent.d
+  Protected estimateRate.d
+  If MainWindowVisible() = #False
+    ProcedureReturn
+  EndIf
   If IsGadget(#GadgetBatteryPercent) = #False
     ProcedureReturn
   EndIf
   If gBattery\Valid = #False
+    SetGadgetTextIfChanged(gFrameBatteryEstimate, "Battery Time")
     SetGadgetText(#GadgetBatteryPercent, "Unknown")
     SetGadgetText(#GadgetBatteryConnection, "Unknown")
     SetGadgetText(#GadgetBatteryCharging, "Unknown")
     SetGadgetText(#GadgetBatteryCapacity, "Unknown")
     SetGadgetText(#GadgetBatteryRates, "Unknown")
+    SetGadgetText(#GadgetBatteryVoltage, "Unknown")
+    RefreshPowerPilotDrawDisplay()
     SetGadgetText(#GadgetBatteryEstimate, "Unknown")
     SetGadgetText(#GadgetBatteryInstantEstimate, "Unknown")
     SetGadgetText(#GadgetBatteryRuntime, "Unknown")
     SetGadgetText(#GadgetBatteryFullEstimate, "Unknown")
     SetGadgetText(#GadgetBatteryWear, "Unknown")
+    SetGadgetText(#GadgetBatteryNominalEstimate, "Unknown")
     SetGadgetText(#GadgetBatteryMaxCapacity, "Unknown")
     SetGadgetText(#GadgetBatteryCycle, "Unknown")
-    DrawBatteryGraph()
+    If BatteryGraphTabVisible()
+      DrawBatteryGraph()
+    EndIf
+    RefreshBatteryTestDisplay()
     ProcedureReturn
   EndIf
+  SetGadgetTextIfChanged(gFrameBatteryEstimate, "Battery Time - read " + FormatDate("%hh:%ii:%ss", gBattery\Timestamp))
+  ceilingPercent = BatteryEffectiveMaxPercent()
   If gBattery\Connected
-    connection$ = "Connected"
+    connection$ = "Plugged in"
   Else
     connection$ = "On battery"
   EndIf
@@ -4292,32 +7941,89 @@ Procedure RefreshBatteryDisplay()
   Else
     charging$ = "Not charging"
   EndIf
+  If gBattery\Connected
+    state$ = "Plugged in"
+  Else
+    state$ = "On battery"
+  EndIf
+  If gBattery\Charging
+    state$ + ", charging"
+  ElseIf gBattery\Connected And gBattery\DisconnectedBattery
+    state$ + ", calibration discharge"
+  ElseIf gBattery\DisconnectedBattery
+    state$ + ", discharging"
+  Else
+    state$ + ", idle"
+  EndIf
+  If gBattery\Charging
+    targetText$ = " to " + StrD(ceilingPercent, 0) + "%"
+    estimateRate = gBattery\SmoothedChargePctPerHour
+  Else
+    targetText$ = floorText$
+    estimateRate = gBattery\SmoothedDrainPctPerHour
+  EndIf
   If gBattery\EstimateValid
-    estimate$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + floorText$ + " at " + StrD(gBattery\SmoothedDrainPctPerHour, 1) + "%/h"
+    If gBattery\Charging And gBattery\EstimateMinutes <= 0
+      estimate$ = "At " + StrD(ceilingPercent, 0) + "% target"
+    Else
+      estimate$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + targetText$ + " at " + StrD(estimateRate, 1) + "%/h"
+      If gBattery\EstimateLowConfidence
+        estimate$ + " low confidence"
+      EndIf
+    EndIf
   ElseIf gBattery\Connected
-    estimate$ = "Connected"
+    If gBattery\Phase = #BatteryPhasePluggedDischargingCalibration
+      estimate$ = "Calibration discharge"
+    Else
+      estimate$ = "Plugged in"
+    EndIf
   Else
     estimate$ = "Calculating"
   EndIf
-  If gBattery\InstantEstimateValid
-    instantEstimate$ = FormatBatteryMinutes(gBattery\InstantEstimateMinutes) + floorText$
+  If gBattery\Charging
+    If gBattery\EstimateValid
+      instantEstimate$ = "Using average"
+    Else
+      instantEstimate$ = "Calculating"
+    EndIf
+  ElseIf gBattery\InstantEstimateValid
+    instantEstimate$ = FormatBatteryMinutes(gBattery\InstantEstimateMinutes) + targetText$
+    If gBattery\EstimateLowConfidence
+      instantEstimate$ + " low confidence"
+    EndIf
   ElseIf gBattery\Connected
-    instantEstimate$ = "Connected"
+    instantEstimate$ = "Plugged in"
   Else
     instantEstimate$ = "Calculating"
   EndIf
-  If gBattery\RuntimeValid
+  If gBattery\Charging
+    runtime$ = "Not reported"
+  ElseIf gBattery\RuntimeValid
     runtime$ = FormatBatteryMinutes(gBattery\RuntimeMinutes)
+  ElseIf gBattery\Connected
+    runtime$ = "Plugged in"
   Else
     runtime$ = "Unknown"
   EndIf
-  ceilingPercent = BatteryEffectiveMaxPercent()
   If gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
     fullEstimate$ = FormatBatteryMinutes(((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) + " (" + StrD(ceilingPercent, 0) + "->" + Str(gSettings\BatteryMinPercent) + "%)"
   Else
     fullEstimate$ = "Calculating"
   EndIf
-  If gBattery\DesignMWh > 0.0 And gBattery\FullMWh > 0.0
+  nominalEstimate$ = "Unknown"
+  If gBatteryStableDesignMWh > 0.0 And BatteryRuntimeFullMWh() > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
+    nominalEstimate$ = FormatBatteryMinutes((((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) * (gBatteryStableDesignMWh / BatteryRuntimeFullMWh()))
+  ElseIf gBattery\DesignMWh > 0.0 And gBattery\FullMWh > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
+    nominalEstimate$ = FormatBatteryMinutes((((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) * (gBattery\DesignMWh / gBattery\FullMWh))
+  ElseIf gBattery\Connected
+    nominalEstimate$ = "Plugged in"
+  ElseIf gBattery\SmoothedDrainPctPerHour <= 0.0
+    nominalEstimate$ = "Calculating"
+  EndIf
+  If gBatteryStableDesignMWh > 0.0 And gBatteryStableFullMWh > 0.0
+    wear$ = StrD(gBatteryStableWearPercent, 1) + "%"
+    maxCapacity$ = StrD(gBatteryStableFullMWh, 0) + " / " + StrD(gBatteryStableDesignMWh, 0) + " mWh stable"
+  ElseIf gBattery\DesignMWh > 0.0 And gBattery\FullMWh > 0.0
     wear$ = StrD(gBattery\WearPercent, 1) + "%"
     maxCapacity$ = StrD(gBattery\FullMWh, 0) + " / " + StrD(gBattery\DesignMWh, 0) + " mWh"
   ElseIf gBattery\FullMWh > 0.0
@@ -4328,66 +8034,149 @@ Procedure RefreshBatteryDisplay()
     maxCapacity$ = "Unknown"
   EndIf
   SetGadgetTextIfChanged(#GadgetBatteryPercent, StrD(gBattery\Percent, 1) + "%")
-  SetGadgetTextIfChanged(#GadgetBatteryConnection, connection$)
-  SetGadgetTextIfChanged(#GadgetBatteryCharging, charging$)
+  SetGadgetTextIfChanged(#GadgetBatteryConnection, state$)
+  SetGadgetTextIfChanged(#GadgetBatteryCharging, "")
   SetGadgetTextIfChanged(#GadgetBatteryCapacity, StrD(gBattery\RemainingMWh, 0) + " mWh")
-  SetGadgetTextIfChanged(#GadgetBatteryRates, "Discharge " + StrD(gBattery\DischargeRateMW, 0) + " mW, charge " + StrD(gBattery\ChargeRateMW, 0) + " mW")
+  SetGadgetTextIfChanged(#GadgetBatteryRates, FormatSignedBatteryWatts(gBattery\DischargeRateMW, gBattery\ChargeRateMW))
+  If gBattery\VoltageMV > 0.0
+    SetGadgetTextIfChanged(#GadgetBatteryVoltage, StrD(gBattery\VoltageMV / 1000.0, 2) + " V")
+  Else
+    SetGadgetTextIfChanged(#GadgetBatteryVoltage, "Unknown")
+  EndIf
+  RefreshPowerPilotDrawDisplay()
   SetGadgetTextIfChanged(#GadgetBatteryEstimate, estimate$)
   SetGadgetTextIfChanged(#GadgetBatteryInstantEstimate, instantEstimate$)
   SetGadgetTextIfChanged(#GadgetBatteryRuntime, runtime$)
   SetGadgetTextIfChanged(#GadgetBatteryFullEstimate, fullEstimate$)
   SetGadgetTextIfChanged(#GadgetBatteryWear, wear$)
+  SetGadgetTextIfChanged(#GadgetBatteryNominalEstimate, nominalEstimate$)
   SetGadgetTextIfChanged(#GadgetBatteryMaxCapacity, maxCapacity$)
   SetGadgetTextIfChanged(#GadgetBatteryCycle, Str(gBattery\CycleCount))
-  DrawBatteryGraph()
+  If BatteryGraphTabVisible()
+    DrawBatteryGraph()
+  EndIf
   RefreshBatteryStatsSummary()
+  RefreshBatteryTestDisplay()
 EndProcedure
 
-; Draw the 24-hour gliding battery graph. Active intervals are green; power
-; breaks and unexplained large gaps are grey endpoint-to-endpoint segments.
+; Draw the 24-hour gliding battery graph. Active intervals are blue, Windows
+; Energy Saver intervals are green, and power breaks/unexplained large gaps
+; are red endpoint-to-endpoint segments.
 Procedure DrawBatteryGraph()
+  Protected buffer.i
   Protected width.i
   Protected height.i
-  Protected left.i = 44
-  Protected top.i = 14
+  Protected left.i = 54
+  Protected top.i = 64
   Protected right.i
   Protected bottom.i
   Protected i.i
   Protected tick.q
   Protected startTime.q
   Protected endTime.q
+  Protected graphWindowSeconds.q
   Protected firstHour.q
   Protected visibleCount.i
   Protected x1.i
   Protected y1.i
   Protected x2.i
   Protected y2.i
+  Protected pathX1.d
+  Protected pathY1.d
+  Protected pathX2.d
+  Protected pathY2.d
+  Protected plotTop.d
+  Protected plotBottom.d
+  Protected plotHeight.d
+  Protected plotLineInset.d = 1.5
   Protected x.i
-  Protected minPercent.d = gSettings\BatteryMinPercent
-  Protected maxPercent.d = BatteryEffectiveMaxPercent()
+  Protected labelHeight.i
+  Protected legendY.i
+  Protected legendLineY.i
+  Protected minPercent.d = 0.0
+  Protected maxPercent.d = 100.0
   Protected span.d
   Protected percent.d
   Protected xScale.d
-  Protected flatGapSeconds.i
   Protected flatSegment.i
+  Protected segmentKind.i
+  Protected previousSegmentKind.i = -1
+  Protected markerColor.i
+  Protected lastMarkerX.i = -99999
+  Protected lastMarkerColor.i = -1
+  Protected segmentStart.q
+  Protected segmentEnd.q
+  Protected drawStart.q
+  Protected drawEnd.q
+  Protected transitionTime.q
+  Protected visiblePointCount.i
+  Protected lastEventLabelX.i = -99999
+  Protected eventLabelSlot.i
+  Protected eventLabelY.i
+  Protected label$
+  Protected shortLabel$
+  Protected clusterLabel$
+  Protected eventX.i
+  Protected clusterX.i
+  Protected clusterLastX.i
+  Protected clusterLabelX.i
+  Protected labelWidth.i
+  Protected labelCharIndex.i
+  Protected labelChar$
+  Protected stateLabel.i
+  Protected stateLabelMinGap.i
+  Protected labelCount.i
+  Protected labelDrawLeft.i
+  Protected labelDrawRight.i
+  Protected trySlot.i
+  Protected occupiedIndex.i
+  Protected labelCanDraw.i
+  Protected markerCanDraw.i
+  Dim labelUsedLeft.i(127)
+  Dim labelUsedRight.i(127)
+  Dim labelUsedY.i(127)
   If IsGadget(#GadgetBatteryGraph) = #False
     ProcedureReturn
   EndIf
   width = GadgetWidth(#GadgetBatteryGraph)
   height = GadgetHeight(#GadgetBatteryGraph)
-  right = width - 12
-  bottom = height - 30
+  If width <= 0 Or height <= 0
+    ProcedureReturn
+  EndIf
+  buffer = CreateImage(#PB_Any, width, height, 32, RGB(250, 250, 248))
+  If buffer = 0
+    ProcedureReturn
+  EndIf
+  right = width - 14
+  bottom = height - 36
+  plotTop = top + plotLineInset
+  plotBottom = bottom - plotLineInset
+  plotHeight = plotBottom - plotTop
   endTime = Date()
   If gBatteryGraphCount > 0 And gBatteryGraph(gBatteryGraphCount - 1)\Timestamp > endTime
     endTime = gBatteryGraph(gBatteryGraphCount - 1)\Timestamp
   EndIf
-  startTime = endTime - #BatteryGraphWindowSeconds
-  xScale = (right - left) / #BatteryGraphWindowSeconds
+  graphWindowSeconds = BatteryGraphWindowSeconds()
+  startTime = endTime - graphWindowSeconds
+  xScale = (right - left) / graphWindowSeconds
+  If graphWindowSeconds <= 86400
+    stateLabelMinGap = 20
+  ElseIf graphWindowSeconds <= 129600
+    stateLabelMinGap = 32
+  ElseIf graphWindowSeconds <= 172800
+    stateLabelMinGap = 40
+  ElseIf graphWindowSeconds <= 216000
+    stateLabelMinGap = 48
+  Else
+    stateLabelMinGap = 56
+  EndIf
   span = maxPercent - minPercent
-  flatGapSeconds = BatteryGraphFlatGapSeconds()
   If span <= 0.0 : span = 1.0 : EndIf
-  If StartDrawing(CanvasOutput(#GadgetBatteryGraph))
+  If StartDrawing(ImageOutput(buffer))
     Box(0, 0, width, height, RGB(250, 250, 248))
+    labelHeight = TextHeight("100%")
+    legendY = 8
+    legendLineY = legendY + (labelHeight / 2)
     DrawingMode(#PB_2DDrawing_Default)
     ; Hour marks are computed from wall-clock hours so date labels stay stable
     ; as the gliding window moves.
@@ -4413,27 +8202,46 @@ Procedure DrawBatteryGraph()
       y1 = top + ((bottom - top) * i / 4)
       LineXY(left, y1, right, y1)
     Next
+    Box(0, 0, width, 1, RGB(214, 214, 210))
+    Box(0, height - 1, width, 1, RGB(142, 142, 138))
+    Box(0, 0, 1, height, RGB(214, 214, 210))
+    Box(width - 1, 0, 1, height, RGB(214, 214, 210))
     FrontColor(RGB(48, 48, 48))
+    Box(left, top, right - left + 1, 1, RGB(48, 48, 48))
     Box(left, top, 1, bottom - top + 1, RGB(48, 48, 48))
+    Box(right, top, 1, bottom - top + 1, RGB(48, 48, 48))
     Box(left, bottom, right - left + 1, 1, RGB(48, 48, 48))
     DrawingMode(#PB_2DDrawing_Transparent)
     FrontColor(RGB(24, 24, 24))
-    DrawText(6, top - 2, StrD(maxPercent, 0) + "%")
-    DrawText(8, bottom - 10, StrD(minPercent, 0) + "%")
-    FrontColor(RGB(15, 112, 67))
-    LineXY(left + 82, 5, left + 112, 5)
-    DrawText(left + 118, 0, "active")
-    FrontColor(RGB(112, 112, 108))
-    LineXY(left + 176, 5, left + 206, 5)
-    DrawText(left + 212, 0, "event/offline")
+    DrawText(6, top - (labelHeight / 2), StrD(maxPercent, 0) + "%")
+    DrawText(8, bottom - (labelHeight / 2), StrD(minPercent, 0) + "%")
+    FrontColor(RGB(0, 96, 190))
+    LineXY(left + 78, legendLineY, left + 108, legendLineY)
+    LineXY(left + 78, legendLineY + 1, left + 108, legendLineY + 1)
+    DrawText(left + 114, legendY, "normal")
+    FrontColor(RGB(0, 140, 72))
+    LineXY(left + 218, legendLineY, left + 248, legendLineY)
+    LineXY(left + 218, legendLineY + 1, left + 248, legendLineY + 1)
+    DrawText(left + 254, legendY, "Energy Saver")
+    FrontColor(RGB(190, 35, 35))
+    LineXY(left + 398, legendLineY, left + 428, legendLineY)
+    LineXY(left + 398, legendLineY + 1, left + 428, legendLineY + 1)
+    DrawText(left + 434, legendY, "event/offline")
+    FrontColor(RGB(112, 42, 42))
+    DrawText(left, legendY + labelHeight + 4, "Marks: Z sleep  H hib  W wake  S shut  P start  (!) bad  O off  E saver  N normal")
+    FrontColor(RGB(0, 0, 0))
     tick = firstHour
     While tick <= endTime
       x = left + ((tick - startTime) * xScale)
       If x >= left And x <= right
-        If FormatDate("%hh", tick) = "00"
-          DrawText(x - 18, bottom + 4, FormatDate("%mm-%dd", tick))
-        ElseIf Val(FormatDate("%hh", tick)) % 6 = 0
-          DrawText(x - 10, bottom + 4, FormatDate("%hh", tick))
+        If graphWindowSeconds <= 86400 Or Val(FormatDate("%hh", tick)) % 4 = 0
+          label$ = FormatDate("%hh", tick)
+          If FormatDate("%hh", tick) = "00"
+            FrontColor(RGB(32, 32, 32))
+          Else
+            FrontColor(RGB(74, 74, 70))
+          EndIf
+          DrawText(x - (TextWidth(label$) / 2), bottom + 6, label$)
         EndIf
       EndIf
       tick = AddDate(tick, #PB_Date_Hour, 1)
@@ -4441,58 +8249,343 @@ Procedure DrawBatteryGraph()
     DrawingMode(#PB_2DDrawing_Default)
     ; Draw PC power-event markers before the battery line so the line remains
     ; visible over the marker.
-    For i = 0 To gBatteryEventCount - 1
+    i = 0
+    While i < gBatteryEventCount
       If gBatteryEvents(i)\Timestamp >= startTime And gBatteryEvents(i)\Timestamp <= endTime
-        x = left + ((gBatteryEvents(i)\Timestamp - startTime) * xScale)
-        FrontColor(RGB(176, 112, 56))
-        LineXY(x, top, x, bottom)
+        clusterLabel$ = ""
+        clusterX = left + ((gBatteryEvents(i)\Timestamp - startTime) * xScale)
+        clusterLastX = clusterX
+        While i < gBatteryEventCount And gBatteryEvents(i)\Timestamp >= startTime And gBatteryEvents(i)\Timestamp <= endTime
+          eventX = left + ((gBatteryEvents(i)\Timestamp - startTime) * xScale)
+          If clusterLabel$ <> "" And Abs(eventX - clusterLastX) >= 10
+            Break
+          EndIf
+          FrontColor(RGB(190, 35, 35))
+          LineXY(eventX, top, eventX, bottom)
+          shortLabel$ = BatteryEventShortName(gBatteryEvents(i)\Name)
+          If BatteryEventIsSleepHibernate(gBatteryEvents(i)\Name) And BatterySleepHibernateEventCanSplit(gBatteryEvents(i)\Timestamp, startTime, endTime, left, xScale)
+            shortLabel$ = "H"
+          EndIf
+          For labelCharIndex = 1 To Len(shortLabel$)
+            labelChar$ = Mid(shortLabel$, labelCharIndex, 1)
+            If labelChar$ <> "" And FindString(clusterLabel$, labelChar$, 1) = 0
+              clusterLabel$ + labelChar$
+            EndIf
+          Next
+          clusterLastX = eventX
+          i + 1
+        Wend
+        clusterLabelX = (clusterX + clusterLastX) / 2
+        FrontColor(RGB(190, 35, 35))
         DrawingMode(#PB_2DDrawing_Transparent)
-        FrontColor(RGB(94, 62, 32))
-        DrawText(x + 2, top + 2, BatteryEventShortName(gBatteryEvents(i)\Name))
+        FrontColor(RGB(128, 28, 28))
+        labelWidth = TextWidth(clusterLabel$)
+        labelCanDraw = #False
+        For trySlot = 0 To 3
+          eventLabelY = top + 3 + (trySlot * (labelHeight + 1))
+          If clusterLabelX + 2 + labelWidth > right
+            labelDrawLeft = clusterLabelX - labelWidth - 3
+          Else
+            labelDrawLeft = clusterLabelX + 2
+          EndIf
+          If labelDrawLeft < left + 2 : labelDrawLeft = left + 2 : EndIf
+          labelDrawRight = labelDrawLeft + labelWidth
+          labelCanDraw = #True
+          For occupiedIndex = 0 To labelCount - 1
+            If labelUsedY(occupiedIndex) = eventLabelY And labelDrawLeft <= labelUsedRight(occupiedIndex) + 2 And labelDrawRight >= labelUsedLeft(occupiedIndex) - 2
+              labelCanDraw = #False
+              Break
+            EndIf
+          Next
+          If labelCanDraw
+            Break
+          EndIf
+        Next
+        If labelCanDraw
+          DrawText(labelDrawLeft, eventLabelY, clusterLabel$)
+          If labelCount <= 127
+            labelUsedLeft(labelCount) = labelDrawLeft
+            labelUsedRight(labelCount) = labelDrawRight
+            labelUsedY(labelCount) = eventLabelY
+            labelCount + 1
+          EndIf
+        EndIf
+        lastEventLabelX = clusterLabelX
         DrawingMode(#PB_2DDrawing_Default)
+      Else
+        i + 1
       EndIf
-    Next
+    Wend
+    ; Draw color-change markers as one-pixel raster lines behind the battery
+    ; stroke. This keeps them visible without making the graph line look fat.
     If gBatteryGraphCount > 1
-      DrawingMode(#PB_2DDrawing_Default)
+      previousSegmentKind = -1
+      lastMarkerX = -99999
+      lastMarkerColor = -1
       For i = 1 To gBatteryGraphCount - 1
-        If gBatteryGraph(i - 1)\Timestamp < startTime Or gBatteryGraph(i)\Timestamp < startTime
+        If BatteryGraphSegmentVisible(i, startTime, endTime) = #False
           Continue
         EndIf
-        If gBatteryGraph(i - 1)\Timestamp > endTime Or gBatteryGraph(i)\Timestamp > endTime
-          Continue
-        EndIf
-        percent = gBatteryGraph(i - 1)\Percent
-        If percent < minPercent : percent = minPercent : EndIf
-        If percent > maxPercent : percent = maxPercent : EndIf
-        x1 = left + ((gBatteryGraph(i - 1)\Timestamp - startTime) * xScale)
-        y1 = bottom - ((bottom - top) * (percent - minPercent) / span)
-        percent = gBatteryGraph(i)\Percent
-        If percent < minPercent : percent = minPercent : EndIf
-        If percent > maxPercent : percent = maxPercent : EndIf
-        x2 = left + ((gBatteryGraph(i)\Timestamp - startTime) * xScale)
-        y2 = bottom - ((bottom - top) * (percent - minPercent) / span)
-        ; A grey segment connects endpoints across true PC off/sleep gaps or
-        ; unexplained missing samples. App restarts do not create grey gaps.
-        flatSegment = Bool(BatteryIntervalHasPowerBreak(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp) Or (gBatteryGraph(i)\Timestamp - gBatteryGraph(i - 1)\Timestamp > flatGapSeconds And BatteryIntervalHasAppBreak(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp) = #False))
+        segmentStart = gBatteryGraph(i - 1)\Timestamp
+        segmentEnd = gBatteryGraph(i)\Timestamp
+        flatSegment = BatteryGraphOfflineGap(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp)
         If flatSegment
-          FrontColor(RGB(112, 112, 108))
-          LineXY(x1, y1, x2, y2)
-          LineXY(x1, y1 + 1, x2, y2 + 1)
+          segmentKind = 2
+          markerColor = RGB(190, 35, 35)
+        ElseIf gBatteryGraph(i - 1)\EnergySaverOn Or gBatteryGraph(i)\EnergySaverOn
+          segmentKind = 1
+          markerColor = RGB(0, 140, 72)
         Else
-          FrontColor(RGB(15, 112, 67))
-          LineXY(x1, y1, x2, y2)
-          LineXY(x1, y1 + 1, x2, y2 + 1)
+          segmentKind = 0
+          markerColor = RGB(0, 96, 190)
         EndIf
-        visibleCount + 1
+        If previousSegmentKind >= 0 And segmentKind <> previousSegmentKind
+          transitionTime = segmentStart
+          If transitionTime < startTime : transitionTime = startTime : EndIf
+          If transitionTime > endTime : transitionTime = endTime : EndIf
+          x = Round(left + ((transitionTime - startTime) * xScale), #PB_Round_Nearest)
+          If x >= left And x <= right And (markerColor <> lastMarkerColor Or Abs(x - lastMarkerX) > 6)
+            shortLabel$ = ""
+            stateLabel = #False
+            labelCanDraw = #False
+            markerCanDraw = #True
+            If segmentKind = 2
+              If BatteryIntervalHasPowerBreak(segmentStart, segmentEnd) = #False
+                shortLabel$ = "O"
+              ElseIf BatteryIntervalHasSplittableSleepHibernateBreak(segmentStart, segmentEnd, startTime, endTime, left, xScale)
+                shortLabel$ = "Z"
+              EndIf
+            ElseIf segmentKind = 1
+              shortLabel$ = "E"
+              stateLabel = #True
+            ElseIf segmentKind = 0
+              shortLabel$ = "N"
+              stateLabel = #True
+            EndIf
+            If stateLabel And Abs(x - lastEventLabelX) < stateLabelMinGap
+              shortLabel$ = ""
+            EndIf
+            If shortLabel$ <> ""
+              labelWidth = TextWidth(shortLabel$)
+              If stateLabel
+                trySlot = 0
+                eventLabelY = top + 3
+                If x + 2 + labelWidth > right
+                  labelDrawLeft = x - labelWidth - 3
+                Else
+                  labelDrawLeft = x + 2
+                EndIf
+                If labelDrawLeft < left + 2 : labelDrawLeft = left + 2 : EndIf
+                labelDrawRight = labelDrawLeft + labelWidth
+                labelCanDraw = #True
+                For occupiedIndex = 0 To labelCount - 1
+                  If labelUsedY(occupiedIndex) = eventLabelY And labelDrawLeft <= labelUsedRight(occupiedIndex) + 2 And labelDrawRight >= labelUsedLeft(occupiedIndex) - 2
+                    labelCanDraw = #False
+                    Break
+                  EndIf
+                Next
+              Else
+                For trySlot = 0 To 3
+                  eventLabelY = top + 3 + (trySlot * (labelHeight + 1))
+                  If x + 2 + labelWidth > right
+                    labelDrawLeft = x - labelWidth - 3
+                  Else
+                    labelDrawLeft = x + 2
+                  EndIf
+                  If labelDrawLeft < left + 2 : labelDrawLeft = left + 2 : EndIf
+                  labelDrawRight = labelDrawLeft + labelWidth
+                  labelCanDraw = #True
+                  For occupiedIndex = 0 To labelCount - 1
+                    If labelUsedY(occupiedIndex) = eventLabelY And labelDrawLeft <= labelUsedRight(occupiedIndex) + 2 And labelDrawRight >= labelUsedLeft(occupiedIndex) - 2
+                      labelCanDraw = #False
+                      Break
+                    EndIf
+                  Next
+                  If labelCanDraw
+                    Break
+                  EndIf
+                Next
+              EndIf
+            EndIf
+            If stateLabel And labelCanDraw = #False
+              markerCanDraw = #False
+            EndIf
+            If markerCanDraw
+              FrontColor(markerColor)
+              LineXY(x, top + 1, x, bottom - 1)
+              If labelCanDraw
+                DrawingMode(#PB_2DDrawing_Transparent)
+                If segmentKind = 2
+                  FrontColor(RGB(128, 28, 28))
+                Else
+                  FrontColor(markerColor)
+                EndIf
+                DrawText(labelDrawLeft, eventLabelY, shortLabel$)
+                If labelCount <= 127
+                  labelUsedLeft(labelCount) = labelDrawLeft
+                  labelUsedRight(labelCount) = labelDrawRight
+                  labelUsedY(labelCount) = eventLabelY
+                  labelCount + 1
+                EndIf
+                lastEventLabelX = x
+                DrawingMode(#PB_2DDrawing_Default)
+              EndIf
+              lastMarkerX = x
+              lastMarkerColor = markerColor
+            EndIf
+          EndIf
+        EndIf
+        If flatSegment = #False And gBatteryGraph(i - 1)\EnergySaverOn <> gBatteryGraph(i)\EnergySaverOn And segmentEnd >= startTime And segmentEnd <= endTime And (i + 1 >= gBatteryGraphCount Or BatteryGraphOfflineGap(gBatteryGraph(i)\Timestamp, gBatteryGraph(i + 1)\Timestamp) = #False)
+          x = Round(left + ((segmentEnd - startTime) * xScale), #PB_Round_Nearest)
+          If gBatteryGraph(i)\EnergySaverOn
+            markerColor = RGB(0, 140, 72)
+          Else
+            markerColor = RGB(0, 96, 190)
+          EndIf
+          If x >= left And x <= right And (markerColor <> lastMarkerColor Or Abs(x - lastMarkerX) > 6)
+            stateLabel = #True
+            labelCanDraw = #False
+            If gBatteryGraph(i)\EnergySaverOn
+              shortLabel$ = "E"
+            Else
+              shortLabel$ = "N"
+            EndIf
+            If Abs(x - lastEventLabelX) < stateLabelMinGap
+              shortLabel$ = ""
+            EndIf
+            If shortLabel$ <> ""
+            labelWidth = TextWidth(shortLabel$)
+            eventLabelY = top + 3
+            If x + 2 + labelWidth > right
+              labelDrawLeft = x - labelWidth - 3
+            Else
+              labelDrawLeft = x + 2
+            EndIf
+            If labelDrawLeft < left + 2 : labelDrawLeft = left + 2 : EndIf
+            labelDrawRight = labelDrawLeft + labelWidth
+            labelCanDraw = #True
+            For occupiedIndex = 0 To labelCount - 1
+              If labelUsedY(occupiedIndex) = eventLabelY And labelDrawLeft <= labelUsedRight(occupiedIndex) + 2 And labelDrawRight >= labelUsedLeft(occupiedIndex) - 2
+                labelCanDraw = #False
+                Break
+              EndIf
+            Next
+            EndIf
+            If labelCanDraw
+              FrontColor(markerColor)
+              LineXY(x, top + 1, x, bottom - 1)
+              DrawingMode(#PB_2DDrawing_Transparent)
+              FrontColor(markerColor)
+              DrawText(labelDrawLeft, eventLabelY, shortLabel$)
+              If labelCount <= 127
+                labelUsedLeft(labelCount) = labelDrawLeft
+                labelUsedRight(labelCount) = labelDrawRight
+                labelUsedY(labelCount) = eventLabelY
+                labelCount + 1
+              EndIf
+              lastEventLabelX = x
+              DrawingMode(#PB_2DDrawing_Default)
+              lastMarkerX = x
+              lastMarkerColor = markerColor
+            EndIf
+          EndIf
+        EndIf
+        previousSegmentKind = segmentKind
       Next
-    EndIf
-    If gBatteryGraphCount = 0 Or visibleCount = 0
-      DrawingMode(#PB_2DDrawing_Transparent)
-      FrontColor(RGB(70, 70, 70))
-      DrawText(left + 12, top + 46, "Waiting for battery samples")
     EndIf
     StopDrawing()
   EndIf
+  If gBatteryGraphCount > 1
+    If StartVectorDrawing(ImageVectorOutput(buffer))
+      For i = 1 To gBatteryGraphCount - 1
+        If BatteryGraphSegmentVisible(i, startTime, endTime) = #False
+          Continue
+        EndIf
+        segmentStart = gBatteryGraph(i - 1)\Timestamp
+        segmentEnd = gBatteryGraph(i)\Timestamp
+        drawStart = segmentStart
+        If drawStart < startTime : drawStart = startTime : EndIf
+        drawEnd = segmentEnd
+        If drawEnd > endTime : drawEnd = endTime : EndIf
+        If drawEnd < drawStart
+          Continue
+        EndIf
+        percent = BatteryGraphSegmentPercentAt(i, drawStart)
+        If percent < minPercent : percent = minPercent : EndIf
+        If percent > maxPercent : percent = maxPercent : EndIf
+        pathX1 = left + ((drawStart - startTime) * xScale)
+        pathY1 = plotBottom - (plotHeight * (percent - minPercent) / span)
+        percent = BatteryGraphSegmentPercentAt(i, drawEnd)
+        If percent < minPercent : percent = minPercent : EndIf
+        If percent > maxPercent : percent = maxPercent : EndIf
+        pathX2 = left + ((drawEnd - startTime) * xScale)
+        pathY2 = plotBottom - (plotHeight * (percent - minPercent) / span)
+        ; Red connects endpoints across PC off/sleep, unexplained missing
+        ; samples, or long app-closed spans. Short app restarts stay quiet.
+        flatSegment = BatteryGraphOfflineGap(gBatteryGraph(i - 1)\Timestamp, gBatteryGraph(i)\Timestamp)
+        If flatSegment
+          segmentKind = 2
+          VectorSourceColor(RGBA(190, 35, 35, 255))
+        ElseIf gBatteryGraph(i - 1)\EnergySaverOn Or gBatteryGraph(i)\EnergySaverOn
+          segmentKind = 1
+          VectorSourceColor(RGBA(0, 140, 72, 255))
+        Else
+          segmentKind = 0
+          VectorSourceColor(RGBA(0, 96, 190, 255))
+        EndIf
+        MovePathCursor(pathX1, pathY1)
+        AddPathLine(pathX2, pathY2)
+        StrokePath(2.4, #PB_Path_RoundEnd | #PB_Path_RoundCorner)
+        previousSegmentKind = segmentKind
+        visibleCount + 1
+      Next
+      StopVectorDrawing()
+    EndIf
+  EndIf
+  If visibleCount = 0 And gBatteryGraphCount > 0
+    If StartDrawing(ImageOutput(buffer))
+      DrawingMode(#PB_2DDrawing_Default)
+      For i = 0 To gBatteryGraphCount - 1
+        If gBatteryGraph(i)\Timestamp >= startTime And gBatteryGraph(i)\Timestamp <= endTime
+          x = Round(left + ((gBatteryGraph(i)\Timestamp - startTime) * xScale), #PB_Round_Nearest)
+          percent = gBatteryGraph(i)\Percent
+          If percent < minPercent : percent = minPercent : EndIf
+          If percent > maxPercent : percent = maxPercent : EndIf
+          y1 = Round(plotBottom - (plotHeight * (percent - minPercent) / span), #PB_Round_Nearest)
+          If gBatteryGraph(i)\EnergySaverOn
+            Circle(x, y1, 2, RGB(0, 140, 72))
+          Else
+            Circle(x, y1, 2, RGB(0, 96, 190))
+          EndIf
+          visiblePointCount + 1
+        EndIf
+      Next
+      StopDrawing()
+    EndIf
+  EndIf
+  If visibleCount > 0
+    If StartDrawing(ImageOutput(buffer))
+      FrontColor(RGB(48, 48, 48))
+      Box(left, top, right - left + 1, 1, RGB(48, 48, 48))
+      Box(left, top, 1, bottom - top + 1, RGB(48, 48, 48))
+      Box(right, top, 1, bottom - top + 1, RGB(48, 48, 48))
+      Box(left, bottom, right - left + 1, 1, RGB(48, 48, 48))
+      StopDrawing()
+    EndIf
+  EndIf
+  If gBatteryGraphCount = 0 Or (visibleCount = 0 And visiblePointCount = 0)
+    If StartDrawing(ImageOutput(buffer))
+      DrawingMode(#PB_2DDrawing_Transparent)
+      FrontColor(RGB(70, 70, 70))
+      DrawText(left + 12, top + 46, "Waiting for battery samples")
+      StopDrawing()
+    EndIf
+  EndIf
+  If StartDrawing(CanvasOutput(#GadgetBatteryGraph))
+    DrawImage(ImageID(buffer), 0, 0)
+    StopDrawing()
+  EndIf
+  FreeImage(buffer)
 EndProcedure
 
 ; Tooltip wrapper guards against gadgets that are not available in all states.
@@ -4508,78 +8601,122 @@ Procedure ApplyToolTips()
   Protected text$
 
   If enabled
-    SetTip(#GadgetPanel, "Switch between system status and managed power-plan tuning.")
-    SetTip(gIntroOverview, "PowerPilot mirrors Windows power mode and keeps hardware reporting lightweight.")
+    SetTip(#GadgetPanel, "Overview shows status. Plans changes CPU behavior. Battery tabs show history, estimates, and logs.")
+    SetTip(gIntroOverview, "Use the normal Windows power mode slider. PowerPilot follows it with Maximum, Balanced, or Battery.")
     SetTip(gFrameProcessor, "Static processor details from CPUID and Windows memory information.")
     SetTip(#GadgetCpuInfo, "Local CPU identity, topology, cache, memory, and instruction features. No helper process is used.")
-    SetTip(gFrameState, "Current Windows plan, Windows power mode, and the latest PowerPilot action.")
+    SetTip(gFrameState, "Shows which PowerPilot plan is active and which Windows power mode caused it.")
     SetTip(#GadgetActivePlan, "The Windows power plan currently active.")
-    SetTip(#GadgetPowerSource, "The Windows power mode PowerPilot follows: performance, balanced, or efficiency.")
+    SetTip(#GadgetPowerSource, "The Windows power mode PowerPilot follows: Best performance, Balanced, or Best power efficiency.")
     SetTip(#GadgetLastAction, "Most recent automatic or manual action.")
-    SetTip(gFrameGraphics, "Display adapter name resolved from Windows display enumeration and local GPU matching.")
-    SetTip(#GadgetGpuInfo, "Detected GPU name. Generic Windows names are refined when local CPU/GPU data allows it.")
-    SetTip(gFrameStartup, "Startup and low-power behavior. Changes apply immediately.")
+    SetTip(gFrameGraphics, "Display adapters from Windows display enumeration. PowerPilot labels likely iGPU/dGPU rows and keeps Windows active/primary flags.")
+    SetTip(#GadgetGpuInfo, "Detected GPU names. Generic iGPU names are refined from local CPU data when safe; NVIDIA/other separate GPUs stay listed from Windows.")
+    SetTip(gFrameStartup, "Startup, reinstall, and hidden-tray idle behavior. Changes apply immediately.")
     SetTip(#GadgetAutoStart, "Start PowerPilot with Windows in the tray.")
-    SetTip(#GadgetKeepSettings, "Keep saved PowerPilot settings when reinstalling.")
-    SetTip(#GadgetThrottleMaintenance, "In efficiency mode, mark safe background maintenance processes for Windows EcoQoS throttling.")
-    SetTip(#GadgetDeepIdleSaver, "In efficiency mode, reduce hidden PowerPilot wakeups and allow deeper CPU core parking.")
+    SetTip(#GadgetKeepSettings, "Keep your PowerPilot settings and edited plans during reinstall or update.")
+    SetTip(#GadgetThrottleMaintenance, "In efficiency mode, ask Windows to slow safe background maintenance work.")
+    SetTip(#GadgetDeepIdleSaver, "In tray mode, use a 5-minute hidden refresh, mark PowerPilot as EcoQoS, and apply deeper idle-friendly Battery plan settings.")
+    SetTip(#GadgetEnergySaverMode, "Follow Windows keeps normal Energy Saver behavior. On for Battery plan applies only to PowerPilot Battery.")
     SetTip(#GadgetShowToolTips, "Show or hide these hover explanations.")
 
-    SetTip(gIntroPlans, "PowerPilot keeps exactly three editable managed plans and follows Windows power mode automatically.")
-    SetTip(gFrameManagedPlans, "The three fixed PowerPilot plans managed inside Windows power settings.")
+    SetTip(gIntroPlans, "Edit plan behavior here. The active plan is still chosen automatically from Windows power mode.")
+    SetTip(gFrameManagedPlans, "The only plans PowerPilot owns and changes: Maximum, Balanced, and Battery.")
     SetTip(#GadgetPlanList, "Select one of the three fixed plans to edit its processor settings.")
-    SetTip(gFramePlanSettings, "Processor power settings for the selected fixed plan. Save applies them to Windows.")
-    SetTip(#GadgetPlanSummary, "Short purpose text shown in the managed plan list.")
-    SetTip(#GadgetPlanAcEpp, "Plugged-in energy preference. 0 favors speed; 100 favors efficiency.")
-    SetTip(#GadgetPlanDcEpp, "Battery energy preference. 0 favors speed; 100 favors efficiency.")
-    SetTip(#GadgetPlanAcBoost, "Plugged-in processor boost behavior.")
-    SetTip(#GadgetPlanDcBoost, "Battery processor boost behavior.")
-    SetTip(#GadgetPlanAcState, "Plugged-in maximum processor state as a percentage.")
-    SetTip(#GadgetPlanDcState, "Battery maximum processor state as a percentage.")
-    SetTip(#GadgetPlanAcFreq, "Plugged-in maximum CPU frequency in MHz. 0 leaves Windows uncapped.")
-    SetTip(#GadgetPlanDcFreq, "Battery maximum CPU frequency in MHz. 0 leaves Windows uncapped.")
+    SetTip(gFramePlanSettings, "CPU behavior for the selected plan. Save plan writes these values into Windows power settings.")
+    SetTip(#GadgetPlanSummary, "Short note shown in the plan list so you remember what the plan is for.")
+    SetTip(#GadgetPlanAcEpp, "Plugged-in energy preference. 0 means fastest response; 100 means strongest efficiency preference.")
+    SetTip(#GadgetPlanDcEpp, "Battery energy preference. Higher numbers usually save more power with slower boost response.")
+    SetTip(#GadgetPlanAcBoost, "Plugged-in CPU boost. Disabled saves power; Aggressive responds fastest.")
+    SetTip(#GadgetPlanDcBoost, "Battery CPU boost. Disabled is usually best for battery life.")
+    SetTip(#GadgetPlanAcState, "Plugged-in maximum CPU state. 100 allows full CPU speed.")
+    SetTip(#GadgetPlanDcState, "Battery maximum CPU state. Lower values can reduce heat and battery drain.")
+    SetTip(#GadgetPlanAcFreq, "Plugged-in CPU MHz cap. 0 means no explicit cap.")
+    SetTip(#GadgetPlanDcFreq, "Battery CPU MHz cap. 0 means no explicit cap.")
     SetTip(#GadgetPlanAcCooling, "Plugged-in cooling policy. Passive favors less fan and lower clocks; Active favors cooling.")
     SetTip(#GadgetPlanDcCooling, "Battery cooling policy. Passive favors less fan and lower clocks; Active favors cooling.")
-    SetTip(#GadgetPlanSave, "Save and apply the selected plan settings to Windows.")
-    SetTip(#GadgetPlanReset, "Reset the selected plan to PowerPilot defaults.")
-    SetTip(gFrameBatteryStatus, "Live battery status from Windows root\\wmi battery data with system-power fallback.")
-    SetTip(gFrameBatteryEstimate, "PowerPilot's average and instant estimates plus direct Windows runtime when firmware exposes it.")
-    SetTip(#GadgetBatteryPercent, "Current battery percentage calculated from remaining and full charge capacity when available.")
-    SetTip(#GadgetBatteryConnection, "Whether Windows reports external power online.")
-    SetTip(#GadgetBatteryCharging, "Charging, discharging, or idle battery state.")
+    SetTip(#GadgetPlanSave, "Save this selected plan and apply it to Windows.")
+    SetTip(#GadgetPlanReset, "Restore this selected plan to PowerPilot's default values.")
+    SetTip(gFrameBatteryStatus, "Current battery readings from Windows. Some fields are blank when the battery driver does not expose them.")
+    SetTip(gFrameBatteryEstimate, "Average, current-rate, and Windows firmware time estimates. Charging time uses the average estimate to your configured Full at target.")
+    SetTip(#GadgetBatteryPercent, "Current battery percent.")
+    SetTip(#GadgetBatteryConnection, "Live power state: plugged in or on battery, plus charging, discharging, or idle.")
+    SetTip(#GadgetBatteryCharging, "")
     SetTip(#GadgetBatteryCapacity, "Remaining battery capacity in mWh.")
-    SetTip(#GadgetBatteryRates, "Live charge and discharge rate from root\\wmi:BatteryStatus.")
-    SetTip(#GadgetBatteryEstimate, "Average remaining time to the configured minimum percent sleep floor.")
-    SetTip(#GadgetBatteryInstantEstimate, "Instant remaining time to the configured minimum percent sleep floor.")
-    SetTip(#GadgetBatteryRuntime, "Direct Windows runtime from root\\wmi:BatteryRuntime when the firmware reports a usable value.")
-    SetTip(#GadgetBatteryFullEstimate, "Average estimated battery life from the configured maximum ceiling down to the minimum percent floor.")
+    SetTip(#GadgetBatteryRates, "Live battery draw from Windows battery status, shown as charging, discharging, or idle.")
+    SetTip(#GadgetBatteryVoltage, "Live battery voltage in volts when the Windows battery driver exposes it.")
+    SetTip(#GadgetPowerPilotDraw, "PowerPilot's own estimated battery cost from recent CPU time. This is an app estimate, not a hardware power meter.")
+    SetTip(#GadgetBatteryEstimate, "Average time based on recent battery movement: down to Empty at, or up to Full at while charging.")
+    SetTip(#GadgetBatteryInstantEstimate, "Now-based time while discharging. Charging uses the average estimate because charge rate tapers near the target.")
+    SetTip(#GadgetBatteryRuntime, "Windows' own remaining-time estimate, if the battery firmware reports one.")
+    SetTip(#GadgetBatteryFullEstimate, "Average estimated runtime from your configured Full at percent down to Empty at percent.")
     SetTip(#GadgetBatteryWear, "Battery wear calculated from full-charge capacity versus design capacity.")
+    SetTip(#GadgetBatteryNominalEstimate, "Estimated Full at to Empty at runtime if this battery still had its original design capacity.")
     SetTip(#GadgetBatteryMaxCapacity, "Current full-charge capacity and design capacity in mWh when Windows exposes both.")
     SetTip(#GadgetBatteryCycle, "Battery cycle count from root\\wmi:BatteryCycleCount.")
-    SetTip(#GadgetBatteryGraph, "Gliding 24-hour battery percentage history with hour marks, event markers, and grey offline/event segments.")
-    SetTip(gFrameBatterySettings, "Battery logging interval, refresh interval, graph range, limiter maximum, and estimate smoothing.")
-    SetTip(#GadgetBatteryLogEnabled, "Enable or disable the battery CSV log.")
-    SetTip(#GadgetBatteryLogMinutes, "Minutes between automatic battery sample rows in the PowerPilot log.")
-    SetTip(#GadgetBatteryRefreshSeconds, "Seconds between live root\\wmi battery refreshes.")
-    SetTip(#GadgetBatteryMinPercent, "Battery percentage treated as the empty floor for remaining-time estimates.")
-    SetTip(#GadgetBatteryMaxPercent, "Battery percentage treated as the graph and charge ceiling when no limiter is active.")
-    SetTip(#GadgetBatteryLimiterEnabled, "Use the limiter maximum instead of 100% as the configured full point.")
-    SetTip(#GadgetBatteryLimiterMaxPercent, "Maximum battery charge target reported by your charge limiter.")
-    SetTip(#GadgetBatterySmoothingMinutes, "Moving average window for percent-per-hour drain.")
-    SetTip(#GadgetBatteryStartupDrain, "Percent-per-hour estimate used immediately after startup until one hour of fresh data accumulates.")
-    SetTip(#GadgetBatteryStatsReset, "Clear the battery CSV log, graph samples, and current estimate calculations.")
-    SetTip(#GadgetBatteryLogPreview, "Retained PowerPilot CSV rows for battery samples, power events, and app status messages.")
-    SetTip(#GadgetBatteryLogCopyRow, "Copy selected PowerPilot log rows to the clipboard. If none are selected, copy the latest row.")
+    SetTip(#GadgetBatteryGraphHours, "Choose how much retained battery history the graph shows.")
+    SetTip(#GadgetBatteryGraph, "Selected battery-percent history window. Blue is normal, green means Energy Saver, red marks event/offline gaps. Nearby marker letters combine: Z sleep/suspend, H hibernate, W wake, S shutdown, P startup, ! improper shutdown, O offline/missing samples, E Energy Saver, N normal. E/N labels are skipped when crowded.")
+    SetTip(gFrameBatterySettings, "Controls how often PowerPilot reads battery data and how remaining-time estimates are calculated.")
+    SetTip(#GadgetBatteryLogEnabled, "Turn retained battery sample logging on or off.")
+    SetTip(#GadgetBatteryLogMinutes, "Minutes between saved log rows. Shorter intervals give more detail and more disk writes.")
+    SetTip(#GadgetBatteryRefreshSeconds, "Seconds between live battery reads while the window is open. Tray mode slows down to reduce background wakeups.")
+    SetTip(#GadgetBatteryMinPercent, "Percent treated as empty for estimates. Windows critical sleep is kept at least 1% when plans are written.")
+    SetTip(#GadgetBatteryMaxPercent, "Percent treated as full for graph range, charging target, and full-to-min runtime estimates.")
+    SetTip(#GadgetBatteryLimiterEnabled, "Use your battery charge limit as the full point instead of the Full at value.")
+    SetTip(#GadgetBatteryLimiterMaxPercent, "Your laptop's charge-limit target, for example 80 if charging normally stops near 80%.")
+    SetTip(#GadgetBatterySmoothingMinutes, "How much recent battery history is averaged. Longer is calmer; shorter reacts faster.")
+    SetTip(#GadgetBatteryStartupDrain, "Temporary percent-per-hour estimate used right after startup until fresh samples are available.")
+    SetTip(#GadgetBatteryStatsReset, "Clear retained battery log rows, graph history, and current estimate learning.")
+    SetTip(#GadgetBatteryLogPreview, "Retained rows for battery samples, screen events, sleep/wake/shutdown events, and app status messages.")
+    SetTip(#GadgetBatteryLogCopyRow, "Copy selected log rows to the clipboard. If none are selected, copy the newest visible row.")
     SetTip(#GadgetBatteryLogCopyAll, "Copy the full retained battery CSV log to the clipboard.")
-    SetTip(#GadgetBatterySessionSummary, "Latest startup, shutdown, sleep, wake, hibernate, or improper-shutdown event.")
-    SetTip(#GadgetBatteryDailySummary, "Today-only battery range, active on-battery time, drain, wear, and cycle count.")
-    SetTip(#GadgetBatteryOffLossSummary, "Battery percentage lost across sleep, hibernate, shutdown, startup, or large missing-sample gaps.")
-    SetTip(#GadgetLogShowAverage, "Show or hide the average remaining-time column in the recent log.")
-    SetTip(#GadgetLogShowInstant, "Show or hide the instant remaining-time and instant-drain columns in the recent log.")
-    SetTip(#GadgetLogShowConnected, "Show or hide the connected column in the recent log.")
-    SetTip(#GadgetLogShowEvents, "Show or hide power-event rows in the recent log.")
-    SetTip(#GadgetSettingsExport, "Export PowerPilot settings to an INI file.")
-    SetTip(#GadgetSettingsImport, "Import PowerPilot settings from an INI file.")
+    SetTip(#GadgetBatterySessionSummary, "Latest PC power event PowerPilot saw, such as sleep, wake, startup, or shutdown.")
+    SetTip(#GadgetBatteryDailySummary, "Today only: battery range, active on-battery time, active drain, wear, and cycles.")
+    SetTip(#GadgetBatteryOffLossSummary, "Battery percent lost while asleep, hibernated, shut down, or missing samples.")
+    SetTip(#GadgetBatteryAnalysisSummary, "Retained-log analysis: stable capacity, normal power, calibration sessions, charging, and warnings.")
+    SetTip(#GadgetPowerUseSummary, "PowerPilot's estimated cost based on its own recent CPU time.")
+    SetTip(#GadgetPowerUseStatus, "Shows which Windows battery data path is being used.")
+    SetTip(#GadgetPowerUseInterpretation, "Explains how to interpret PowerPilot's estimated mW and full-to-empty seconds.")
+    SetTip(#GadgetPowerUseIdleChecklist, "Practical checks for investigating unexpected idle battery use.")
+    SetTip(#GadgetBatteryTestMode, "Current workflow mode: manual discharge test, vendor calibration detected, charge recovery, monitor, or complete.")
+    SetTip(#GadgetBatteryTestPhase, "Current live phase from Windows battery state.")
+    SetTip(#GadgetBatteryTestElapsed, "Elapsed time since the current test log started.")
+    SetTip(#GadgetBatteryTestStart, "Start a guided manual discharge test. PowerPilot will prompt you to unplug, then track charge recovery.")
+    SetTip(#GadgetBatteryTestLenovo, "Start the Lenovo calibration reset workflow. It waits for plugged-in discharge, controls drain load, and saves a report when charging finishes.")
+    SetTip(#GadgetBatteryTestEnd, "End the current battery test log and freeze the summary.")
+    SetTip(#GadgetBatteryTestCopy, "Copy the current battery test report to the clipboard.")
+    SetTip(#GadgetBatteryTestOpenReport, "Open the latest saved battery test report in the default Windows text editor.")
+    SetTip(#GadgetBatteryTestPercent, "Current battery percent during the test.")
+    SetTip(#GadgetBatteryTestRemaining, "Remaining battery capacity in mWh during the test.")
+    SetTip(#GadgetBatteryTestWatts, "Live charging or discharging watts from Windows battery status.")
+    SetTip(#GadgetBatteryTestEstimate, "Current estimated time to empty or configured full target.")
+    SetTip(#GadgetBatteryTestGuide, "Short next step for manual testing or vendor calibration monitoring.")
+    SetTip(#GadgetBatteryTestSummary, "Copyable summary with start/end percent, mWh moved, average watts, runtime, and capacity notes.")
+    SetTip(#GadgetBatteryLoadStatus, "Current CPU load target used to drain the battery faster during a test.")
+    SetTip(#GadgetBatteryLoadStep, "Increase PowerPilot's CPU load target by 25%, up to 100%.")
+    SetTip(#GadgetBatteryLoadStop, "Stop the CPU load helper immediately.")
+    SetTip(#GadgetBatteryLoadMinutes, "Target time from now to your configured Empty at battery level.")
+    SetTip(#GadgetBatteryLoadAuto, "Start or stop automatic CPU load control for the chosen drain time.")
+    SetTip(#GadgetBatteryLoadAutoStatus, "Auto drain end time and remaining target time.")
+    SetTip(#GadgetBatteryLoadTestMode, "Log detailed drain-helper control ticks while testing normal unplug discharge.")
+    SetTip(#GadgetBatteryLoadNote, "CPU load is local and automatic. Watch temperature and stop when done.")
+    SetTip(#GadgetAboutPurpose, "Short description of what PowerPilot is for.")
+    SetTip(#GadgetAboutOperation, "Shows the automatic mapping from Windows power mode to PowerPilot plans.")
+    SetTip(#GadgetAboutData, "Lists the events and battery fields PowerPilot can log.")
+    SetTip(#GadgetAboutVersion, "Summarizes the local data PowerPilot reads and writes.")
+    SetTip(#GadgetAboutLicense, "License, bundled documents, update settings, and uninstall reference.")
+    SetTip(#GadgetAboutOpenReadme, "Open the bundled README.txt in your chosen text editor.")
+    SetTip(#GadgetAboutOpenLicense, "Open the bundled MIT license text in your chosen text editor.")
+    SetTip(#GadgetAboutBoundaries, "What PowerPilot cannot measure directly and how to read the Power Use estimate.")
+    SetTip(#GadgetLogShowAverage, "Show or hide the average remaining-time column.")
+    SetTip(#GadgetLogShowInstant, "Show or hide the current-rate and now-based time columns.")
+    SetTip(#GadgetLogShowWindows, "Show or hide the Windows or firmware remaining-time column.")
+    SetTip(#GadgetLogShowConnected, "Show or hide whether each row was plugged in.")
+    SetTip(#GadgetLogShowPower, "Show or hide the battery watts column.")
+    SetTip(#GadgetLogShowScreen, "Show or hide the screen on, dim, or off event column.")
+    SetTip(#GadgetLogShowBrightness, "Show or hide the laptop brightness percent column.")
+    SetTip(#GadgetLogShowEvents, "Show or hide event rows such as screen, sleep, wake, startup, and app status.")
+    SetTip(#GadgetSettingsExport, "Save a backup copy of your PowerPilot settings to an INI file.")
+    SetTip(#GadgetSettingsImport, "Restore PowerPilot settings from an exported INI file.")
     SetTip(#GadgetHideToTray, "Hide PowerPilot to the tray while it continues following Windows power mode.")
     SetTip(#GadgetExit, "Exit PowerPilot and remove the tray icon.")
   Else
@@ -4598,6 +8735,7 @@ Procedure ApplyToolTips()
     SetTip(#GadgetKeepSettings, "")
     SetTip(#GadgetThrottleMaintenance, "")
     SetTip(#GadgetDeepIdleSaver, "")
+    SetTip(#GadgetEnergySaverMode, "")
     SetTip(gIntroPlans, "")
     SetTip(gFrameManagedPlans, "")
     SetTip(#GadgetPlanList, "")
@@ -4622,13 +8760,17 @@ Procedure ApplyToolTips()
     SetTip(#GadgetBatteryCharging, "")
     SetTip(#GadgetBatteryCapacity, "")
     SetTip(#GadgetBatteryRates, "")
+    SetTip(#GadgetBatteryVoltage, "")
+    SetTip(#GadgetPowerPilotDraw, "")
     SetTip(#GadgetBatteryEstimate, "")
     SetTip(#GadgetBatteryInstantEstimate, "")
     SetTip(#GadgetBatteryRuntime, "")
     SetTip(#GadgetBatteryFullEstimate, "")
     SetTip(#GadgetBatteryWear, "")
+    SetTip(#GadgetBatteryNominalEstimate, "")
     SetTip(#GadgetBatteryMaxCapacity, "")
     SetTip(#GadgetBatteryCycle, "")
+    SetTip(#GadgetBatteryGraphHours, "")
     SetTip(#GadgetBatteryGraph, "")
     SetTip(gFrameBatterySettings, "")
     SetTip(#GadgetBatteryLogEnabled, "")
@@ -4647,9 +8789,48 @@ Procedure ApplyToolTips()
     SetTip(#GadgetBatterySessionSummary, "")
     SetTip(#GadgetBatteryDailySummary, "")
     SetTip(#GadgetBatteryOffLossSummary, "")
+    SetTip(#GadgetBatteryAnalysisSummary, "")
+    SetTip(#GadgetPowerUseSummary, "")
+    SetTip(#GadgetPowerUseStatus, "")
+    SetTip(#GadgetPowerUseInterpretation, "")
+    SetTip(#GadgetPowerUseIdleChecklist, "")
+    SetTip(#GadgetBatteryTestMode, "")
+    SetTip(#GadgetBatteryTestPhase, "")
+    SetTip(#GadgetBatteryTestElapsed, "")
+    SetTip(#GadgetBatteryTestStart, "")
+    SetTip(#GadgetBatteryTestLenovo, "")
+    SetTip(#GadgetBatteryTestEnd, "")
+    SetTip(#GadgetBatteryTestCopy, "")
+    SetTip(#GadgetBatteryTestOpenReport, "")
+    SetTip(#GadgetBatteryTestPercent, "")
+    SetTip(#GadgetBatteryTestRemaining, "")
+    SetTip(#GadgetBatteryTestWatts, "")
+    SetTip(#GadgetBatteryTestEstimate, "")
+    SetTip(#GadgetBatteryTestGuide, "")
+    SetTip(#GadgetBatteryTestSummary, "")
+    SetTip(#GadgetBatteryLoadStatus, "")
+    SetTip(#GadgetBatteryLoadStep, "")
+    SetTip(#GadgetBatteryLoadStop, "")
+    SetTip(#GadgetBatteryLoadMinutes, "")
+    SetTip(#GadgetBatteryLoadAuto, "")
+    SetTip(#GadgetBatteryLoadAutoStatus, "")
+    SetTip(#GadgetBatteryLoadTestMode, "")
+    SetTip(#GadgetBatteryLoadNote, "")
+    SetTip(#GadgetAboutPurpose, "")
+    SetTip(#GadgetAboutOperation, "")
+    SetTip(#GadgetAboutData, "")
+    SetTip(#GadgetAboutVersion, "")
+    SetTip(#GadgetAboutLicense, "")
+    SetTip(#GadgetAboutOpenReadme, "")
+    SetTip(#GadgetAboutOpenLicense, "")
+    SetTip(#GadgetAboutBoundaries, "")
     SetTip(#GadgetLogShowAverage, "")
     SetTip(#GadgetLogShowInstant, "")
+    SetTip(#GadgetLogShowWindows, "")
     SetTip(#GadgetLogShowConnected, "")
+    SetTip(#GadgetLogShowPower, "")
+    SetTip(#GadgetLogShowScreen, "")
+    SetTip(#GadgetLogShowBrightness, "")
     SetTip(#GadgetLogShowEvents, "")
     SetTip(#GadgetSettingsExport, "")
     SetTip(#GadgetSettingsImport, "")
@@ -4804,6 +8985,9 @@ EndProcedure
 ; Hidden mode can refresh less often when deep idle saver is enabled.
 Procedure.i DesiredRefreshInterval()
   If MainWindowVisible()
+    If BatteryTestTabVisible()
+      ProcedureReturn #RefreshBatteryTestTabMs
+    EndIf
     ProcedureReturn #RefreshVisibleMs
   EndIf
   If gSettings\DeepIdleSaver
@@ -4812,14 +8996,13 @@ Procedure.i DesiredRefreshInterval()
   ProcedureReturn #RefreshHiddenMs
 EndProcedure
 
-; Replace the existing timer only when the interval actually changes.
+; Replace the existing timer when the visible/hidden cadence changes. The main
+; event loop stays blocking so the tab window paints normally.
 Procedure StartRefreshTimer(intervalMs.i = 0)
   If intervalMs <= 0
     intervalMs = DesiredRefreshInterval()
   EndIf
-  If gRefreshTimerActive And gRefreshTimerMs = intervalMs
-    ProcedureReturn
-  EndIf
+  ApplySelfDeepIdleThrottle()
   If gRefreshTimerActive
     RemoveWindowTimer(#WindowMain, #TimerRefresh)
   EndIf
@@ -4832,6 +9015,120 @@ Procedure RefreshActiveTimer()
   If gRefreshTimerActive
     StartRefreshTimer(DesiredRefreshInterval())
   EndIf
+EndProcedure
+
+Procedure SetSessionDisplayStatusGuid(*guid.GuidValue)
+  *guid\Data1 = $2B84C20E
+  *guid\Data2 = $AD23
+  *guid\Data3 = $4DDF
+  *guid\Data4[0] = $93
+  *guid\Data4[1] = $DB
+  *guid\Data4[2] = $05
+  *guid\Data4[3] = $FF
+  *guid\Data4[4] = $BD
+  *guid\Data4[5] = $7E
+  *guid\Data4[6] = $FC
+  *guid\Data4[7] = $A5
+EndProcedure
+
+Procedure SetPowerSavingStatusGuid(*guid.GuidValue)
+  *guid\Data1 = $E00958C0
+  *guid\Data2 = $C213
+  *guid\Data3 = $4ACE
+  *guid\Data4[0] = $AC
+  *guid\Data4[1] = $77
+  *guid\Data4[2] = $FE
+  *guid\Data4[3] = $CC
+  *guid\Data4[4] = $ED
+  *guid\Data4[5] = $2E
+  *guid\Data4[6] = $EE
+  *guid\Data4[7] = $A5
+EndProcedure
+
+Procedure.i EnsureDisplayPowerApi()
+  If gDisplayNotifyTried
+    ProcedureReturn Bool(gRegisterPowerSettingNotification And gUnregisterPowerSettingNotification)
+  EndIf
+  gDisplayNotifyTried = #True
+  gUser32PowerLibrary = OpenLibrary(#PB_Any, "user32.dll")
+  If gUser32PowerLibrary
+    gRegisterPowerSettingNotification = GetFunction(gUser32PowerLibrary, "RegisterPowerSettingNotification")
+    If gRegisterPowerSettingNotification = 0
+      gRegisterPowerSettingNotification = GetFunction(gUser32PowerLibrary, "RegisterPowerSettingNotificationW")
+    EndIf
+    gUnregisterPowerSettingNotification = GetFunction(gUser32PowerLibrary, "UnregisterPowerSettingNotification")
+  EndIf
+  ProcedureReturn Bool(gRegisterPowerSettingNotification And gUnregisterPowerSettingNotification)
+EndProcedure
+
+Procedure RegisterDisplayPowerNotification(hwnd.i)
+  Protected guid.GuidValue
+  If EnsureDisplayPowerApi() = #False
+    ProcedureReturn
+  EndIf
+  If gDisplayPowerNotifyHandle = 0
+    SetSessionDisplayStatusGuid(@guid)
+    gDisplayPowerNotifyHandle = gRegisterPowerSettingNotification(hwnd, @guid, #DEVICE_NOTIFY_WINDOW_HANDLE)
+  EndIf
+  If gEnergySaverNotifyHandle = 0
+    SetPowerSavingStatusGuid(@guid)
+    gEnergySaverNotifyHandle = gRegisterPowerSettingNotification(hwnd, @guid, #DEVICE_NOTIFY_WINDOW_HANDLE)
+  EndIf
+EndProcedure
+
+Procedure UnregisterDisplayPowerNotification()
+  If gDisplayPowerNotifyHandle And gUnregisterPowerSettingNotification
+    gUnregisterPowerSettingNotification(gDisplayPowerNotifyHandle)
+    gDisplayPowerNotifyHandle = 0
+  EndIf
+  If gEnergySaverNotifyHandle And gUnregisterPowerSettingNotification
+    gUnregisterPowerSettingNotification(gEnergySaverNotifyHandle)
+    gEnergySaverNotifyHandle = 0
+  EndIf
+EndProcedure
+
+Procedure.s ScreenEventFromPowerSetting(lParam.i)
+  Protected guid.GuidValue
+  Protected dataLength.i
+  Protected state.i
+  If lParam = 0
+    ProcedureReturn ""
+  EndIf
+  SetSessionDisplayStatusGuid(@guid)
+  If CompareMemory(lParam, @guid, SizeOf(GuidValue)) = #False
+    ProcedureReturn ""
+  EndIf
+  dataLength = PeekL(lParam + SizeOf(GuidValue))
+  If dataLength < 4
+    ProcedureReturn ""
+  EndIf
+  state = PeekL(lParam + SizeOf(GuidValue) + 4)
+  Select state
+    Case #DisplayStateOff
+      ProcedureReturn "Screen off"
+    Case #DisplayStateOn
+      ProcedureReturn "Screen on"
+    Case #DisplayStateDimmed
+      ProcedureReturn "Screen dim"
+  EndSelect
+  ProcedureReturn ""
+EndProcedure
+
+Procedure.i EnergySaverStateFromPowerSetting(lParam.i)
+  Protected guid.GuidValue
+  Protected dataLength.i
+  If lParam = 0
+    ProcedureReturn -1
+  EndIf
+  SetPowerSavingStatusGuid(@guid)
+  If CompareMemory(lParam, @guid, SizeOf(GuidValue)) = #False
+    ProcedureReturn -1
+  EndIf
+  dataLength = PeekL(lParam + SizeOf(GuidValue))
+  If dataLength < 4
+    ProcedureReturn -1
+  EndIf
+  ProcedureReturn Bool(PeekL(lParam + SizeOf(GuidValue) + 4) <> 0)
 EndProcedure
 
 ; Hide to tray when the tray icon exists. If the tray icon could not be created,
@@ -4855,6 +9152,9 @@ Procedure ShowFromTray()
   StartRefreshTimer(#RefreshVisibleMs)
   RefreshPlanList(#True)
   RefreshBattery(#True)
+  RefreshBatteryLogPreview()
+  RefreshBatteryStatsSummary()
+  RefreshPowerUseDetails()
   RefreshDisplay(#True)
   SetForegroundWindow_(WindowID(#WindowMain))
 EndProcedure
@@ -4863,10 +9163,15 @@ EndProcedure
 Procedure ShutdownApp()
   ApplyPendingBatterySettings()
   CaptureBatteryLogColumnWidths(#False)
+  StopBatteryCpuLoad(#False)
   SaveSettings()
   WriteBatteryAppEvent("PowerPilot exit")
   If gTrayReady
     RemoveSysTrayIcon(#TrayIconMain)
+  EndIf
+  UnregisterDisplayPowerNotification()
+  If gSingleInstanceMutex
+    CloseHandle_(gSingleInstanceMutex)
   EndIf
   End
 EndProcedure
@@ -4876,10 +9181,15 @@ EndProcedure
 Procedure ShutdownForUpdate()
   ApplyPendingBatterySettings()
   CaptureBatteryLogColumnWidths(#False)
+  StopBatteryCpuLoad(#False)
   SaveSettings()
   WriteBatteryAppEvent("PowerPilot update close")
   If gTrayReady
     RemoveSysTrayIcon(#TrayIconMain)
+  EndIf
+  UnregisterDisplayPowerNotification()
+  If gSingleInstanceMutex
+    CloseHandle_(gSingleInstanceMutex)
   EndIf
   End
 EndProcedure
@@ -4888,6 +9198,14 @@ EndProcedure
 Procedure HandleAction(gadget.i)
   Protected row.i
   Select gadget
+    Case #GadgetPanel
+      RefreshActiveTimer()
+      If BatteryTestTabVisible()
+        RefreshBattery(#True)
+      ElseIf BatteryGraphTabVisible()
+        DrawBatteryGraph()
+      EndIf
+
     Case #GadgetPlanList
       row = GetGadgetState(#GadgetPlanList)
       If row >= 0 And row <= 2
@@ -4901,16 +9219,20 @@ Procedure HandleAction(gadget.i)
     Case #GadgetPlanReset
       ResetSelectedPlan()
 
-    Case #GadgetAutoStart, #GadgetKeepSettings, #GadgetThrottleMaintenance, #GadgetDeepIdleSaver, #GadgetShowToolTips
+    Case #GadgetAutoStart, #GadgetKeepSettings, #GadgetThrottleMaintenance, #GadgetDeepIdleSaver, #GadgetEnergySaverMode, #GadgetShowToolTips
       SaveSettingsFromGui()
 
     Case #GadgetBatteryLogEnabled, #GadgetBatteryLogMinutes, #GadgetBatteryRefreshSeconds, #GadgetBatteryMinPercent, #GadgetBatteryMaxPercent, #GadgetBatteryLimiterEnabled, #GadgetBatteryLimiterMaxPercent, #GadgetBatterySmoothingMinutes, #GadgetBatteryStartupDrain
       ScheduleBatterySettingsApply()
 
+    Case #GadgetBatteryGraphHours
+      SaveBatterySettingsFromGui()
+      DrawBatteryGraph()
+
     Case #GadgetBatteryStatsReset
       ResetBatteryStats()
 
-    Case #GadgetLogShowAverage, #GadgetLogShowInstant, #GadgetLogShowConnected, #GadgetLogShowEvents
+    Case #GadgetLogShowAverage, #GadgetLogShowInstant, #GadgetLogShowWindows, #GadgetLogShowConnected, #GadgetLogShowPower, #GadgetLogShowScreen, #GadgetLogShowBrightness, #GadgetLogShowEvents
       SaveBatterySettingsFromGui()
 
     Case #GadgetSettingsExport
@@ -4919,11 +9241,47 @@ Procedure HandleAction(gadget.i)
     Case #GadgetSettingsImport
       ImportSettings()
 
+    Case #GadgetAboutOpenReadme
+      OpenReadmeDocument()
+
+    Case #GadgetAboutOpenLicense
+      OpenLicenseDocument()
+
     Case #GadgetBatteryLogCopyRow
       CopyBatteryLogRow()
 
     Case #GadgetBatteryLogCopyAll
       CopyBatteryLogAll()
+
+    Case #GadgetBatteryTestStart
+      StartBatteryTestLog()
+
+    Case #GadgetBatteryTestLenovo
+      StartLenovoCalibrationReset()
+
+    Case #GadgetBatteryTestEnd
+      EndBatteryTestLog()
+
+    Case #GadgetBatteryTestCopy
+      CopyBatteryTestReport()
+
+    Case #GadgetBatteryTestOpenReport
+      OpenLatestBatteryTestReport()
+
+    Case #GadgetBatteryLoadMinutes
+      SaveBatterySettingsFromGui()
+
+    Case #GadgetBatteryLoadStep
+      StepBatteryCpuLoad()
+
+    Case #GadgetBatteryLoadAuto
+      ToggleAutoDrainTarget()
+
+    Case #GadgetBatteryLoadTestMode
+      SetBatteryDrainHelperTestMode(GetGadgetState(#GadgetBatteryLoadTestMode))
+
+    Case #GadgetBatteryLoadStop
+      StopBatteryCpuLoad()
 
     Case #GadgetHideToTray
       HideToTray()
@@ -4949,6 +9307,8 @@ EndProcedure
 ; event loop does not expose with enough detail for shutdown/sleep logging.
 Procedure.i MainWindowCallback(hwnd.i, message.i, wParam.i, lParam.i)
   Protected resumeEvent$
+  Protected screenEvent$
+  Protected energySaverState.i
   Protected closeForAppRestart.i
   Select message
     Case #WM_POWERPILOT_UPDATE_CLOSE
@@ -4972,6 +9332,28 @@ Procedure.i MainWindowCallback(hwnd.i, message.i, wParam.i, lParam.i)
           EndIf
           gLastSuspendTime = 0
           RefreshBattery(#True)
+
+        Case #PBT_APMPOWERSTATUSCHANGE
+          If BatteryPowerStateChangedFromSystem()
+            RefreshBattery(#True, #True)
+          EndIf
+
+        Case #PBT_POWERSETTINGCHANGE
+          screenEvent$ = ScreenEventFromPowerSetting(lParam)
+          If screenEvent$ <> ""
+            WriteBatteryScreenEvent(screenEvent$)
+          EndIf
+          energySaverState = EnergySaverStateFromPowerSetting(lParam)
+          If energySaverState >= 0
+            gBattery\EnergySaverOn = Bool(energySaverState Or WindowsEnergySaverPolicyActive() Or PowerPilotControlledEnergySaverActive())
+            UpdateEnergySaverLogState(gBattery\EnergySaverOn)
+            If gBattery\Valid
+              AddBatteryGraphPoint(Date(), gBattery\Percent, gBattery\Connected, gBattery\Charging, gBattery\EnergySaverOn, gBattery\DisconnectedBattery, gBattery\RemainingMWh, gBattery\FullMWh, gBattery\DischargeRateMW, gBattery\ChargeRateMW, BatteryCurrentScreenOnKnown(), BatteryCurrentScreenOn(), gLastScreenBrightnessPercent)
+              If MainWindowVisible()
+                DrawBatteryGraph()
+              EndIf
+            EndIf
+          EndIf
       EndSelect
       ProcedureReturn #True
 
@@ -4997,10 +9379,24 @@ Procedure.i MainWindowCallback(hwnd.i, message.i, wParam.i, lParam.i)
   ProcedureReturn #PB_ProcessPureBasicEvents
 EndProcedure
 
+; Shared periodic refresh body. The normal WindowTimer uses this, and the main
+; event-loop timeout also calls it as a guard if a hidden timer event is missed.
+Procedure RunPeriodicRefresh()
+  gLastPeriodicRefreshMs = ElapsedMilliseconds()
+  If gTrayReady = #False
+    SetupTray()
+  EndIf
+  CaptureBatteryLogColumnWidths(#True)
+  MonitorAutomaticPlans()
+  RefreshBattery()
+  RefreshPowerPilotDrawDisplay()
+  RefreshDisplay()
+EndProcedure
+
 ; Build all tabs in one place. The window is fixed-size and dense on purpose:
 ; PowerPilot is a utility, not a landing page.
 Procedure CreateMainWindow(showWindow.i)
-  Protected flags.i = #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered
+  Protected flags.i = #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered | #PB_Window_Invisible
   Protected activeLabel.i
   Protected modeLabel.i
   Protected lastActionLabel.i
@@ -5010,11 +9406,19 @@ Procedure CreateMainWindow(showWindow.i)
   Protected dcCoolingHeader.i
   Protected batteryLabel.i
   Protected batterySettingsLabel.i
-  If showWindow = #False
-    flags | #PB_Window_Invisible
-  EndIf
+  Protected powerUseText$
+  Protected idleText$
+  Protected sectionHeader.i
+  Protected aboutPurpose$
+  Protected aboutOperation$
+  Protected aboutData$
+  Protected aboutVersion$
+  Protected aboutBoundaries$
+  Protected aboutTitle.i
+  Protected aboutSubtitle.i
   OpenWindow(#WindowMain, 0, 0, 760, 560, #AppFullName$, flags)
   SetWindowCallback(@MainWindowCallback(), #WindowMain)
+  RegisterDisplayPowerNotification(WindowID(#WindowMain))
   EnsureUiFonts()
   CreateTrayMenu()
   SetupTray()
@@ -5024,16 +9428,16 @@ Procedure CreateMainWindow(showWindow.i)
   ; Overview tab: static hardware summaries, current plan/mode, and the latest
   ; full action message. Short action messages also go to the PowerPilot Log.
   AddGadgetItem(#GadgetPanel, -1, "Overview")
-  gIntroOverview = TextGadget(#PB_Any, 18, 14, 700, 22, "PowerPilot follows Windows power mode: Best performance, Balanced, or Best power efficiency.")
+  gIntroOverview = TextGadget(#PB_Any, 18, 14, 700, 22, "PowerPilot follows the Windows power mode slider and switches its three plans automatically.")
   UseBoldFont(gIntroOverview)
   gFrameProcessor = FrameGadget(#PB_Any, 18, 42, 700, 104, "Processor")
   TextGadget(#GadgetCpuInfo, 34, 64, 668, 78, "Reading CPU...")
-  gFrameState = FrameGadget(#PB_Any, 18, 154, 700, 86, "Current State")
+  gFrameState = FrameGadget(#PB_Any, 18, 154, 700, 86, "Power Mode Follow")
   activeLabel = TextGadget(#PB_Any, 34, 184, 92, 22, "Active plan:")
   TextGadget(#GadgetActivePlan, 132, 184, 210, 22, "")
   modeLabel = TextGadget(#PB_Any, 360, 184, 108, 22, "Windows mode:")
   TextGadget(#GadgetPowerSource, 476, 184, 226, 22, "")
-  lastActionLabel = TextGadget(#PB_Any, 34, 214, 92, 22, "Last action:")
+  lastActionLabel = TextGadget(#PB_Any, 34, 214, 92, 22, "Latest action:")
   TextGadget(#GadgetLastAction, 132, 214, 570, 22, "")
   UseBoldFont(activeLabel)
   UseBoldFont(#GadgetActivePlan)
@@ -5042,40 +9446,40 @@ Procedure CreateMainWindow(showWindow.i)
   UseBoldFont(lastActionLabel)
   gFrameGraphics = FrameGadget(#PB_Any, 18, 248, 342, 160, "Graphics")
   TextGadget(#GadgetGpuInfo, 34, 272, 310, 112, "Reading GPU...")
-  gFrameStartup = FrameGadget(#PB_Any, 376, 248, 342, 160, "Startup")
+  gFrameStartup = FrameGadget(#PB_Any, 376, 248, 342, 160, "Startup and Idle")
   CheckBoxGadget(#GadgetAutoStart, 406, 280, 152, 20, "Start with Windows")
-  CheckBoxGadget(#GadgetKeepSettings, 560, 280, 140, 20, "Keep on reinstall")
-  CheckBoxGadget(#GadgetThrottleMaintenance, 406, 318, 152, 20, "Throttle maintenance")
+  CheckBoxGadget(#GadgetKeepSettings, 560, 280, 140, 20, "Keep settings")
+  CheckBoxGadget(#GadgetThrottleMaintenance, 406, 318, 152, 20, "Throttle background")
   CheckBoxGadget(#GadgetDeepIdleSaver, 560, 318, 140, 20, "Deep idle saver")
-  CheckBoxGadget(#GadgetShowToolTips, 483, 360, 130, 20, "Show tips")
+  CheckBoxGadget(#GadgetShowToolTips, 406, 356, 130, 20, "Show tips")
 
   ; Plans tab: fixed three-plan editor. Manual plan activation is intentionally
   ; not exposed; Windows power mode decides which plan is active.
   AddGadgetItem(#GadgetPanel, -1, "Plans")
-  gIntroPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Edit the three fixed PowerPilot plans; Windows mode chooses Maximum, Balanced, or Battery.")
+  gIntroPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Tune the three PowerPilot plans. Windows power mode chooses which one is active.")
   UseBoldFont(gIntroPlans)
-  gFrameManagedPlans = FrameGadget(#PB_Any, 18, 40, 700, 134, "Fixed Plans")
+  gFrameManagedPlans = FrameGadget(#PB_Any, 18, 40, 700, 134, "Managed Plans")
   ListIconGadget(#GadgetPlanList, 34, 62, 668, 96, "Plan", 176, #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
   AddGadgetColumn(#GadgetPlanList, 1, "Installed", 70)
   AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 395)
 
-  gFramePlanSettings = FrameGadget(#PB_Any, 18, 190, 700, 216, "Selected Plan Settings")
+  gFramePlanSettings = FrameGadget(#PB_Any, 18, 190, 700, 216, "Selected Plan Tuning")
   TextGadget(#PB_Any, 34, 212, 64, 20, "Purpose:")
   StringGadget(#GadgetPlanSummary, 104, 208, 598, 22, "")
   acHeader = TextGadget(#PB_Any, 154, 238, 110, 20, "Plugged in")
   dcHeader = TextGadget(#PB_Any, 318, 238, 110, 20, "Battery")
   UseBoldFont(acHeader)
   UseBoldFont(dcHeader)
-  TextGadget(#PB_Any, 34, 262, 86, 20, "Efficiency:")
+  TextGadget(#PB_Any, 34, 262, 86, 20, "Energy pref:")
   SpinGadget(#GadgetPlanAcEpp, 154, 258, 72, 22, 0, 100, #PB_Spin_Numeric)
   SpinGadget(#GadgetPlanDcEpp, 318, 258, 72, 22, 0, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 286, 86, 20, "Boost:")
+  TextGadget(#PB_Any, 34, 286, 86, 20, "CPU boost:")
   ComboBoxGadget(#GadgetPlanAcBoost, 154, 282, 112, 22)
   ComboBoxGadget(#GadgetPlanDcBoost, 318, 282, 112, 22)
   TextGadget(#PB_Any, 34, 310, 86, 20, "Max CPU:")
   SpinGadget(#GadgetPlanAcState, 154, 306, 72, 22, 1, 100, #PB_Spin_Numeric)
   SpinGadget(#GadgetPlanDcState, 318, 306, 72, 22, 1, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 34, 334, 86, 20, "MHz cap:")
+  TextGadget(#PB_Any, 34, 334, 86, 20, "CPU MHz cap:")
   SpinGadget(#GadgetPlanAcFreq, 154, 330, 72, 22, 0, 6000, #PB_Spin_Numeric)
   SpinGadget(#GadgetPlanDcFreq, 318, 330, 72, 22, 0, 6000, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 458, 262, 64, 20, "Cooling:")
@@ -5085,98 +9489,243 @@ Procedure CreateMainWindow(showWindow.i)
   UseBoldFont(dcCoolingHeader)
   ComboBoxGadget(#GadgetPlanAcCooling, 528, 258, 80, 22)
   ComboBoxGadget(#GadgetPlanDcCooling, 618, 258, 80, 22)
-  ButtonGadget(#GadgetPlanSave, 528, 358, 80, 26, "Save")
-  ButtonGadget(#GadgetPlanReset, 618, 358, 80, 26, "Reset")
-
-  ; Battery Graph tab: live telemetry and the large gliding percent graph.
-  AddGadgetItem(#GadgetPanel, -1, "Battery Graph")
-  gFrameBatteryStatus = FrameGadget(#PB_Any, 18, 18, 328, 180, "Live Battery")
-  batteryLabel = TextGadget(#PB_Any, 34, 46, 92, 20, "Battery:")
-  TextGadget(#GadgetBatteryPercent, 132, 46, 184, 20, "Reading...")
-  TextGadget(#PB_Any, 34, 72, 92, 20, "Connected:")
-  TextGadget(#GadgetBatteryConnection, 132, 72, 184, 20, "")
-  TextGadget(#PB_Any, 34, 98, 92, 20, "Charging:")
-  TextGadget(#GadgetBatteryCharging, 132, 98, 184, 20, "")
-  TextGadget(#PB_Any, 34, 124, 92, 20, "Remaining:")
-  TextGadget(#GadgetBatteryCapacity, 132, 124, 184, 20, "")
-  TextGadget(#PB_Any, 34, 150, 92, 20, "Rates:")
-  TextGadget(#GadgetBatteryRates, 132, 150, 184, 20, "")
-  UseBoldFont(batteryLabel)
-  UseBoldFont(#GadgetBatteryPercent)
-
-  gFrameBatteryEstimate = FrameGadget(#PB_Any, 368, 18, 350, 180, "Estimate")
-  TextGadget(#PB_Any, 384, 40, 112, 18, "Average:")
-  TextGadget(#GadgetBatteryEstimate, 502, 40, 186, 18, "")
-  TextGadget(#PB_Any, 384, 62, 112, 18, "Instant:")
-  TextGadget(#GadgetBatteryInstantEstimate, 502, 62, 186, 18, "")
-  TextGadget(#PB_Any, 384, 84, 112, 18, "Windows:")
-  TextGadget(#GadgetBatteryRuntime, 502, 84, 186, 18, "")
-  TextGadget(#PB_Any, 384, 106, 112, 18, "Max avg:")
-  TextGadget(#GadgetBatteryFullEstimate, 502, 106, 186, 18, "")
-  TextGadget(#PB_Any, 384, 128, 112, 18, "Wear:")
-  TextGadget(#GadgetBatteryWear, 502, 128, 186, 18, "")
-  TextGadget(#PB_Any, 384, 150, 112, 18, "Max capacity:")
-  TextGadget(#GadgetBatteryMaxCapacity, 502, 150, 186, 18, "")
-  TextGadget(#PB_Any, 384, 172, 112, 18, "Cycle count:")
-  TextGadget(#GadgetBatteryCycle, 502, 172, 186, 18, "")
-
-  gFrameBatteryGraph = FrameGadget(#PB_Any, 18, 204, 700, 278, "Battery Percent")
-  CanvasGadget(#GadgetBatteryGraph, 34, 226, 668, 244)
+  TextGadget(#PB_Any, 458, 310, 88, 20, "Energy saver:")
+  ComboBoxGadget(#GadgetEnergySaverMode, 552, 306, 150, 22)
+  ButtonGadget(#GadgetPlanSave, 528, 358, 80, 26, "Save plan")
+  ButtonGadget(#GadgetPlanReset, 618, 358, 80, 26, "Defaults")
 
   ; PowerPilot Log tab: settings plus retained CSV rows. The visible list shows
   ; the full retained 168-hour log window and supports multi-row copy.
   AddGadgetItem(#GadgetPanel, -1, "PowerPilot Log")
-  gFrameBatterySettings = FrameGadget(#PB_Any, 18, 18, 700, 130, "PowerPilot Log and Estimate Settings")
-  CheckBoxGadget(#GadgetBatteryLogEnabled, 34, 44, 128, 20, "Log battery")
+  gFrameBatterySettings = FrameGadget(#PB_Any, 18, 18, 700, 130, "Log and Estimate Settings")
+  CheckBoxGadget(#GadgetBatteryLogEnabled, 34, 44, 128, 20, "Log samples")
   TextGadget(#PB_Any, 184, 46, 82, 20, "Log every:")
   SpinGadget(#GadgetBatteryLogMinutes, 272, 42, 70, 22, 1, 1440, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 348, 46, 48, 20, "min")
-  TextGadget(#PB_Any, 420, 46, 82, 20, "Refresh:")
+  TextGadget(#PB_Any, 420, 46, 82, 20, "Read every:")
   SpinGadget(#GadgetBatteryRefreshSeconds, 508, 42, 70, 22, 5, 3600, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 584, 46, 48, 20, "sec")
 
-  TextGadget(#PB_Any, 34, 80, 92, 20, "Min percent:")
-  SpinGadget(#GadgetBatteryMinPercent, 132, 76, 70, 22, 1, 99, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 224, 80, 92, 20, "Max percent:")
+  TextGadget(#PB_Any, 34, 80, 92, 20, "Empty at:")
+  SpinGadget(#GadgetBatteryMinPercent, 132, 76, 70, 22, 0, 99, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 224, 80, 92, 20, "Full at:")
   SpinGadget(#GadgetBatteryMaxPercent, 322, 76, 70, 22, 2, 100, #PB_Spin_Numeric)
-  CheckBoxGadget(#GadgetBatteryLimiterEnabled, 420, 78, 124, 20, "Limiter active")
+  CheckBoxGadget(#GadgetBatteryLimiterEnabled, 420, 78, 124, 20, "Use charge limit")
   SpinGadget(#GadgetBatteryLimiterMaxPercent, 568, 76, 70, 22, 2, 100, #PB_Spin_Numeric)
 
-  TextGadget(#PB_Any, 34, 116, 92, 20, "Glide window:")
+  TextGadget(#PB_Any, 34, 116, 92, 20, "Average window:")
   SpinGadget(#GadgetBatterySmoothingMinutes, 132, 112, 70, 22, 5, 240, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 208, 116, 42, 20, "min")
-  TextGadget(#PB_Any, 272, 116, 126, 20, "Startup drain:")
+  TextGadget(#PB_Any, 272, 116, 126, 20, "Startup estimate:")
   SpinGadget(#GadgetBatteryStartupDrain, 404, 112, 70, 22, 1, 100, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 480, 116, 48, 20, "%/h")
-  ButtonGadget(#GadgetBatteryStatsReset, 584, 110, 104, 26, "Reset stats")
+  ButtonGadget(#GadgetBatteryStatsReset, 584, 110, 104, 26, "Reset log")
 
   gFrameBatteryLog = FrameGadget(#PB_Any, 18, 160, 700, 292, "Retained PowerPilot Log")
   ListIconGadget(#GadgetBatteryLogPreview, 34, 184, 668, 226, "Timestamp", BatteryLogColumnWidth(0), #PB_ListIcon_FullRowSelect | #PB_ListIcon_MultiSelect)
-  AddGadgetColumn(#GadgetBatteryLogPreview, 1, "Battery", BatteryLogColumnWidth(1))
+  AddGadgetColumn(#GadgetBatteryLogPreview, 1, "Battery %", BatteryLogColumnWidth(1))
   AddGadgetColumn(#GadgetBatteryLogPreview, 2, "Avg time", BatteryLogColumnWidth(2))
   AddGadgetColumn(#GadgetBatteryLogPreview, 3, "Instant time", BatteryLogColumnWidth(3))
-  AddGadgetColumn(#GadgetBatteryLogPreview, 4, "Windows", BatteryLogColumnWidth(4))
-  AddGadgetColumn(#GadgetBatteryLogPreview, 5, "Instant", BatteryLogColumnWidth(5))
-  AddGadgetColumn(#GadgetBatteryLogPreview, 6, "Connected", BatteryLogColumnWidth(6))
-  ButtonGadget(#GadgetBatteryLogCopyRow, 514, 420, 86, 24, "Copy row")
+  AddGadgetColumn(#GadgetBatteryLogPreview, 4, "Win time", BatteryLogColumnWidth(4))
+  AddGadgetColumn(#GadgetBatteryLogPreview, 5, "Now rate", BatteryLogColumnWidth(5))
+  AddGadgetColumn(#GadgetBatteryLogPreview, 6, "Plugged in", BatteryLogColumnWidth(6))
+  AddGadgetColumn(#GadgetBatteryLogPreview, 7, "Batt W", BatteryLogColumnWidth(7))
+  AddGadgetColumn(#GadgetBatteryLogPreview, 8, "Screen", BatteryLogColumnWidth(8))
+  AddGadgetColumn(#GadgetBatteryLogPreview, 9, "Laptop %", BatteryLogColumnWidth(9))
+  ButtonGadget(#GadgetBatteryLogCopyRow, 514, 420, 86, 24, "Copy rows")
   ButtonGadget(#GadgetBatteryLogCopyAll, 608, 420, 94, 24, "Copy CSV")
+
+  ; Battery Graph tab: live telemetry and the large gliding percent graph.
+  AddGadgetItem(#GadgetPanel, -1, "Battery Graph")
+  gFrameBatteryStatus = FrameGadget(#PB_Any, 18, 18, 328, 180, "Live Battery Status")
+  batteryLabel = TextGadget(#PB_Any, 34, 40, 140, 17, "Battery:")
+  TextGadget(#GadgetBatteryPercent, 178, 40, 138, 17, "Reading...")
+  TextGadget(#PB_Any, 34, 59, 140, 17, "State:")
+  TextGadget(#GadgetBatteryConnection, 178, 59, 154, 17, "")
+  TextGadget(#GadgetBatteryCharging, 0, 0, 1, 1, "")
+  HideGadget(#GadgetBatteryCharging, #True)
+  TextGadget(#PB_Any, 34, 78, 140, 17, "Remaining:")
+  TextGadget(#GadgetBatteryCapacity, 178, 78, 154, 17, "")
+  TextGadget(#PB_Any, 34, 97, 140, 17, "Battery draw:")
+  TextGadget(#GadgetBatteryRates, 178, 97, 154, 17, "")
+  TextGadget(#PB_Any, 34, 116, 140, 17, "Voltage:")
+  TextGadget(#GadgetBatteryVoltage, 178, 116, 154, 17, "")
+  TextGadget(#PB_Any, 34, 143, 140, 17, "PowerPilot use:")
+  TextGadget(#GadgetPowerPilotDraw, 178, 143, 154, 17, "Sampling 60s")
+  UseBoldFont(batteryLabel)
+  UseBoldFont(#GadgetBatteryPercent)
+
+  gFrameBatteryEstimate = FrameGadget(#PB_Any, 368, 18, 350, 180, "Battery Time")
+  TextGadget(#PB_Any, 384, 40, 112, 17, "Average:")
+  TextGadget(#GadgetBatteryEstimate, 502, 40, 186, 17, "")
+  TextGadget(#PB_Any, 384, 59, 112, 17, "Now:")
+  TextGadget(#GadgetBatteryInstantEstimate, 502, 59, 186, 17, "")
+  TextGadget(#PB_Any, 384, 78, 112, 17, "Windows:")
+  TextGadget(#GadgetBatteryRuntime, 502, 78, 186, 17, "")
+  TextGadget(#PB_Any, 384, 97, 112, 17, "Full-to-min:")
+  TextGadget(#GadgetBatteryFullEstimate, 502, 97, 186, 17, "")
+  TextGadget(#PB_Any, 384, 116, 112, 17, "Wear:")
+  TextGadget(#GadgetBatteryWear, 502, 116, 186, 17, "")
+  TextGadget(#PB_Any, 384, 135, 112, 17, "As new:")
+  TextGadget(#GadgetBatteryNominalEstimate, 502, 135, 186, 17, "")
+  TextGadget(#PB_Any, 384, 154, 112, 17, "Max capacity:")
+  TextGadget(#GadgetBatteryMaxCapacity, 502, 154, 186, 17, "")
+  TextGadget(#PB_Any, 384, 173, 112, 17, "Cycle count:")
+  TextGadget(#GadgetBatteryCycle, 502, 173, 186, 17, "")
+
+  gFrameBatteryGraph = FrameGadget(#PB_Any, 18, 204, 700, 255, BatteryGraphWindowTitle())
+  TextGadget(#PB_Any, 528, 431, 64, 17, "Window:")
+  ComboBoxGadget(#GadgetBatteryGraphHours, 598, 426, 88, 24)
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "6 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "12 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "18 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "24 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "36 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "48 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "60 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "72 h")
+  CanvasGadget(#GadgetBatteryGraph, 34, 226, 668, 196)
 
   ; Battery Stats tab: derived summaries and display/export controls.
   AddGadgetItem(#GadgetPanel, -1, "Battery Stats")
-  FrameGadget(#PB_Any, 18, 18, 340, 92, "Session")
-  TextGadget(#GadgetBatterySessionSummary, 34, 42, 308, 54, "Waiting for power events.", #PB_Text_Border)
-  FrameGadget(#PB_Any, 378, 18, 340, 92, "Off-Time Battery Loss")
-  TextGadget(#GadgetBatteryOffLossSummary, 394, 42, 308, 54, "Waiting for battery gaps.", #PB_Text_Border)
+  FrameGadget(#PB_Any, 18, 18, 340, 92, "Latest Power Event")
+  TextGadget(#GadgetBatterySessionSummary, 34, 42, 308, 54, "No sleep, wake, shutdown, or startup event yet.")
+  FrameGadget(#PB_Any, 378, 18, 340, 92, "Sleep/Off Battery Loss")
+  TextGadget(#GadgetBatteryOffLossSummary, 394, 42, 308, 54, "No sleep, hibernate, shutdown, or missing-sample battery loss yet.")
   FrameGadget(#PB_Any, 18, 124, 700, 112, "Daily Battery Summary")
-  TextGadget(#GadgetBatteryDailySummary, 34, 148, 668, 74, "Waiting for battery samples.", #PB_Text_Border)
-  FrameGadget(#PB_Any, 18, 254, 340, 112, "PowerPilot Log Columns")
-  CheckBoxGadget(#GadgetLogShowAverage, 34, 286, 84, 20, "Average")
-  CheckBoxGadget(#GadgetLogShowInstant, 126, 286, 78, 20, "Instant")
-  CheckBoxGadget(#GadgetLogShowConnected, 212, 286, 92, 20, "Connected")
-  CheckBoxGadget(#GadgetLogShowEvents, 34, 322, 84, 20, "Events")
-  FrameGadget(#PB_Any, 378, 254, 340, 112, "Settings Backup")
-  ButtonGadget(#GadgetSettingsExport, 394, 296, 126, 26, "Export settings")
-  ButtonGadget(#GadgetSettingsImport, 536, 296, 126, 26, "Import settings")
+  TextGadget(#GadgetBatteryDailySummary, 34, 148, 668, 74, "Waiting for battery samples.")
+  FrameGadget(#PB_Any, 18, 254, 340, 194, "Shown Log Columns")
+  CheckBoxGadget(#GadgetLogShowAverage, 40, 286, 84, 20, "Avg time")
+  CheckBoxGadget(#GadgetLogShowInstant, 154, 286, 96, 20, "Now/rate")
+  CheckBoxGadget(#GadgetLogShowWindows, 268, 286, 84, 20, "Win time")
+  CheckBoxGadget(#GadgetLogShowConnected, 40, 314, 100, 20, "Plugged in")
+  CheckBoxGadget(#GadgetLogShowPower, 154, 314, 84, 20, "Batt W")
+  CheckBoxGadget(#GadgetLogShowBrightness, 268, 314, 84, 20, "Laptop %")
+  CheckBoxGadget(#GadgetLogShowScreen, 40, 342, 84, 20, "Screen")
+  CheckBoxGadget(#GadgetLogShowEvents, 154, 342, 84, 20, "Events")
+  sectionHeader = TextGadget(#PB_Any, 34, 372, 308, 18, "Visible table only")
+  UseBoldFont(sectionHeader)
+  TextGadget(#PB_Any, 34, 396, 308, 16, "Copy CSV keeps every column.")
+  ButtonGadget(#GadgetSettingsExport, 40, 418, 126, 24, "Export settings")
+  ButtonGadget(#GadgetSettingsImport, 190, 418, 126, 24, "Import settings")
+  FrameGadget(#PB_Any, 378, 254, 340, 194, "Battery Analysis")
+  TextGadget(#GadgetBatteryAnalysisSummary, 394, 278, 308, 152, "Waiting for retained battery rows.")
+
+  ; Power Use tab: show the compact PP Power Use row without crowding the live
+  ; battery panel. Method details live in README/FUNCTION_MAP.
+  AddGadgetItem(#GadgetPanel, -1, "Power Use")
+  FrameGadget(#PB_Any, 18, 18, 340, 174, "PowerPilot Battery Cost")
+  sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 20, "Measured over the last 60 seconds")
+  UseBoldFont(sectionHeader)
+  TextGadget(#GadgetPowerUseSummary, 34, 68, 308, 96, "Waiting for about 60 seconds of PowerPilot CPU-use samples.")
+  FrameGadget(#PB_Any, 378, 18, 340, 174, "Battery Data Source")
+  sectionHeader = TextGadget(#PB_Any, 394, 42, 308, 20, "Current battery read path")
+  UseBoldFont(sectionHeader)
+  TextGadget(#GadgetPowerUseStatus, 394, 68, 308, 96, "Battery data source appears after the first live battery read.")
+  powerUseText$ = "- mW estimates PowerPilot's share of current battery drain from CPU time." + #CRLF$
+  powerUseText$ + "- Full-to-empty battery cost converts that share into runtime seconds across Full at -> Empty at." + #CRLF$
+  powerUseText$ + "- 0.00 mW or 0 sec is normal when plugged in, idle, or missing discharging watts." + #CRLF$
+  powerUseText$ + "- It does not measure display, Wi-Fi, storage, GPU, or Windows background activity."
+  idleText$ = "- Compare tray-hidden and visible-window behavior." + #CRLF$
+  idleText$ + "- Check PowerPilot Log for screen on/dim/off and wake rows." + #CRLF$
+  idleText$ + "- Look for frequent reads, update-close rows, or old app versions still running." + #CRLF$
+  idleText$ + "- Use Task Manager or Energy report for system-wide causes." + #CRLF$
+  idleText$ + "- Keep Read every and Log every modest while testing idle battery drain."
+  FrameGadget(#PB_Any, 18, 210, 340, 238, "Reading The Estimate")
+  sectionHeader = TextGadget(#PB_Any, 34, 234, 308, 20, "What the numbers mean")
+  UseBoldFont(sectionHeader)
+  TextGadget(#GadgetPowerUseInterpretation, 34, 262, 308, 154, powerUseText$)
+  FrameGadget(#PB_Any, 378, 210, 340, 238, "Idle Investigation")
+  sectionHeader = TextGadget(#PB_Any, 394, 234, 308, 20, "Useful checks")
+  UseBoldFont(sectionHeader)
+  TextGadget(#GadgetPowerUseIdleChecklist, 394, 262, 308, 154, idleText$)
+
+  ; Battery Test tab: live calibration/test observer. It records what Windows
+  ; reports, including plugged-in discharging states used by vendor calibration.
+  AddGadgetItem(#GadgetPanel, -1, "Battery Test")
+  FrameGadget(#PB_Any, 18, 18, 340, 174, "Test Log")
+  sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 20, "Guided battery test")
+  UseBoldFont(sectionHeader)
+  TextGadget(#PB_Any, 34, 66, 92, 18, "Mode:")
+  TextGadget(#GadgetBatteryTestMode, 132, 66, 196, 18, "Monitor")
+  TextGadget(#PB_Any, 34, 90, 92, 18, "Phase:")
+  TextGadget(#GadgetBatteryTestPhase, 132, 90, 196, 18, "Idle")
+  TextGadget(#PB_Any, 34, 114, 92, 18, "Elapsed:")
+  TextGadget(#GadgetBatteryTestElapsed, 132, 114, 196, 18, "0h 00m")
+  ButtonGadget(#GadgetBatteryTestStart, 34, 146, 92, 26, "Manual")
+  ButtonGadget(#GadgetBatteryTestLenovo, 136, 146, 112, 26, "Lenovo reset")
+  ButtonGadget(#GadgetBatteryTestEnd, 258, 146, 70, 26, "End")
+
+  FrameGadget(#PB_Any, 378, 18, 340, 174, "Live Test Stats")
+  TextGadget(#PB_Any, 394, 42, 128, 18, "Battery:")
+  TextGadget(#GadgetBatteryTestPercent, 528, 42, 174, 18, "Unknown")
+  TextGadget(#PB_Any, 394, 68, 128, 18, "Remaining:")
+  TextGadget(#GadgetBatteryTestRemaining, 528, 68, 174, 18, "Unknown")
+  TextGadget(#PB_Any, 394, 94, 128, 18, "Battery watts:")
+  TextGadget(#GadgetBatteryTestWatts, 528, 94, 174, 18, "Unknown")
+  TextGadget(#PB_Any, 394, 120, 128, 18, "Estimate:")
+  TextGadget(#GadgetBatteryTestEstimate, 528, 120, 174, 18, "Unknown")
+  TextGadget(#GadgetBatteryTestGuide, 394, 146, 308, 34, "Start a manual test, or leave this open while vendor calibration runs.")
+
+  FrameGadget(#PB_Any, 18, 210, 340, 238, "Test Report")
+  ButtonGadget(#GadgetBatteryTestOpenReport, 102, 228, 104, 24, "Open report")
+  ButtonGadget(#GadgetBatteryTestCopy, 224, 228, 104, 24, "Copy report")
+  TextGadget(#GadgetBatteryTestSummary, 34, 260, 308, 170, "No test log has been started yet.")
+
+  FrameGadget(#PB_Any, 378, 210, 340, 238, "CPU Load")
+  sectionHeader = TextGadget(#PB_Any, 394, 234, 308, 20, "Drain helper")
+  UseBoldFont(sectionHeader)
+  TextGadget(#PB_Any, 394, 264, 78, 18, "Drain in:")
+  SpinGadget(#GadgetBatteryLoadMinutes, 482, 260, 72, 22, 15, 720, #PB_Spin_Numeric)
+  SetGadgetState(#GadgetBatteryLoadMinutes, ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720))
+  TextGadget(#PB_Any, 560, 264, 34, 18, "min")
+  ButtonGadget(#GadgetBatteryLoadAuto, 602, 258, 100, 26, "Auto target")
+  TextGadget(#GadgetBatteryLoadAutoStatus, 394, 294, 308, 18, "Auto off")
+  TextGadget(#PB_Any, 394, 322, 78, 18, "Load:")
+  TextGadget(#GadgetBatteryLoadStatus, 482, 322, 220, 18, "Off")
+  CheckBoxGadget(#GadgetBatteryLoadTestMode, 394, 350, 140, 22, "Test mode")
+  TextGadget(#GadgetBatteryLoadNote, 394, 382, 308, 42, "Auto target logs controller ticks. Stops when charging starts.")
+
+  ; About tab: concise in-app identity, license, privacy, and operating model.
+  AddGadgetItem(#GadgetPanel, -1, "About")
+  aboutPurpose$ = "Local Windows tray app for power-plan follow, battery history, screen events, brightness, and CSV export."
+  FrameGadget(#PB_Any, 18, 18, 700, 84, "PowerPilot")
+  aboutTitle = TextGadget(#PB_Any, 34, 42, 668, 20, #AppFullName$, #PB_Text_Center)
+  aboutSubtitle = TextGadget(#GadgetAboutPurpose, 34, 66, 668, 28, aboutPurpose$, #PB_Text_Center)
+  UseBoldFont(aboutTitle)
+
+  aboutOperation$ = "Windows power mode decides the active plan:" + #CRLF$
+  aboutOperation$ + "- Best performance -> PowerPilot Maximum" + #CRLF$
+  aboutOperation$ + "- Balanced -> PowerPilot Balanced" + #CRLF$
+  aboutOperation$ + "- Best power efficiency -> PowerPilot Battery" + #CRLF$
+  aboutOperation$ + "- The Plans tab edits those plans; it does not manually activate them."
+  FrameGadget(#PB_Any, 18, 118, 340, 120, "Automatic Plan Follow")
+  TextGadget(#GadgetAboutOperation, 34, 142, 308, 78, aboutOperation$)
+
+  aboutData$ = "Logged when available:" + #CRLF$
+  aboutData$ + "- Battery percent, time estimates, watts, and plugged-in state." + #CRLF$
+  aboutData$ + "- Screen on/dim/off, Energy Saver on/off, laptop brightness, power events, and app rows."
+  FrameGadget(#PB_Any, 378, 118, 340, 120, "What It Tracks")
+  TextGadget(#GadgetAboutData, 394, 142, 308, 78, aboutData$)
+
+  aboutVersion$ = "- Reads local Windows power, battery, CPU, display, screen-state, and brightness providers." + #CRLF$
+  aboutVersion$ + "- Writes local settings, retained log rows, and PowerPilot-owned Windows plan values." + #CRLF$
+  aboutVersion$ + "- PowerPilot does not send data anywhere by itself."
+  FrameGadget(#PB_Any, 18, 252, 340, 120, "Local Data And Privacy")
+  TextGadget(#GadgetAboutVersion, 34, 276, 308, 78, aboutVersion$)
+
+  aboutBoundaries$ = "- Author: John Torset." + #CRLF$
+  aboutBoundaries$ + "- MIT License. Full text is in LICENSE.txt." + #CRLF$
+  aboutBoundaries$ + "- README covers tabs, updates, settings, and uninstall."
+  FrameGadget(#PB_Any, 378, 252, 340, 120, "License And Files")
+  TextGadget(#GadgetAboutLicense, 394, 276, 308, 50, aboutBoundaries$)
+  ButtonGadget(#GadgetAboutOpenReadme, 452, 334, 120, 26, "Open README")
+  ButtonGadget(#GadgetAboutOpenLicense, 582, 334, 120, 26, "Open LICENSE")
+
+  aboutBoundaries$ = "PowerPilot does not measure CPU package watts, display watts, fan power, temperature, Wi-Fi, storage, GPU load, or other apps." + #CRLF$
+  aboutBoundaries$ + "The Power Use tab estimates PowerPilot's own battery cost from process CPU time; it is not a hardware power meter."
+  FrameGadget(#PB_Any, 18, 386, 700, 62, "Important Boundaries")
+  TextGadget(#GadgetAboutBoundaries, 34, 410, 668, 28, aboutBoundaries$, #PB_Text_Center)
   CloseGadgetList()
 
   ButtonGadget(#GadgetHideToTray, 14, 512, 96, 28, "Hide")
@@ -5192,6 +9741,8 @@ Procedure CreateMainWindow(showWindow.i)
   AddGadgetItem(#GadgetPlanAcCooling, -1, "Active")
   AddGadgetItem(#GadgetPlanDcCooling, -1, "Passive")
   AddGadgetItem(#GadgetPlanDcCooling, -1, "Active")
+  AddGadgetItem(#GadgetEnergySaverMode, -1, "Follow Windows")
+  AddGadgetItem(#GadgetEnergySaverMode, -1, "On for Battery plan")
 
   ; Startup order matters: settings first, then power-event cleanup/logging,
   ; learned drain, retained graph reload, live battery refresh, and plan follow.
@@ -5203,16 +9754,20 @@ Procedure CreateMainWindow(showWindow.i)
   CleanupOldPowerPilotVersions(#False, #True)
   LoadBatteryGraphFromLog()
   RefreshBatteryStatsSummary()
+  RefreshPowerUseDetails()
   RefreshPlanList(#True)
   RefreshPlanEditor()
   RefreshBattery(#True)
+  RefreshPowerPilotDrawDisplay()
   RefreshDisplay(#True)
   MonitorAutomaticPlans()
   RefreshBattery(#True)
+  RefreshPowerPilotDrawDisplay()
   RefreshDisplay(#True)
 
   If showWindow
     HideWindow(#WindowMain, #False)
+    SetForegroundWindow_(WindowID(#WindowMain))
     StartRefreshTimer()
   Else
     HideToTray()
@@ -5242,14 +9797,7 @@ Procedure RunGui(showWindow.i)
       Case #PB_Event_Timer
         Select EventTimer()
           Case #TimerRefresh
-            ; Tray setup can fail during early startup, so retry quietly on timer.
-            If gTrayReady = #False
-              SetupTray()
-            EndIf
-            CaptureBatteryLogColumnWidths(#True)
-            MonitorAutomaticPlans()
-            RefreshBattery()
-            RefreshDisplay()
+            RunPeriodicRefresh()
 
           Case #TimerBatterySettingsApply
             ApplyPendingBatterySettings()
@@ -5295,12 +9843,15 @@ If CountProgramParameters() > 0
     Case "/follow-once"
       If ApplyWindowsPowerFollow(#True) : End 0 : Else : End 1 : EndIf
     Case "/tray"
+      If EnsureSingleInstance() = #False : End 0 : EndIf
       RunGui(#False)
     Case "/show"
+      If EnsureSingleInstance() = #False : End 0 : EndIf
       RunGui(#True)
   EndSelect
 EndIf
 
+If EnsureSingleInstance() = #False : End 0 : EndIf
 RunGui(#True)
 
 ; IDE Options = PureBasic 6.40 (Windows - x64)

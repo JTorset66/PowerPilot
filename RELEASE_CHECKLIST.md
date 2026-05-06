@@ -9,8 +9,9 @@ Use this checklist for public PowerPilot releases.
 - Review `README.md` for current installer, startup, tray, plan-maker, PowerPilot Log, battery graph, battery stats, and hardware-info behavior.
 - Review `INSTALLER_README.md` for user-facing app functionality and usage changes.
 - Review `FUNCTION_MAP.md` after major PureBasic source changes.
-- Confirm `THIRD_PARTY_NOTICES.md` is included with the installer and still matches bundled assets.
-- Confirm the installer includes `INSTALLER_README.md` as installed `README.md`.
+- Confirm `THIRD_PARTY_NOTICES.md` is included with the installer as `THIRD_PARTY_NOTICES.txt` and still matches bundled assets.
+- Confirm the installer includes `INSTALLER_README.md` as installed `README.txt`.
+- Confirm the installer includes `LICENSE` as installed `LICENSE.txt`.
 - Confirm the installer creates a desktop shortcut.
 - Confirm the installed desktop shortcut uses `powerpilot_desktop.ico` and shows the green shield.
 - Confirm the tray icon uses `powerpilot_tray.ico` and shows the green shield.

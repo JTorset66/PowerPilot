@@ -1,0 +1,133 @@
+# PowerPilot GitHub Release Changelog
+
+Keep this file as the copy/paste source for GitHub Releases. Add new releases at the top and update the artifact names/checksums after `build-installer.ps1` creates the final files.
+
+---
+
+## PowerPilot v1.1.2605.08578
+
+PowerPilot v1.1.2605.08578 is a release-candidate build focused on the Battery Graph, installer/user-boundary correctness, and release documentation.
+
+### Highlights
+
+- Battery Graph marker labels now cover sleep/suspend (`Z`), hibernate (`H`), wake (`W`), shutdown (`S`), startup (`P`), improper shutdown (`!`), offline/missing samples (`O`), Energy Saver (`E`), and normal-state transitions (`N`).
+- Graph labels now combine nearby power events, split sleep-to-hibernate markers when enough horizontal space exists, and reserve label boxes so crowded markers do not overlap.
+- Wide graph windows from 36 to 72 hours use adaptive marker density. Low-priority `E`/`N` transition markers are skipped when crowded, while power/offline markers keep priority.
+- The installer now owns Windows startup registration for the original ordinary user. Post-install app refresh repairs plans and persists the startup preference without writing the setup-time startup entry itself.
+- Installer/uninstaller post-copy commands run as the original user, while setup keeps administrator approval only for installation into Program Files.
+
+### Documentation
+
+- README and installer README now describe the selectable 6- to 72-hour graph windows, graph marker letters, adaptive marker density, Battery Test, Power Use, screen brightness logging, and installer-side startup behavior.
+- Framework documentation and function map now cover native battery reads, Energy Saver policy handling, Battery Test, Power Use, display/Energy Saver events, and installer/user-boundary responsibilities.
+
+### Artifacts
+
+- `PowerPilot_V1.1.2605.08578.exe`
+- `PowerPilot_V1.1.2605.08578.exe.sha256`
+- `PowerPilot_V1.1.2605.08578_Setup.exe`
+- `PowerPilot_V1.1.2605.08578_Setup.exe.sha256`
+
+### Notes
+
+- Platform: Windows x64.
+- PowerPilot runs locally and does not send hardware, battery, or log data anywhere by itself.
+- Release binaries may be unsigned until trusted code-signing onboarding is complete.
+
+---
+
+## PowerPilot v1.1
+
+PowerPilot v1.1 adds local battery history, graphing, charging/discharging estimates, and a much smoother update/install flow while keeping the tray app on the normal user side of the installer boundary.
+
+### Highlights
+
+- Added Battery Graph, PowerPilot Log, Battery Stats, Power Use, Battery Test, and About tabs.
+- Added retained local CSV battery history with a 168-hour cap.
+- Added average and now-based battery time estimates for discharging, plus learned average time-to-target estimates for charging.
+- Charging estimates use the configured `Full at` or charge-limit target, current charging watts, recent percent movement, and learned charging behavior. The live `Now` field shows `Using average` while charging to avoid a duplicate ETA.
+- Added screen on/dim/off events, Energy Saver events, laptop brightness when Windows exposes it, PC power events, and short app status rows.
+- Added selectable graph windows from 6 to 72 hours with event/offline markers and Energy Saver coloring.
+- Added signed battery watts, Windows runtime, wear, full/design capacity, cycle count, voltage, and PowerPilot's own estimated battery cost.
+- Added settings backup/import and configurable visible log columns.
+- Added an in-app About tab explaining privacy, data boundaries, automatic plan follow, and included files.
+
+### UI and wording
+
+- Renamed visible battery terms to `Plugged in`, `Charging`, `Discharging`, `Battery %`, and `Now rate`.
+- PowerPilot Log timestamps now display as `YYYY-MM-DD HH:MM:SS`; full CSV export keeps ISO-style timestamps.
+- Energy Saver control now lives on the Plans tab and clearly says `On for Battery plan`.
+- Cleanup status rows are shorter, for example `Cleaned 1 old app`.
+- The old bottom status field was removed; short status messages now appear as `APP` rows in the PowerPilot Log while the Overview tab keeps the latest full action text.
+
+### Battery and logging
+
+- PowerPilot Log includes battery samples, app rows, screen rows, Energy Saver rows, and PC power-event rows.
+- Average calculations treat sleep, hibernate, shutdown, startup, wake, improper shutdown, app restart, and installer/update close as breaks where appropriate.
+- Startup drain can be learned from retained log history.
+- Charging estimate learning is saved with a 32-update cap so future time-to-full estimates can start closer before fresh charging data accumulates.
+- Windows charging time is shown as not reported when Windows/firmware does not provide it.
+- Vendor battery calibration states that are plugged in but discharging are treated as active battery use while still showing external power is present.
+- Battery Test provides guided manual discharge, Lenovo calibration reset mode, automatic vendor calibration detection, charge recovery tracking, target-time CPU load for watched drain tests, drain-helper test-mode telemetry, `BATTERY TEST` log rows, saved `.txt` reports, and copyable reports.
+- Built-in laptop brightness is sampled conservatively through monitor WMI first, then `Dxva2.dll` only when the display layout is unambiguous.
+
+### Installer and update behavior
+
+- Build stamping now uses `1.1.YYMM.minute-of-month` and versioned `PowerPilot_V1.1...` artifact names.
+- Installs newer versions side-by-side and lets the new app close older `PowerPilot_V*.exe` versions in the background.
+- Same-version reinstalls close only the exact same stamped executable before overwrite.
+- Update-close app rows are separated from real PC shutdown/sleep events.
+- Installer cleanup removes stale old versioned app files and performs a post-install process check.
+- Normal update path repairs missing PowerPilot-owned plans without recreating existing plans.
+
+### Documentation
+
+- README was expanded into a tab-by-tab user guide.
+- Installer README was refreshed for setup/release packaging.
+- Added `FUNCTION_MAP.md` to make source layout and stale-code checks easier.
+
+### Artifacts
+
+Replace `VERSION` and checksums with the final build values before publishing.
+
+- `PowerPilot_VERSION_Setup.exe`
+- `PowerPilot_VERSION_Setup.exe.sha256`
+- `PowerPilot_VERSION.exe`
+- `PowerPilot_VERSION.exe.sha256`
+
+### Notes
+
+- Platform: Windows x64.
+- PowerPilot runs locally and does not send hardware, battery, or log data anywhere by itself.
+- Release binaries may be unsigned until trusted code-signing onboarding is complete.
+
+---
+
+## PowerPilot v1.0
+
+Initial public release of PowerPilot, a PureBasic x64 tray utility for managing local Windows power plans.
+
+### Highlights
+
+- Creates and manages three PowerPilot-owned plans: Maximum, Balanced, and Battery.
+- Edits the three fixed PowerPilot plans directly from the Plans tab.
+- Follows Windows power mode and maps it to the matching PowerPilot plan.
+- Rebuilds PowerPilot-owned plans from the selected non-PowerPilot Windows plan.
+- Runs from the notification area with startup-in-tray support.
+- Shows local CPU identification through CPUID.
+- Shows local GPU/display-adapter information through Windows display enumeration.
+- Includes a Windows installer with desktop/tray icon assets, desktop shortcut creation, startup setup, repair/uninstall support, and bundled README/license/notices files.
+
+### Notes
+
+- First public release of the project.
+- Platform: Windows x64.
+- Source: PureBasic project.
+- Release binaries may be unsigned until trusted code-signing onboarding is complete.
+
+### Artifacts
+
+- `PowerPilot_V1.0.YYMM.minute-of-month.exe`
+- `PowerPilot_V1.0.YYMM.minute-of-month.exe.sha256`
+- `PowerPilot_V1.0.YYMM.minute-of-month_Setup.exe`
+- `PowerPilot_V1.0.YYMM.minute-of-month_Setup.exe.sha256`

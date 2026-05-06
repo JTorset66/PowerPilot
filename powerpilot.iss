@@ -1,9 +1,10 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.1.2605.03093"
-#define AppExeName "PowerPilot_V1.1.2605.03093.exe"
-#define AppSetupName "PowerPilot_V1.1.2605.03093_Setup.exe"
+#define AppVersion "1.1.2605.08578"
+#define AppExeName "PowerPilot_V1.1.2605.08578.exe"
+#define AppSetupName "PowerPilot_V1.1.2605.08578_Setup.exe"
 #define AppPublisher "John Torset"
 #define AppURL "https://github.com/JTorset66/PowerPilot"
+#define AppRunKey "PowerPilot"
 #define AppIconName "powerpilot.ico"
 #define AppDesktopIconName "powerpilot_desktop.ico"
 #define AppId "{{88D96927-5B26-4DF8-8EE0-3BF9A49E56E3}"
@@ -21,7 +22,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=build
-OutputBaseFilename=PowerPilot_V1.1.2605.03093_Setup
+OutputBaseFilename=PowerPilot_V1.1.2605.08578_Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -43,7 +44,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to PowerPilot
-WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup will keep normal updates fast, repair missing PowerPilot-owned plans if needed, include the user README, license, and third-party notices, and start PowerPilot in the tray when it finishes.
+WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup requires administrator approval for installation only. The installed tray app, post-install commands, and startup entry run as the original ordinary user.
 FinishedHeadingLabel=PowerPilot is ready
 FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. If an older version was still running, the new PowerPilot closes it in the background after launch. Open PowerPilot from the desktop shortcut or the tray icon to review plans, Windows power mode, and hardware information.
 
@@ -52,11 +53,11 @@ Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppIconName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppDesktopIconName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot_tray.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.md"; Flags: ignoreversion
-Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
-Source: "INSTALLER_README.md"; DestName: "PowerPilot_README.md"; Flags: dontcopy
-Source: "THIRD_PARTY_NOTICES.md"; DestName: "PowerPilot_THIRD_PARTY_NOTICES.md"; Flags: dontcopy
+Source: "INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.txt"; Flags: ignoreversion
+Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
+Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "INSTALLER_README.md"; DestName: "PowerPilot_README.txt"; Flags: dontcopy
+Source: "THIRD_PARTY_NOTICES.md"; DestName: "PowerPilot_THIRD_PARTY_NOTICES.txt"; Flags: dontcopy
 Source: "LICENSE"; DestName: "PowerPilot_LICENSE.txt"; Flags: dontcopy
 Source: "installer-assets\installer-welcome.bmp"; Flags: dontcopy
 Source: "installer-assets\installer-finish.bmp"; Flags: dontcopy
@@ -73,6 +74,9 @@ Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
 Type: files; Name: "{app}\powerpilot_tray.png"
+Type: files; Name: "{app}\README.md"
+Type: files; Name: "{app}\THIRD_PARTY_NOTICES.md"
+Type: files; Name: "{app}\LICENSE"
 Type: filesandordirs; Name: "{app}\third_party\LibreHardwareMonitor"
 Type: dirifempty; Name: "{app}\third_party"
 
@@ -86,6 +90,10 @@ Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
 Type: files; Name: "{app}\powerpilot_tray.png"
+Type: files; Name: "{app}\README.txt"
+Type: files; Name: "{app}\THIRD_PARTY_NOTICES.txt"
+Type: files; Name: "{app}\LICENSE.txt"
+Type: files; Name: "{app}\LICENSE"
 Type: filesandordirs; Name: "{app}\third_party\LibreHardwareMonitor"
 Type: dirifempty; Name: "{app}\third_party"
 
@@ -104,6 +112,15 @@ function GetCurrentProcessId(): Cardinal;
 function QuoteValue(const Value: string): string;
 begin
   Result := '"' + Value + '"';
+end;
+
+function PowerShellLiteral(const Value: string): string;
+var
+  Escaped: string;
+begin
+  Escaped := Value;
+  StringChangeEx(Escaped, '''', '''''', True);
+  Result := '''' + Escaped + '''';
 end;
 
 function MaintenanceMode: Boolean;
@@ -134,13 +151,13 @@ begin
   ExtractTemporaryFile(FileName);
   TempPath := ExpandConstant('{tmp}\' + FileName);
 
-  if not Exec(ExpandConstant('{sys}\notepad.exe'), QuoteValue(TempPath), '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
+  if not ShellExec('', TempPath, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
     MsgBox('PowerPilot Setup could not open ' + FileName + '.', mbError, MB_OK);
 end;
 
 procedure ReadmeButtonClick(Sender: TObject);
 begin
-  OpenIncludedTextFile('PowerPilot_README.md');
+  OpenIncludedTextFile('PowerPilot_README.txt');
 end;
 
 procedure LicenseButtonClick(Sender: TObject);
@@ -150,7 +167,7 @@ end;
 
 procedure ThirdPartyButtonClick(Sender: TObject);
 begin
-  OpenIncludedTextFile('PowerPilot_THIRD_PARTY_NOTICES.md');
+  OpenIncludedTextFile('PowerPilot_THIRD_PARTY_NOTICES.txt');
 end;
 
 procedure CreateIncludedFileButton(const Caption: string; Top: Integer; OnClick: TNotifyEvent);
@@ -394,6 +411,42 @@ begin
   end;
 end;
 
+function PowerShellExePath: string;
+begin
+  Result := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+end;
+
+function RunOriginalUserPowerShell(const Script: string): Integer;
+begin
+  Result := RunAsOriginalUserAndWait(PowerShellExePath(), '-NoProfile -ExecutionPolicy Bypass -Command ' + QuoteValue(Script));
+end;
+
+procedure RegisterStartupForOriginalUser;
+var
+  Script: string;
+begin
+  Script := '$q=[char]34; $cmd=$q + ' + PowerShellLiteral(ExpandConstant('{app}\{#AppExeName}')) + ' + $q + '' /tray''; ' +
+            'New-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'' -Force | Out-Null; ' +
+            'Set-ItemProperty -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'' -Name ' +
+            PowerShellLiteral('{#AppRunKey}') + ' -Value $cmd';
+  if RunOriginalUserPowerShell(Script) = 0 then
+    Log(Format('Registered startup for original user: %s /tray', [QuoteValue(ExpandConstant('{app}\{#AppExeName}'))]))
+  else
+    Log(Format('Failed to register startup for original user: %s /tray', [QuoteValue(ExpandConstant('{app}\{#AppExeName}'))]));
+end;
+
+procedure UnregisterStartupForOriginalUser;
+var
+  Script: string;
+begin
+  Script := 'Remove-ItemProperty -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'' -Name ' +
+            PowerShellLiteral('{#AppRunKey}') + ' -ErrorAction SilentlyContinue';
+  if RunOriginalUserPowerShell(Script) = 0 then
+    Log('Removed startup entry for original user.')
+  else
+    Log('Failed to remove startup entry for original user.');
+end;
+
 function ShouldKeepSettingsOnReinstall: Boolean;
 begin
   Result := RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/query-keep-settings') = 1;
@@ -437,6 +490,16 @@ begin
   end;
 end;
 
+procedure RunAsOriginalUserNoWait(const FileName, Params: string);
+var
+  ResultCode: Integer;
+begin
+  if ExecAsOriginalUser(FileName, Params, '', SW_HIDE, ewNoWait, ResultCode) then
+    Log(Format('Started as original user: %s %s', [FileName, Params]))
+  else
+    Log(Format('Failed to start as original user: %s %s', [FileName, Params]));
+end;
+
 procedure RefreshDesktopIconState;
 begin
   RunHiddenNoWait(ExpandConstant('{sys}\ie4uinit.exe'), '-show');
@@ -473,11 +536,12 @@ begin
         EnsureInstalledMaintenanceSetup();
         WriteMaintenanceRegistry();
         if not ShouldKeepSettingsOnReinstall() then
-          RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-settings')
+          RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-settings')
         else
           Log('Keeping existing user settings because the app preference is enabled.');
         RefreshDesktopIconState();
         RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/install-refresh');
+        RegisterStartupForOriginalUser();
       end;
 
     ssDone:
@@ -487,7 +551,7 @@ begin
           Log('Running PowerPilot copy reported update close to the PowerPilot log.')
         else
           Log('No running PowerPilot copy reported an update close before background cleanup.');
-        RunHiddenNoWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-old-versions');
+        RunAsOriginalUserNoWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-old-versions');
         StartInstalledPowerPilot();
       end;
   end;
@@ -498,8 +562,8 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     StopRunningPowerPilot();
-    RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/startup-off');
-    RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-settings');
-    RunHiddenAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-plans');
+    UnregisterStartupForOriginalUser();
+    RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-settings');
+    RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-plans');
   end;
 end;
