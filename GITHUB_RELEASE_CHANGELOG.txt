@@ -4,29 +4,66 @@ Keep this file as the copy/paste source for GitHub Releases. Add new releases at
 
 ---
 
-## PowerPilot v1.1.2605.08578
+## PowerPilot v1.1.2605.14550
 
-PowerPilot v1.1.2605.08578 is a release-candidate build focused on the Battery Graph, installer/user-boundary correctness, and release documentation.
+PowerPilot v1.1.2605.14550 is the current public release build focused on plan visibility, stronger Battery plan savings, clearer window layout, and release documentation cleanup.
 
 ### Highlights
 
-- Battery Graph marker labels now cover sleep/suspend (`Z`), hibernate (`H`), wake (`W`), shutdown (`S`), startup (`P`), improper shutdown (`!`), offline/missing samples (`O`), Energy Saver (`E`), and normal-state transitions (`N`).
-- Graph labels now combine nearby power events, split sleep-to-hibernate markers when enough horizontal space exists, and reserve label boxes so crowded markers do not overlap.
-- Wide graph windows from 36 to 72 hours use adaptive marker density. Low-priority `E`/`N` transition markers are skipped when crowded, while power/offline markers keep priority.
+- PowerPilot plans stay Balanced-derived so all three managed plans remain visible on Modern Standby systems while Windows power mode still chooses efficiency, balanced, or maximum performance.
+- Plan activation now prefers the native Windows `PowerSetActiveScheme` API with `powercfg /SETACTIVE` as fallback, avoiding normal-user activation failures seen on some Windows 11 systems.
+- `PowerPilot Battery` now applies hidden Windows battery-saving policy for low-power GPU preference, PCIe maximum link saving, DC device idle, disabled DC standby networking, aggressive DC disconnected standby, display/disk/sleep timeouts, DC hibernate after 30 minutes, and disabled DC wake timers.
+- Installer refresh now reapplies the current full plan policy to existing PowerPilot plans without deleting their GUIDs.
+- Battery Saver text and low/reserve/critical controls were tightened so Reserve is clearly warning-only and actions sit under Low/Critical.
+- The Plans tab Purpose column now uses the available width so descriptions are not clipped at normal window size.
+
+### Documentation
+
+- README, installer README, framework docs, function map, release checklist, SignPath notes, and signing policy now describe the current plan model and release state.
+- Release tooling accepts an explicit four-part app version so `v*` tags build artifacts whose names match the tag.
+- Obsolete generated chat-history logs were removed from the release commit scope.
+
+### Artifacts
+
+- `PowerPilot_V1.1.2605.14550.exe`
+  - SHA-256: `1e78eb87576ba2f6970cbf75614c2ecd7222087f4d43aa18f776dfe3fd5e762f`
+- `PowerPilot_V1.1.2605.14550.exe.sha256`
+- `PowerPilot_V1.1.2605.14550_Setup.exe`
+  - SHA-256: `e516fdde09fc1f1288083d06dca798a2ba15bb22c8b567a330f7f6984e1d5921`
+- `PowerPilot_V1.1.2605.14550_Setup.exe.sha256`
+
+### Notes
+
+- Platform: Windows x64.
+- PowerPilot runs locally and does not send hardware, battery, or log data anywhere by itself.
+- Release binaries may be unsigned until trusted code-signing onboarding is complete.
+
+---
+
+## PowerPilot v1.1.2605.14485
+
+PowerPilot v1.1.2605.14485 is a release-candidate build focused on Battery Saver consolidation, clearer UI text, source cleanup, and documentation alignment.
+
+### Highlights
+
+- Battery Saver now centralizes Windows Energy Saver threshold/brightness, low/reserve/critical battery thresholds, low/critical actions, background throttling, deep idle saver, and normal-plan restore-on-exit.
+- Battery Graph marker labels cover sleep/suspend (`Z`), hibernate (`H`), wake (`W`), shutdown (`S`), startup (`P`), improper shutdown (`!`), offline (`0`), online (`1`), Energy Saver (`E`), and normal-state transitions (`N`).
+- Crowded graph marker letters stack above their vertical line as white letters with black shadows, while power/offline markers keep priority.
+- The app UI text was tightened across Battery Saver, PowerPilot Log, Battery Graph, Battery Stats, Power Use, Battery Test, and About.
 - The installer now owns Windows startup registration for the original ordinary user. Post-install app refresh repairs plans and persists the startup preference without writing the setup-time startup entry itself.
 - Installer/uninstaller post-copy commands run as the original user, while setup keeps administrator approval only for installation into Program Files.
 
 ### Documentation
 
-- README and installer README now describe the selectable 6- to 72-hour graph windows, graph marker letters, adaptive marker density, Battery Test, Power Use, screen brightness logging, and installer-side startup behavior.
-- Framework documentation and function map now cover native battery reads, Energy Saver policy handling, Battery Test, Power Use, display/Energy Saver events, and installer/user-boundary responsibilities.
+- README and installer README describe the Battery Saver tab, selectable 6- to 72-hour graph windows, graph marker letters, Battery Test, Power Use, screen brightness logging, and installer-side startup behavior.
+- Framework documentation and function map cover native battery reads, Battery Saver policy handling, Battery Test, Power Use, display/Energy Saver events, UI scaling, and installer/user-boundary responsibilities.
 
 ### Artifacts
 
-- `PowerPilot_V1.1.2605.08578.exe`
-- `PowerPilot_V1.1.2605.08578.exe.sha256`
-- `PowerPilot_V1.1.2605.08578_Setup.exe`
-- `PowerPilot_V1.1.2605.08578_Setup.exe.sha256`
+- `PowerPilot_V1.1.2605.14485.exe`
+- `PowerPilot_V1.1.2605.14485.exe.sha256`
+- `PowerPilot_V1.1.2605.14485_Setup.exe`
+- `PowerPilot_V1.1.2605.14485_Setup.exe.sha256`
 
 ### Notes
 
@@ -56,7 +93,7 @@ PowerPilot v1.1 adds local battery history, graphing, charging/discharging estim
 
 - Renamed visible battery terms to `Plugged in`, `Charging`, `Discharging`, `Battery %`, and `Now rate`.
 - PowerPilot Log timestamps now display as `YYYY-MM-DD HH:MM:SS`; full CSV export keeps ISO-style timestamps.
-- Energy Saver control now lives on the Plans tab and clearly says `On for Battery plan`.
+- Energy Saver control now lives on the Battery Saver tab and uses `Automatic threshold` or `Battery plan always`.
 - Cleanup status rows are shorter, for example `Cleaned 1 old app`.
 - The old bottom status field was removed; short status messages now appear as `APP` rows in the PowerPilot Log while the Overview tab keeps the latest full action text.
 

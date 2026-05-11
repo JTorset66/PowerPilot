@@ -1,7 +1,7 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.1.2605.08578"
-#define AppExeName "PowerPilot_V1.1.2605.08578.exe"
-#define AppSetupName "PowerPilot_V1.1.2605.08578_Setup.exe"
+#define AppVersion "1.1.2605.14550"
+#define AppExeName "PowerPilot_V1.1.2605.14550.exe"
+#define AppSetupName "PowerPilot_V1.1.2605.14550_Setup.exe"
 #define AppPublisher "John Torset"
 #define AppURL "https://github.com/JTorset66/PowerPilot"
 #define AppRunKey "PowerPilot"
@@ -22,7 +22,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=build
-OutputBaseFilename=PowerPilot_V1.1.2605.08578_Setup
+OutputBaseFilename=PowerPilot_V1.1.2605.14550_Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

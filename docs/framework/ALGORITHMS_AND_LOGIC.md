@@ -6,13 +6,15 @@ PowerPilot maps Windows power mode overlays into the three fixed plans:
 
 - Best performance maps to `PowerPilot Maximum`.
 - Balanced maps to `PowerPilot Balanced`.
-- Energy efficiency maps to `PowerPilot Battery`.
+- Best power efficiency maps to `PowerPilot Battery`.
 
-The app recreates missing managed plans when needed and never deletes arbitrary user plans.
+The app recreates missing managed plans when needed and never deletes arbitrary user plans. The managed plans are real Windows power schemes, so Windows can list them in older plan screens. PowerPilot still treats Windows power mode as the user-facing selector.
+
+Plan activation prefers the native `PowerSetActiveScheme` API. `powercfg /SETACTIVE` remains a fallback because some Windows 11 normal-user sessions can activate through the API while the command-line tool returns access denied.
 
 ## Plan Writing
 
-`CreateManagedPlans()` and related helpers use `powercfg` to write processor settings. Values are clamped before writing:
+`CreateManagedPlans()` and related helpers use `powercfg` to write plan settings and powrprof APIs to read/activate schemes where available. Values are clamped before writing:
 
 - EPP: 0 to 100.
 - Boost mode: valid combo index.
@@ -20,7 +22,9 @@ The app recreates missing managed plans when needed and never deletes arbitrary 
 - Max frequency: 0 to 6000 MHz.
 - Cooling: valid combo index.
 
-Energy Saver control can follow Windows or apply the PowerPilot Battery-plan setting.
+Battery Saver settings write Windows Energy Saver policy/threshold/brightness and low/reserve/critical battery behavior to PowerPilot-owned plans. Energy Saver can follow the Windows threshold or force the Battery plan into Energy Saver while PowerPilot is running.
+
+The Battery plan also writes hidden Windows saving policy that is not exposed in the plan editor: Balanced-derived personality for Modern Standby compatibility, DC device idle, low-power GPU preference, PCIe maximum link saving, disabled DC standby networking, aggressive DC disconnected standby, shorter DC display/disk/sleep timeouts, DC hibernate after 30 minutes, and disabled DC wake timers. Installer refresh reapplies the full current PowerPilot plan policy to existing schemes so new hidden settings reach old installations without deleting user plans.
 
 ## Battery Telemetry
 
@@ -72,10 +76,10 @@ Sleep, hibernate, shutdown, startup, wake, app close, and missing-sample gaps ar
 The graph uses marker priority and collision checks:
 
 - Power/offline markers are higher priority than Energy Saver/normal transition markers.
-- Event letters close together are combined when they would land on nearly the same x position.
-- Sleep-to-hibernate can split into separate `Z` and `H` markers when the sleep/offline segment start and hibernate marker are far enough apart; otherwise it stays compact.
-- Label placement reserves small occupied rectangles. A marker label is drawn only if it can fit without overlapping an earlier label in the same row.
-- Low-priority `E` and `N` labels thin out more as the selected graph window grows; if their label cannot be drawn, their vertical marker is skipped.
+- `0` marks offline/discontinued graph spans and `1` marks the return to online samples.
+- Event letters close together stack above the same vertical line instead of overlapping each other.
+- Marker letters draw as white text with black shadows so they stay readable over graph lines.
+- The `Markers` checkbox hides both marker letters and the marker legend while keeping the graph line colors.
 
 ## Battery Test Accumulation
 

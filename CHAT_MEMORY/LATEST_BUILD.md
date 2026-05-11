@@ -1,6 +1,6 @@
 ﻿# Latest Build
 
-Generated: 2026-05-03 03:33:18 +02:00
+Generated: 2026-05-11 02:30:31 +02:00
 
 ## Result
 
@@ -9,22 +9,18 @@ Generated: 2026-05-03 03:33:18 +02:00
 
 ## Artifacts
 
-- .\build\PowerPilot_V1.1.2605.03093.exe
-  - Size: 957,952 bytes
-  - Last write time: 2026-05-03 03:33:14
-  - SHA-256: 1F89A54C362B12A7B1DCC31F9065B06407DCBBFFE7D4D7B7FF56E70B5168257D
-- .\build\PowerPilot_V1.1.2605.03093_Setup.exe
-  - Size: 2,602,469 bytes
-  - Last write time: 2026-05-03 03:33:18
-  - SHA-256: DBB461948AE63526D2C6C44CA111773D850D70F92ECF9DB20C18D1884D468EF1
+- .\build\PowerPilot_V1.1.2605.14550.exe
+  - Size: 1,158,144 bytes
+  - Last write time: 2026-05-11 02:30:29
+  - SHA-256: 1E78EB87576BA2F6970CBF75614C2ECD7222087F4D43AA18F776DFE3FD5E762F
+- .\build\PowerPilot_V1.1.2605.14550_Setup.exe
+  - Size: 2,647,020 bytes
+  - Last write time: 2026-05-11 02:30:31
+  - SHA-256: E516FDDE09FC1F1288083D06DCA798A2BA15BB22C8B567A330F7F6984E1D5921
 
 ## Snapshot
 
-- Release snapshot: SNAPSHOTS\powerpilot-release-v1.1-2026-05-03_03-43-06.zip
-- Created: 2026-05-03 03:43:06
-- Captured from tag: v1.1
-- Tracked files captured: 67
-- SHA-256: FB75C367E197B92FC3A89BF228D8E1737CDCDCFF32B57ABDE34138D14D0BE59C
+- Snapshot was skipped for this run.
 
 ## Retention defaults
 
@@ -40,6 +36,5 @@ Generated: 2026-05-03 03:33:18 +02:00
 
 - PowerPilot keeps only the Maximum, Balanced, and Battery plans.
 - PowerPilot follows Windows power mode and maps it to Maximum, Balanced, or Battery.
-- Battery Graph, PowerPilot Log, and Battery Stats are the main v1.1 tabs for battery estimates and history.
-- Average and Max avg estimates use the configured minimum floor and effective maximum ceiling.
-- App/update lifecycle log rows break battery-drain calculations without being treated as PC shutdowns.
+- PowerPilot no longer uses temperature, package-power telemetry, or helper executables.
+- GPU names come from Windows display adapter enumeration plus CPU-based iGPU resolution.

@@ -3,6 +3,7 @@ param(
     [string]$ChatText = "",
     [switch]$SaveChatFromClipboard,
     [switch]$SkipSnapshot,
+    [string]$AppVersion = "",
     [string]$CertificateThumbprint,
     [string]$TimestampUrl,
     [int]$SnapshotRetention = 8,
@@ -632,7 +633,17 @@ try {
         Write-Host "Pre-build snapshot created:" $snapshotInfo.RelativePath
     }
 
-    .\build-purebasic.ps1 -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    $buildArgs = @{}
+    if (-not [string]::IsNullOrWhiteSpace($AppVersion)) {
+        $buildArgs.AppVersion = $AppVersion.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CertificateThumbprint)) {
+        $buildArgs.CertificateThumbprint = $CertificateThumbprint
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TimestampUrl)) {
+        $buildArgs.TimestampUrl = $TimestampUrl
+    }
+    .\build-purebasic.ps1 @buildArgs
     $artifactNames = Sync-InnoAppVersion
     Remove-StaleInstallerArtifacts -ArtifactNames $artifactNames
 

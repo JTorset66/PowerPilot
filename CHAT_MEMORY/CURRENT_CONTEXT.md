@@ -40,6 +40,7 @@ Last updated: 2026-05-03
 - Installer/update closes are logged as `PowerPilot update close`, not as normal app exit or PC shutdown.
 - App lifecycle rows are excluded from PC off/sleep loss and graph offline markers.
 - Install verification checks that no elevated installer/helper shell remains after the installer finishes.
+- Important build habit: after source edits, run `build-installer.ps1` before `install-powerpilot.ps1`; otherwise the installer may reinstall the previous setup package even though `build-purebasic.ps1` produced a newer EXE.
 
 ## documentation and map
 

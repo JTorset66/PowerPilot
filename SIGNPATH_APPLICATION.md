@@ -7,7 +7,7 @@ This document collects the information needed to apply for a free SignPath.io su
 - Project name: PowerPilot
 - Project handle: powerpilot
 - Repository: <https://github.com/JTorset66/PowerPilot>
-- Latest public release: not published yet
+- Latest public release: v1.1.2605.14550
 - License: MIT
 - Maintainer: John Torset
 - Primary platform: Windows x64
@@ -50,7 +50,7 @@ This document collects the information needed to apply for a free SignPath.io su
 - `INSTALLER_README.md` is the source for the user-facing `README.txt` bundled into the installer and focuses on PowerPilot functionality rather than build/release details.
 - The repository includes third-party notices for the release package.
 - The repository includes a release checklist and a self-hosted Windows GitHub Actions workflow.
-- The first public release is still pending, so current binaries may be unsigned until signing onboarding is complete.
+- Current public binaries may be unsigned until signing onboarding is complete.
 
 ### Privacy and user safety
 
@@ -75,8 +75,8 @@ This document collects the information needed to apply for a free SignPath.io su
 ## Honest caveats to mention if asked
 
 - The project is newly public and currently has limited external reputation.
-- The first public release has not been published yet.
-- Current local binaries may be unsigned because SignPath onboarding is not yet complete.
+- The first public release is being published as `v1.1.2605.14550`.
+- Current binaries may be unsigned because SignPath onboarding is not yet complete.
 - The self-hosted Windows build workflow is present in the repository, but actual SignPath integration still depends on onboarding and runner setup.
 
 ## Suggested form/email answers

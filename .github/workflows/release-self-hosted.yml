@@ -44,13 +44,21 @@ jobs:
           WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
           RFC3161_TIMESTAMP_URL: ${{ secrets.RFC3161_TIMESTAMP_URL }}
         run: |
-          if ($env:WINDOWS_CERT_THUMBPRINT) {
-            .\build-installer.ps1 `
-              -CertificateThumbprint $env:WINDOWS_CERT_THUMBPRINT `
-              -TimestampUrl $env:RFC3161_TIMESTAMP_URL
-          } else {
-            .\build-installer.ps1
+          $buildArgs = @{}
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $tagVersion = $env:GITHUB_REF_NAME -replace '^v', ''
+            if ($tagVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+              throw "Release tag must be v followed by a four-part numeric version, for example v1.1.2605.14550."
+            }
+            $buildArgs.AppVersion = $tagVersion
           }
+          if ($env:WINDOWS_CERT_THUMBPRINT) {
+            $buildArgs.CertificateThumbprint = $env:WINDOWS_CERT_THUMBPRINT
+          }
+          if ($env:RFC3161_TIMESTAMP_URL) {
+            $buildArgs.TimestampUrl = $env:RFC3161_TIMESTAMP_URL
+          }
+          .\build-installer.ps1 @buildArgs
 
       - name: Create SHA256 checksums
         shell: powershell

@@ -11,6 +11,14 @@ PowerPilot loads defaults first, then overlays `%APPDATA%\PowerPilot\settings.in
 | Throttle background | On |
 | Deep idle saver | On |
 | Energy Saver mode | Follow Windows |
+| Energy Saver threshold | 20% |
+| Energy Saver brightness | 70% |
+| Low battery warning | 10% |
+| Reserve battery level | 7% |
+| Critical battery level | 5% |
+| Low battery action | Do nothing |
+| Critical battery action | Sleep |
+| Restore normal plan on exit | On |
 | Show tips | On |
 | Last selected plan | `PowerPilot Balanced` |
 
@@ -26,11 +34,12 @@ PowerPilot loads defaults first, then overlays `%APPDATA%\PowerPilot\settings.in
 | Use charge limit | Off |
 | Charge limit max | 80% |
 | Smooth | 60 min |
-| Startup estimate | 12%/h |
+| Startup drain | 12%/h |
 | Learned discharge estimate | 12%/h |
 | Learned charge estimate | 0%/h until learned |
 | Charge learning cap | 32 updates |
 | Battery graph window | 24 h |
+| Graph markers | On |
 | Lenovo/drain helper target | 120 min |
 
 ## Log Column Defaults
@@ -39,12 +48,12 @@ All log columns are visible on first install.
 
 | Column | Default width |
 | --- | ---: |
-| Time | 142 |
-| Battery | 55 |
+| Timestamp | 142 |
+| Battery % | 55 |
 | Avg time | 145 |
-| Now/rate | 72 |
+| Instant time | 72 |
 | Win time | 64 |
-| Rate | 64 |
+| Now rate | 64 |
 | Plugged in | 58 |
 | Batt W | 76 |
 | Screen | 74 |
@@ -78,11 +87,26 @@ PowerPilot defines three fixed plans. The values are stored per plan and may be 
 
 | Field | AC | DC |
 | --- | ---: | ---: |
-| EPP | 90 | 98 |
+| EPP | 90 | 100 |
 | Boost mode | 0 | 0 |
-| Max processor state | 65 | 55 |
-| Max frequency MHz | 2200 | 1600 |
+| Max processor state | 65 | 30 |
+| Max frequency MHz | 2200 | 1100 |
 | Cooling | 0 | 0 |
+
+Additional hidden Battery plan policy:
+
+- Power plan personality: Balanced-derived for Modern Standby compatibility. The Maximum and Balanced plans use the same Balanced-derived personality for the same visibility reason; their performance character comes from the other plan settings.
+- Device idle: Power savings on AC and DC.
+- GPU preference: Low Power on AC and DC.
+- PCI Express link state: Maximum Power Savings on AC and DC.
+- Standby networking: Managed by Windows on AC, disabled on DC.
+- Disconnected Standby: Normal on AC, aggressive on DC.
+- Display off: 15 minutes on AC, 5 minutes on DC.
+- Disk idle: never on AC, 5 minutes on DC.
+- Sleep: never on AC, 15 minutes on DC.
+- Hibernate: never on AC, 30 minutes on DC.
+- Wake timers: enabled on AC, disabled on DC.
+- Reserve battery level is written with the raw Windows reserve setting GUID because the short alias is not present on every system.
 
 ## Settings Persistence Rules
 

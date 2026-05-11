@@ -2,7 +2,9 @@
 
 ## Purpose
 
-PowerPilot is a local Windows tray application written in PureBasic. It manages three PowerPilot-owned Windows power plans, follows Windows power mode, records battery and power events, displays battery graphs and stats, estimates PowerPilot's own battery cost, and guides battery tests including Lenovo calibration reset monitoring.
+PowerPilot is a local Windows tray application written in PureBasic. It manages three PowerPilot-owned Windows power plans, follows Windows power mode, records battery and power events, displays battery graphs and stats, estimates the app's battery cost, and guides battery tests including Lenovo calibration reset monitoring.
+
+The three managed plans are real Windows schemes and may appear in legacy power-plan lists. The user-facing selector remains Windows power mode: efficiency maps to Battery, balanced maps to Balanced, and maximum performance maps to Maximum while PowerPilot is running.
 
 PowerPilot is not a firmware controller. It observes Windows battery telemetry and can create local CPU load for test assistance, but it does not command Lenovo firmware calibration directly.
 
@@ -42,7 +44,7 @@ The installer requires administrator approval for installation into Program File
 Startup sequence:
 
 1. Load settings with defaults, then overlay `settings.ini`.
-2. Load or create the fixed PowerPilot plans.
+2. Load or create the fixed PowerPilot plans, then refresh their current CPU, battery, Energy Saver, and hidden platform policy.
 3. Register power notifications.
 4. Create the main tabbed window and tray icon.
 5. Refresh Windows power mode, active plan, battery telemetry, battery graph, log preview, and summaries.
@@ -60,6 +62,8 @@ Main loops:
 PowerPilot owns:
 
 - Three managed plans: `PowerPilot Maximum`, `PowerPilot Balanced`, and `PowerPilot Battery`.
+- Balanced-derived plan personality for all three managed plans so they remain visible on Modern Standby systems.
+- Hidden platform-saving policy written to the managed plans, especially the Battery plan's GPU, PCIe, idle, standby-network, display, disk, sleep, hibernate, and wake-timer settings.
 - Its settings file.
 - Its retained CSV log.
 - Its battery test report folder.

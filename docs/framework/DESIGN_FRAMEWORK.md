@@ -295,7 +295,9 @@ Reports:
 Managed plans:
 
 - Owned by `PlanService`.
-- Created and repaired through Windows `powercfg`.
+- Created and repaired through Windows `powercfg`, with native powrprof APIs preferred for active-scheme reads and activation.
+- Kept Balanced-derived for Modern Standby visibility; performance and battery behavior should come from processor settings plus hidden platform policy, not from changing the scheme personality away from Balanced.
+- Refreshed in place during installer updates so new hidden policy reaches existing GUIDs without a destructive rebase.
 - Only PowerPilot-owned plans may be deleted by cleanup.
 
 ## UI Design Principles
@@ -317,16 +319,18 @@ Recommended future tab model:
 
 1. Overview
 2. Plans
-3. Battery
-4. Battery Log
-5. Battery Test
-6. Power Use
-7. Settings
-8. About
+3. Battery Saver
+4. Battery
+5. Battery Log
+6. Battery Test
+7. Power Use
+8. Settings
+9. About
 
 Reasoning:
 
 - Battery Graph and Battery Stats could become one `Battery` tab with subviews or a split layout.
+- Battery Saver should remain separate because it changes Windows plan policy rather than showing historical battery data.
 - Settings backup and log visibility controls could move to a clear `Settings` tab.
 - Battery Test should stay near Battery, because it is a workflow, not only a report.
 - About should remain last.

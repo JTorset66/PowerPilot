@@ -23,9 +23,9 @@ This map describes the current `PowerPilot_V1.1.pb` source layout so stale code 
 - Plan lookup and naming: `PlanIndexByName`, `NormalizePlanName`, `IsManagedPlanName`.
 - Power-mode mapping: `IsEfficiencyPowerMode`, `PowerModeTextFromGuid`, `TargetPlanForPowerModeGuid`, `TargetPlanForWindowsPlan`.
 - Windows plan commands and cache: `RunPowerCfg`, `RunPowerCfgCapture`, `FindGuidInText`, `RefreshSchemeCache`, `InvalidateSchemeCache`, `GetActiveSchemeGuid`, `GetSchemeGuidByName`, `GetSchemeNameByGuid`.
-- Power API fallback: `EnsurePowerApi`, `ReadPowerGuidValue`, `GetActiveSchemeGuidByApi`, `GetWindowsPowerModeGuid`, `CurrentPowerSupplyIsBattery`.
+- Power API fallback: `SetGuidFromText`, `EnsurePowerApi`, `ReadPowerGuidValue`, `GetActiveSchemeGuidByApi`, `SetActiveSchemeByGuid`, `GetWindowsPowerModeGuid`, `CurrentPowerSupplyIsBattery`.
 - Plan creation and cleanup: `DuplicateBaseScheme`, `EnsurePlanInstalled`, `DeleteManagedPlanCopies`, `CreateManagedPlansFromBase`, `CreateManagedPlans`, `ManagedPlansInstalled`, `InstallRefresh`, `CleanupManagedPlans`.
-- Plan application: `SetSchemeValue`, `TrySetSchemeValue`, `SetFrequencyCaps`, `ConfigureBatterySleepFloor`, `ApplyBatterySleepFloorToManagedPlans`, `ConfigureEnergySaverPolicy`, `ApplyEnergySaverPolicyToManagedPlans`, `ConfigureScheme`, `ActivatePlanByName`, `ApplyWindowsPowerFollow`, `MonitorAutomaticPlans`.
+- Plan application: `SetSchemeValue`, `TrySetSchemeValue`, `SetFrequencyCaps`, `ConfigureBatterySleepFloor`, `ApplyBatterySleepFloorToManagedPlans`, `ConfigureEnergySaverPolicy`, `ConfigurePlatformPowerPolicy`, `ReactivateActiveManagedPlanIfNeeded`, `ApplyFullPlanSettingsToManagedPlans`, `ApplyEnergySaverPolicyToManagedPlans`, `RememberNormalPowerPlan`, `RestoreNormalPowerPlanForExit`, `ConfigureScheme`, `ActivatePlanByName`, `ApplyWindowsPowerFollow`, `MonitorAutomaticPlans`. The plans stay Balanced-derived for Modern Standby visibility, while other policy settings give each plan its Maximum/Balanced/Battery behavior.
 
 ## Battery Telemetry And Estimates
 
@@ -48,7 +48,7 @@ This map describes the current `PowerPilot_V1.1.pb` source layout so stale code 
 - In-memory graph: `AddBatteryGraphPoint`, `PruneBatteryGraph`, `BatteryGraphIndexBefore`, `BatteryGraphIndexAfter`.
 - Event markers: `AddBatteryEventPoint`, `PruneBatteryEvents`, `BatteryEventShortName`.
 - Summaries: `RefreshBatteryStatsSummary` updates session, off-time battery loss, and daily battery summary text. `RefreshPowerUseDetails` updates the Power Use tab values and provider status from the gliding 60-second PowerPilot-use sample. Plugged-in Power Use estimates use current full-charge capacity plus learned average discharging as the battery discharging basis.
-- Drawing: `DrawBatteryGraph` renders the selectable gliding graph window into an offscreen image, then blits it to the canvas once to avoid flicker. It uses a fixed 0% to 100% scale, horizontal hour-only labels, a spaced legend, complete plot border, anti-aliased colored line segments, thin full-height color-change markers, endpoint-to-endpoint gap segments, and event markers. The graph window can be 6, 12, 18, 24, 36, 48, 60, or 72 hours; windows above 24 hours label every fourth hour. Energy Saver state includes Windows' flag and PowerPilot's controlled Battery plan setting.
+- Drawing: `DrawBatteryGraph` renders the selectable gliding graph window into an offscreen image, then blits it to the canvas once to avoid flicker. It uses a fixed 0% to 100% scale, horizontal hour-only labels, a spaced legend, complete plot border, anti-aliased colored line segments, thin labeled full-height color-change markers, flat orange offline/discontinued spans, and event markers. Marker `0` means offline and `1` means online. Crowded marker letters stack above their vertical line as white letters with black shadows, and the Battery Graph `Markers` checkbox can hide the marker letters and marker legend. The graph window can be 6, 12, 18, 24, 36, 48, 60, or 72 hours; windows above 24 hours label every fourth hour. Energy Saver state includes Windows' flag and PowerPilot's controlled Battery plan setting.
 
 ## Battery Test
 
@@ -75,14 +75,14 @@ This map describes the current `PowerPilot_V1.1.pb` source layout so stale code 
 
 - Window and tray: `CreateMainWindow`, `CreateTrayMenu`, `SetupTray`, `HideToTray`, `ShowFromTray`, `MainWindowVisible`.
 - Timer handling: `DesiredRefreshInterval`, `StartRefreshTimer`, `RefreshActiveTimer`, `RunPeriodicRefresh`; the main GUI loop stays blocking so the tab window paints normally, while `#TimerRefresh` owns periodic battery/log refresh. Deep idle tray mode uses a 5-minute timer and `ApplySelfDeepIdleThrottle` marks PowerPilot as EcoQoS while hidden.
-- UI helpers: `SetGadgetTextIfChanged`, `EnsureUiFonts`, `UseBoldFont`, `SetTip`, `ApplyToolTips`.
+- UI helpers: `SetGadgetTextIfChanged`, `EnsureUiFonts`, `UseBoldFont`, `StoreUiBaseLayout`, `ApplyMainWindowLayoutScale`, `ApplyPlanListColumnWidths`, `SetTip`, `ApplyToolTips`.
 - Plan UI: `ReadPlanEditor`, `RefreshPlanEditor`, `RefreshPlanList`, `SavePlanEditor`, `ResetSelectedPlan`.
-- Battery/settings UI: `ApplySettingsToGui`, `ScheduleBatterySettingsApply`, `ApplyPendingBatterySettings`, `SaveBatterySettingsFromGui`, `ResetBatteryStats`, `SaveSettingsFromGui`.
+- Battery/settings UI: `ApplySettingsToGui`, `RefreshBatterySaverSummary`, `ScheduleBatterySettingsApply`, `ApplyPendingBatterySettings`, `SaveBatterySettingsFromGui`, `ResetBatteryStats`, `SaveSettingsFromGui`.
 - Dispatch: `HandleAction`, `HandleMenu`, `RunGui`.
 
 ## Current Cleanup Notes
 
 - The old visible bottom status field has been removed. Status feedback is now retained as shortened `app` rows in the PowerPilot Log.
-- Unused wrapper procedures from older UI/timer flows were removed during the v1.1 cleanup pass.
+- Unused graph-date helpers, assign-only globals, and definition-only constants from older UI/timer flows were removed during the v1.1 cleanup pass.
 - `PowerPilot_V1.0.pb` is obsolete for v1.1 and should stay out of release packages.
 - The repository `pb_*test*.pb` files are local PureBasic experiments and are not included by the installer.

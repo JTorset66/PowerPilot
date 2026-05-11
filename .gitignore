@@ -10,3 +10,5 @@ third_party/ADLX-SDK/
 *.log
 *.tmp
 *.bak
+CHAT_MEMORY/logs/*.md
+!CHAT_MEMORY/logs/README.md

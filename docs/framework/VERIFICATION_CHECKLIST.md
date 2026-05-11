@@ -8,6 +8,10 @@ Use this checklist before releasing or installing a new PowerPilot build.
 - New settings are added to `AppSettings`, `LoadSettings()`, `SaveSettings()`, clamp logic, `ApplySettingsToGui()`, and event handling.
 - New gadgets are added to the gadget enumeration before use.
 - Tooltips are added and cleared for every new visible control.
+- Battery Saver settings stay separate from estimate-only `Empty at` / `Full at`.
+- PowerPilot-owned plans stay Balanced-derived so they remain visible on Modern Standby systems.
+- PowerPilot activates managed plans as a normal user through `PowerSetActiveScheme`, with `powercfg /SETACTIVE` only as fallback.
+- Battery plan hidden policy covers GPU preference, PCIe link state, device idle, DC standby networking, disconnected standby, display/disk/sleep/hibernate timeouts, and wake timers.
 - Battery Test modes do not overlap: manual, vendor detected, Lenovo reset, charge recovery, complete, and monitor.
 - Lenovo reset does not complete until plugged-in discharge, charging, and final idle have all been observed.
 - Auto drain stops on charging and does not stop only because load falls to zero.
@@ -20,6 +24,8 @@ Use this checklist before releasing or installing a new PowerPilot build.
 - Text fits at normal Windows scaling.
 - Button labels are short enough for their fixed widths.
 - Dynamic values do not resize layout.
+- Battery Saver summary fits without wrapping over controls.
+- Plans tab Purpose text is fully readable at the tested window scale.
 - Battery Test status and report areas do not overlap.
 - The graph does not flicker when refreshed.
 - Hidden tabs do not redraw heavy canvases unnecessarily.

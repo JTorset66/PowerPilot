@@ -6,7 +6,8 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 Current status:
 
-- This repository is preparing for a SignPath Foundation application.
+- Current release target: `v1.1.2605.14550`.
+- This repository is prepared for a SignPath Foundation application, but SignPath onboarding is not yet integrated.
 - Until that application is approved and integrated, published binaries may be unsigned or signed through a separate trusted Windows code-signing setup controlled by the project maintainer.
 
 ## Project roles
@@ -28,6 +29,7 @@ Only binaries built from this repository and maintained by this project may be s
 - Release artifacts must be built from source in this repository.
 - Builds should be produced by an automated workflow on a controlled Windows runner with PureBasic and Inno Setup installed.
 - Release tags should use the format `v*`.
+- Tagged release builds should use a four-part numeric version after `v`, matching `#AppVersion$` and the published artifact names.
 - Build scripts, installer scripts, and workflow definitions are part of the trusted source and must be reviewed with the same care as application code.
 - Every signing event must correspond to a release build, release candidate, or explicit maintainer-run verification build.
 

@@ -24,6 +24,12 @@ What it does:
 3. Compiles the PureBasic source.
 4. Writes a versioned executable under `build\`.
 
+For a release tag or repeatable rebuild, pass the exact four-part version:
+
+```powershell
+.\build-purebasic.ps1 -AppVersion 1.1.2605.14550
+```
+
 ## Build Installer
 
 Run:
@@ -39,6 +45,8 @@ What it does:
 3. Synchronizes `powerpilot.iss` with the current app version and executable name.
 4. Builds the Inno Setup installer into `build\`.
 5. Saves build context in `CHAT_MEMORY` and `STARTUP_CONTEXT.md`.
+
+`build-installer.ps1` also accepts `-AppVersion` and passes it through to the PureBasic build. The GitHub workflow uses this for `v*` tags so tagged releases produce matching artifact names.
 
 ## Install Locally
 
@@ -96,7 +104,7 @@ PowerPilot uses an admin-approved installer but a normal-user runtime:
 - Inno Setup uses `PrivilegesRequired=admin`.
 - The default install directory is `{autopf}\PowerPilot`.
 - Startup uses HKCU `Software\Microsoft\Windows\CurrentVersion\Run`.
-- The installer owns setup-time startup registration and removal for the original ordinary user. The app `/install-refresh` path persists the preference and repairs missing plans, but does not write the setup-time startup entry.
+- The installer owns setup-time startup registration and removal for the original ordinary user. The app `/install-refresh` path persists the preference, creates missing plans, and refreshes the current CPU, battery, Energy Saver, and hidden platform policy on existing managed plans, but does not write the setup-time startup entry.
 - All installed EXE invocations from setup use `ExecAsOriginalUser`.
 - Post-install tray launch must not fall back to an elevated process.
 - The install helper may request UAC for setup, but must not launch the installed app from an elevated helper process.

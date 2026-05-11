@@ -1,6 +1,7 @@
 param(
     [string]$Source = ".\PowerPilot_V1.1.pb",
     [string]$OutputDir = ".\build",
+    [string]$AppVersion = "",
     [string]$CertificateThumbprint,
     [string]$TimestampUrl
 )
@@ -59,13 +60,22 @@ function Get-CodeSigningCertificate {
 function Update-PureBasicAppVersion {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Path
+        [string]$Path,
+        [string]$RequestedVersion = ""
     )
 
-    $now = Get-Date
-    $monthStart = Get-Date -Year $now.Year -Month $now.Month -Day 1 -Hour 0 -Minute 0 -Second 0
-    $minutesSinceMonthStart = [int][Math]::Floor(($now - $monthStart).TotalMinutes)
-    $appVersion = "1.1.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
+    if ([string]::IsNullOrWhiteSpace($RequestedVersion)) {
+        $now = Get-Date
+        $monthStart = Get-Date -Year $now.Year -Month $now.Month -Day 1 -Hour 0 -Minute 0 -Second 0
+        $minutesSinceMonthStart = [int][Math]::Floor(($now - $monthStart).TotalMinutes)
+        $appVersion = "1.1.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
+    }
+    else {
+        $appVersion = $RequestedVersion.Trim()
+        if ($appVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+            throw "AppVersion must be a four-part numeric version such as 1.1.2605.14550."
+        }
+    }
 
     $content = Get-Content -LiteralPath $Path -Raw
     $versionPattern = '(?m)^#AppVersion\$\s*=\s*"[^"]*"'
@@ -122,7 +132,7 @@ if (-not (Test-Path $sourcePath)) {
 }
 
 $resolvedSource = (Resolve-Path $sourcePath).Path
-$appVersion = Update-PureBasicAppVersion -Path $resolvedSource
+$appVersion = Update-PureBasicAppVersion -Path $resolvedSource -RequestedVersion $AppVersion
 $outputRoot = Join-Path $repoRoot $OutputDir
 $null = New-Item -ItemType Directory -Path $outputRoot -Force
 $iconPath = Join-Path $repoRoot "powerpilot.ico"
@@ -131,7 +141,7 @@ $exeName = Get-VersionedExeName -SourcePath $resolvedSource -AppVersion $appVers
 $outputPath = Join-Path $outputRoot $exeName
 Remove-StaleAppArtifacts -OutputRoot $outputRoot -ExeName $exeName
 
-$compileArgs = @($resolvedSource, "/THREAD", "/OPTIMIZER", "/OUTPUT", $outputPath)
+$compileArgs = @($resolvedSource, "/THREAD", "/OPTIMIZER", "/DPIAWARE", "/OUTPUT", $outputPath)
 if (Test-Path $iconPath) {
     $compileArgs += @("/ICON", $iconPath)
 }

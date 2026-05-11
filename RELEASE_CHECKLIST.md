@@ -34,9 +34,15 @@ Use this checklist for public PowerPilot releases.
 - Confirm reinstall/repair closes older running `PowerPilot_V*.exe` processes and leaves only the current stamped app executable in `Program Files\PowerPilot`.
 - Confirm the install helper reports clear post-install elevated/setup/cleanup process checks.
 - Confirm the installed desktop shortcut launches PowerPilot.
-- Confirm Battery Graph shows live battery values, average/instant/Windows estimates, and a gliding 24-hour graph.
+- Confirm Battery Graph shows live battery values, average/instant/Windows estimates, and selectable 6- to 72-hour graph windows.
+- Confirm Battery Saver writes Energy Saver, low/reserve/critical battery settings, and restore-on-exit behavior to PowerPilot-owned plans only.
+- Confirm PowerPilot-owned plans remain Balanced-derived so they stay visible on Modern Standby systems while still mapping Windows power mode to Maximum, Balanced, and Battery.
+- Confirm plan activation succeeds as a normal user through the native `PowerSetActiveScheme` path, with `powercfg /SETACTIVE` only as fallback.
+- Confirm `PowerPilot Battery` has hidden saving policy applied: low-power GPU, PCIe maximum saving, DC device idle, disabled DC standby networking, aggressive disconnected standby on DC, DC display/disk/sleep timeouts, DC hibernate, and disabled DC wake timers.
+- Confirm the reserve battery level writes through the raw Windows reserve GUID when permissions allow it.
 - Confirm PowerPilot Log shows retained battery samples, app status rows, event rows, Windows runtime, multi-row selection, and copy buttons.
 - Confirm Battery Stats summaries exclude app lifecycle gaps from PC off/sleep loss and drain averages.
+- Confirm the Plans tab Purpose column has enough width to show full text at the tested window scale.
 - Confirm `PowerPilot Balanced` is close to Windows Balanced: 100% max CPU, AC boost enabled, DC boost disabled, no frequency cap, and CPU idle enabled.
 - Confirm `PowerPilot Maximum` uses aggressive AC boost, AC energy preference `0`, 100% max CPU, no frequency cap, and CPU idle enabled.
 - Confirm the installed maintenance entry offers Repair install and Uninstall.
@@ -54,6 +60,7 @@ git diff --stat
 
 - Commit the release-ready state.
 - Create an annotated tag using the full stamped release version, for example `v1.1.2605.01042`.
+- Confirm the version tag matches the four-part `#AppVersion$` exactly so the workflow and local artifact names stay aligned.
 
 ## GitHub release
 
@@ -61,6 +68,7 @@ git diff --stat
 - Push the version tag.
 - Confirm the GitHub Actions workflow completes successfully on the self-hosted Windows runner.
 - Verify the release assets include the expected `.exe` files and `.sha256` files.
+- Publish or attach the versioned app EXE, setup EXE, and matching `.sha256` files.
 - Confirm the installer and published executables have valid signatures when signing is enabled.
 - Add or review release notes on GitHub, using the full stamped version in the release title and notes.
 

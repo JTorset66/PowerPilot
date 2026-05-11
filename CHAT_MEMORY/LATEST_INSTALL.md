@@ -1,6 +1,6 @@
 ﻿# Latest Install
 
-Generated: 2026-05-03 03:33:31 +02:00
+Generated: 2026-05-11 02:31:02 +02:00
 
 ## Result
 
@@ -9,7 +9,7 @@ Generated: 2026-05-03 03:33:31 +02:00
 
 ## Inputs
 
-- Setup: build\PowerPilot_V1.1.2605.03093_Setup.exe
+- Setup: build\PowerPilot_V1.1.2605.14550_Setup.exe
 - Log: build\install-run.log
 
 ## Notes
@@ -19,9 +19,9 @@ Generated: 2026-05-03 03:33:31 +02:00
 
 ## Log tail
 
-2026-05-03 03:33:30.870   Executed as original user: C:\Program Files\PowerPilot\PowerPilot_V1.1.2605.03093.exe /log-update-close-if-powerpilot-running -> 0
-2026-05-03 03:33:30.870   Running PowerPilot copy reported update close to the PowerPilot log.
-2026-05-03 03:33:30.891   Started: C:\Program Files\PowerPilot\PowerPilot_V1.1.2605.03093.exe /cleanup-old-versions
-2026-05-03 03:33:30.926   Launched detached tray as original user: C:\Program Files\PowerPilot\PowerPilot_V1.1.2605.03093.exe /tray
-2026-05-03 03:33:30.929   Deinitializing Setup.
-2026-05-03 03:33:30.942   Log closed.
+2026-05-11 02:31:00.257   Executed as original user: C:\Program Files\PowerPilot\PowerPilot_V1.1.2605.14550.exe /log-update-close-if-powerpilot-running -> 0
+2026-05-11 02:31:00.257   Running PowerPilot copy reported update close to the PowerPilot log.
+2026-05-11 02:31:00.283   Started as original user: C:\Program Files\PowerPilot\PowerPilot_V1.1.2605.14550.exe /cleanup-old-versions
+2026-05-11 02:31:00.310   Launched detached tray as original user: C:\Program Files\PowerPilot\PowerPilot_V1.1.2605.14550.exe /tray
+2026-05-11 02:31:00.318   Deinitializing Setup.
+2026-05-11 02:31:00.325   Log closed.
