@@ -12,7 +12,7 @@ PowerPilot is not a firmware controller. It observes Windows battery telemetry a
 
 Primary source file:
 
-- `PowerPilot_V1.1.pb`
+- `PowerPilot_V1.2.pb`
 
 Support files:
 
@@ -21,7 +21,7 @@ Support files:
 - `install-powerpilot.ps1` runs the latest setup executable and verifies the installed app.
 - `powerpilot.iss` is the Inno Setup script.
 - `powerpilot.ico`, `powerpilot_desktop.ico`, and `powerpilot_tray.ico` are runtime and installer icon assets.
-- `INSTALLER_README.md`, `THIRD_PARTY_NOTICES.md`, and `LICENSE` are bundled into the installer as text files.
+- `USER_MANUAL.txt`, `INSTALLER_README.md`, `THIRD_PARTY_NOTICES.md`, and `LICENSE` are bundled into the installer as text files.
 
 ## Runtime Data
 

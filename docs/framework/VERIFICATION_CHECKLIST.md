@@ -69,7 +69,7 @@ Expected result:
 - Installer exit code 0.
 - PowerPilot is running after install.
 - No installer or cleanup process remains.
-- Installed app folder contains EXE, icons, README, license, and notices.
+- Installed app folder contains EXE, icons, USER MANUAL, README, LICENSE, and notices.
 
 ## Battery Test Checks
 

@@ -12,4 +12,4 @@ Read in this order:
 6. `BUILD_INSTALLER_AND_ASSETS.md` - PureBasic build, installer build, icons, tray assets, bundled docs, and install behavior.
 7. `VERIFICATION_CHECKLIST.md` - logic checks, GUI checks, build checks, installer checks, and release checks.
 
-The implementation source is `PowerPilot_V1.1.pb`. The framework documents intentionally name the main procedures and files so a clean implementation can be rebuilt without relying on memory.
+The implementation source is `PowerPilot_V1.2.pb`. The framework documents intentionally name the main procedures and files so a clean implementation can be rebuilt without relying on memory.

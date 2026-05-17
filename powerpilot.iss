@@ -1,8 +1,8 @@
 #define AppName "PowerPilot"
-#define AppVersion "1.1.2605.14550"
-#define AppExeName "PowerPilot_V1.1.2605.14550.exe"
-#define AppSetupName "PowerPilot_V1.1.2605.14550_Setup.exe"
-#define AppPublisher "John Torset"
+#define AppVersion "1.2.2605.23851"
+#define AppExeName "PowerPilot_V1.2.2605.23851.exe"
+#define AppSetupName "PowerPilot_V1.2.2605.23851_Setup.exe"
+#define AppPublisher "Dofta"
 #define AppURL "https://github.com/JTorset66/PowerPilot"
 #define AppRunKey "PowerPilot"
 #define AppIconName "powerpilot.ico"
@@ -20,9 +20,12 @@ AppUpdatesURL={#AppURL}
 AppVerName={#AppName} {#AppVersion}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
+DisableWelcomePage=yes
+DisableDirPage=yes
 DisableProgramGroupPage=yes
+DisableReadyPage=yes
 OutputDir=build
-OutputBaseFilename=PowerPilot_V1.1.2605.14550_Setup
+OutputBaseFilename=PowerPilot_V1.2.2605.23851_Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -44,23 +47,23 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WelcomeLabel1=Welcome to PowerPilot
-WelcomeLabel2=PowerPilot installs a local tray utility that follows Windows power mode.%n%nSetup requires administrator approval for installation only. The installed tray app, post-install commands, and startup entry run as the original ordinary user.
+WelcomeLabel2=PowerPilot installs a local tray app that follows Windows power mode and starts hidden in the notification area.
 FinishedHeadingLabel=PowerPilot is ready
-FinishedLabelNoIcons=Setup has installed PowerPilot and started the tray app. If an older version was still running, the new PowerPilot closes it in the background after launch. Open PowerPilot from the desktop shortcut or the tray icon to review plans, Windows power mode, and hardware information.
+FinishedLabelNoIcons=PowerPilot is installed and started hidden in the notification area. Open it from the tray icon or desktop shortcut. USER MANUAL, README, LICENSE, and THIRD-PARTY NOTICES are installed with the app.
 
 [Files]
 Source: "build\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppIconName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppDesktopIconName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "powerpilot_tray.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "USER_MANUAL.txt"; DestDir: "{app}"; DestName: "USER_MANUAL.txt"; Flags: ignoreversion
 Source: "INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.txt"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "USER_MANUAL.txt"; DestName: "PowerPilot_USER_MANUAL.txt"; Flags: dontcopy
 Source: "INSTALLER_README.md"; DestName: "PowerPilot_README.txt"; Flags: dontcopy
 Source: "THIRD_PARTY_NOTICES.md"; DestName: "PowerPilot_THIRD_PARTY_NOTICES.txt"; Flags: dontcopy
 Source: "LICENSE"; DestName: "PowerPilot_LICENSE.txt"; Flags: dontcopy
-Source: "installer-assets\installer-welcome.bmp"; Flags: dontcopy
-Source: "installer-assets\installer-finish.bmp"; Flags: dontcopy
 
 [Icons]
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppDesktopIconName}"
@@ -74,6 +77,7 @@ Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
 Type: files; Name: "{app}\powerpilot_tray.png"
+Type: files; Name: "{app}\USER_MANUAL.txt"
 Type: files; Name: "{app}\README.md"
 Type: files; Name: "{app}\THIRD_PARTY_NOTICES.md"
 Type: files; Name: "{app}\LICENSE"
@@ -90,6 +94,7 @@ Type: files; Name: "{app}\PowerPilotAmdAdlxHelper.exe"
 Type: files; Name: "{app}\PowerPilotAmdAdlHelper.exe"
 Type: files; Name: "{app}\powerpilot_desktop.ico"
 Type: files; Name: "{app}\powerpilot_tray.png"
+Type: files; Name: "{app}\USER_MANUAL.txt"
 Type: files; Name: "{app}\README.txt"
 Type: files; Name: "{app}\THIRD_PARTY_NOTICES.txt"
 Type: files; Name: "{app}\LICENSE.txt"
@@ -103,8 +108,7 @@ const
   LegacyBrokenRegSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{88D96927-5B26-4DF8-8EE0-3BF9A49E56E3}_is1';
 
 var
-  OverviewPage: TWizardPage;
-  IncludedFilesPage: TWizardPage;
+  FrontPage: TWizardPage;
 
 function GetCurrentProcessId(): Cardinal;
   external 'GetCurrentProcessId@kernel32.dll stdcall';
@@ -128,139 +132,89 @@ begin
   Result := ExpandConstant('{param:maintenance|0}') = '1';
 end;
 
-procedure AddOverviewText(const Caption: string; Top, Height, FontSize: Integer; Bold: Boolean);
+procedure AddFrontText(const Caption: string; Left, Top, Width, Height, FontSize: Integer; Bold: Boolean);
 var
   Text: TNewStaticText;
 begin
-  Text := TNewStaticText.Create(OverviewPage);
-  Text.Parent := OverviewPage.Surface;
+  Text := TNewStaticText.Create(FrontPage);
+  Text.Parent := FrontPage.Surface;
   Text.AutoSize := False;
   Text.WordWrap := True;
   Text.Caption := Caption;
-  Text.SetBounds(ScaleX(0), ScaleY(Top), OverviewPage.SurfaceWidth, ScaleY(Height));
+  Text.SetBounds(ScaleX(Left), ScaleY(Top), ScaleX(Width), ScaleY(Height));
   Text.Font.Size := FontSize;
   if Bold then
     Text.Font.Style := [fsBold];
 end;
 
-procedure OpenIncludedTextFile(const FileName: string);
+procedure OpenBundledTextFile(const FileName: string);
 var
   ResultCode: Integer;
   TempPath: string;
 begin
   ExtractTemporaryFile(FileName);
   TempPath := ExpandConstant('{tmp}\' + FileName);
-
   if not ShellExec('', TempPath, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
     MsgBox('PowerPilot Setup could not open ' + FileName + '.', mbError, MB_OK);
 end;
 
+procedure ManualButtonClick(Sender: TObject);
+begin
+  OpenBundledTextFile('PowerPilot_USER_MANUAL.txt');
+end;
+
 procedure ReadmeButtonClick(Sender: TObject);
 begin
-  OpenIncludedTextFile('PowerPilot_README.txt');
+  OpenBundledTextFile('PowerPilot_README.txt');
 end;
 
 procedure LicenseButtonClick(Sender: TObject);
 begin
-  OpenIncludedTextFile('PowerPilot_LICENSE.txt');
+  OpenBundledTextFile('PowerPilot_LICENSE.txt');
 end;
 
 procedure ThirdPartyButtonClick(Sender: TObject);
 begin
-  OpenIncludedTextFile('PowerPilot_THIRD_PARTY_NOTICES.txt');
+  OpenBundledTextFile('PowerPilot_THIRD_PARTY_NOTICES.txt');
 end;
 
-procedure CreateIncludedFileButton(const Caption: string; Top: Integer; OnClick: TNotifyEvent);
+procedure CreateFrontButton(const Caption: string; Left, Top, Width: Integer; OnClick: TNotifyEvent);
 var
   Button: TNewButton;
 begin
-  Button := TNewButton.Create(IncludedFilesPage);
-  Button.Parent := IncludedFilesPage.Surface;
+  Button := TNewButton.Create(FrontPage);
+  Button.Parent := FrontPage.Surface;
   Button.Caption := Caption;
-  Button.Left := 0;
-  Button.Top := Top;
-  Button.Width := ScaleX(190);
+  Button.Left := ScaleX(Left);
+  Button.Top := ScaleY(Top);
+  Button.Width := ScaleX(Width);
   Button.Height := WizardForm.NextButton.Height;
   Button.OnClick := OnClick;
 end;
 
-procedure CreateIncludedFilesPage;
-var
-  BodyText: TNewStaticText;
-  ButtonTop: Integer;
-begin
-  IncludedFilesPage :=
-    CreateCustomPage(
-      wpSelectDir,
-      'Read Included Files',
-      'Open the documents bundled with PowerPilot before installing.'
-    );
-
-  BodyText := TNewStaticText.Create(IncludedFilesPage);
-  BodyText.Parent := IncludedFilesPage.Surface;
-  BodyText.Left := 0;
-  BodyText.Top := 0;
-  BodyText.Width := IncludedFilesPage.SurfaceWidth;
-  BodyText.Height := ScaleY(60);
-  BodyText.WordWrap := True;
-  BodyText.Caption :=
-    'PowerPilot Setup includes a user README, license, and third-party notices. ' +
-    'Use these buttons to read them now; the same files will also be installed with PowerPilot.';
-
-  ButtonTop := BodyText.Top + BodyText.Height + ScaleY(18);
-  CreateIncludedFileButton('Read README', ButtonTop, @ReadmeButtonClick);
-  CreateIncludedFileButton('Read License', ButtonTop + ScaleY(36), @LicenseButtonClick);
-  CreateIncludedFileButton('Read Third-Party Notices', ButtonTop + ScaleY(72), @ThirdPartyButtonClick);
-end;
-
-procedure ApplyWizardArtwork(PageID: Integer);
-var
-  BitmapPath: string;
-begin
-  BitmapPath := '';
-  if PageID = wpWelcome then
-    BitmapPath := ExpandConstant('{tmp}\installer-welcome.bmp')
-  else if PageID = wpFinished then
-    BitmapPath := ExpandConstant('{tmp}\installer-finish.bmp');
-
-  if BitmapPath <> '' then
-  begin
-    try
-      WizardForm.WizardBitmapImage.Bitmap.LoadFromFile(BitmapPath);
-    except
-    end;
-  end;
-end;
-
 procedure InitializeWizard;
 begin
-  ExtractTemporaryFile('installer-welcome.bmp');
-  ExtractTemporaryFile('installer-finish.bmp');
-  ApplyWizardArtwork(wpWelcome);
-
-  OverviewPage :=
+  FrontPage :=
     CreateCustomPage(
       wpWelcome,
-      'What PowerPilot will set up',
-      'A quick summary before PowerPilot refreshes its owned plans.'
+      'Welcome to PowerPilot',
+      'Review what setup will install before continuing.'
     );
 
-  AddOverviewText('PowerPilot runs locally from the tray and manages only this PC.', 0, 28, 10, True);
-  AddOverviewText('The tray app follows Windows power mode: Best performance, Balanced, or Best power efficiency. CPU information comes from CPUID assembly; GPU names come from Windows display enumeration plus CPU-based iGPU resolution.', 38, 64, 9, False);
-  AddOverviewText('During install:', 104, 24, 10, True);
-  AddOverviewText('- any running PowerPilot process is closed safely' + #13 +
-                  '- PowerPilot-owned and legacy prototype plans are removed and recreated' + #13 +
-                  '- old helper executables from previous builds are removed' + #13 +
-                  '- startup is enabled so the tray app is available after sign-in', 134, 88, 9, False);
-  AddOverviewText('Managed plans:', 226, 24, 10, True);
-  AddOverviewText('PowerPilot keeps only Maximum, Balanced, and Battery plans. The Plans tab edits those fixed plans directly, while Windows power mode chooses which one should be active.', 256, 72, 9, False);
+  AddFrontText('PowerPilot follows Windows power mode and keeps its owned plans aligned.', 0, 0, 210, 40, 9, False);
+  AddFrontText('Setup will:', 0, 52, 210, 18, 9, True);
+  AddFrontText('- install the tray app and desktop shortcut' + #13 +
+               '- refresh Maximum, Balanced, and Battery plans' + #13 +
+               '- enable startup for this Windows user' + #13 +
+               '- start PowerPilot hidden in the tray', 0, 76, 210, 90, 9, False);
+  AddFrontText('Administrator approval is only for installation. Runtime stays under the signed-in user.', 0, 178, 210, 42, 9, False);
 
-  CreateIncludedFilesPage();
-end;
-
-procedure CurPageChanged(CurPageID: Integer);
-begin
-  ApplyWizardArtwork(CurPageID);
+  AddFrontText('Bundled files', 230, 0, 180, 22, 10, True);
+  AddFrontText('Open before installing. The same files are installed and available from About.', 230, 30, 180, 58, 8, False);
+  CreateFrontButton('USER MANUAL', 230, 98, 180, @ManualButtonClick);
+  CreateFrontButton('README', 230, 134, 180, @ReadmeButtonClick);
+  CreateFrontButton('LICENSE', 230, 170, 180, @LicenseButtonClick);
+  CreateFrontButton('THIRD-PARTY NOTICES', 230, 206, 180, @ThirdPartyButtonClick);
 end;
 
 function QueryUninstallValue(const ValueName: string; var Value: string): Boolean;
@@ -394,6 +348,19 @@ begin
     Log(Format('Failed to start: %s %s', [FileName, Params]));
 end;
 
+procedure SetInstallStatus(const Caption: string);
+begin
+  WizardForm.StatusLabel.Caption := Caption;
+  WizardForm.Refresh;
+end;
+
+procedure SetFinalInstallProgress(const Caption: string; Percent: Integer);
+begin
+  WizardForm.ProgressGauge.Max := 100;
+  WizardForm.ProgressGauge.Position := Percent;
+  SetInstallStatus(Caption);
+end;
+
 function RunAsOriginalUserAndWait(const FileName, Params: string): Integer;
 var
   ResultCode: Integer;
@@ -425,14 +392,14 @@ procedure RegisterStartupForOriginalUser;
 var
   Script: string;
 begin
-  Script := '$q=[char]34; $cmd=$q + ' + PowerShellLiteral(ExpandConstant('{app}\{#AppExeName}')) + ' + $q + '' /tray''; ' +
+  Script := '$q=[char]34; $cmd=$q + ' + PowerShellLiteral(ExpandConstant('{app}\{#AppExeName}')) + ' + $q + '' /startup''; ' +
             'New-Item -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'' -Force | Out-Null; ' +
             'Set-ItemProperty -Path ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'' -Name ' +
             PowerShellLiteral('{#AppRunKey}') + ' -Value $cmd';
   if RunOriginalUserPowerShell(Script) = 0 then
-    Log(Format('Registered startup for original user: %s /tray', [QuoteValue(ExpandConstant('{app}\{#AppExeName}'))]))
+    Log(Format('Registered startup for original user: %s /startup', [QuoteValue(ExpandConstant('{app}\{#AppExeName}'))]))
   else
-    Log(Format('Failed to register startup for original user: %s /tray', [QuoteValue(ExpandConstant('{app}\{#AppExeName}'))]));
+    Log(Format('Failed to register startup for original user: %s /startup', [QuoteValue(ExpandConstant('{app}\{#AppExeName}'))]));
 end;
 
 procedure UnregisterStartupForOriginalUser;
@@ -475,7 +442,7 @@ procedure StopSameVersionPowerPilotIfInstalled;
 begin
   if FileExists(ExpandConstant('{app}\{#AppExeName}')) then
   begin
-    WizardForm.StatusLabel.Caption := 'Same PowerPilot version found; closing that exact app so Setup can replace it.';
+    SetInstallStatus('Closing the running PowerPilot tray app so Setup can replace it.');
     Log(Format('Same-version exe exists; closing it before overwrite: %s', [ExpandConstant('{app}\{#AppExeName}')]));
     if RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/log-update-close-if-running') = 0 then
       Log('Same-version running app reported update close to the PowerPilot log.')
@@ -485,7 +452,7 @@ begin
     Sleep(200);
   end
   else begin
-    WizardForm.StatusLabel.Caption := 'Installing new PowerPilot side-by-side; older tray versions will close in the background after launch.';
+    SetInstallStatus('Copying new PowerPilot files. Older tray versions will close after launch.');
     Log('No same-version exe exists; skipping pre-copy app close.');
   end;
 end;
@@ -511,18 +478,18 @@ var
   Attempt: Integer;
   LauncherArgs: string;
 begin
-  LauncherArgs := '/C start "" "' + ExpandConstant('{app}\{#AppExeName}') + '" /tray';
+  LauncherArgs := '/C start "" "' + ExpandConstant('{app}\{#AppExeName}') + '" /startup';
   for Attempt := 1 to 2 do
   begin
     if ExecAsOriginalUser(ExpandConstant('{sys}\cmd.exe'), LauncherArgs, '', SW_HIDE, ewNoWait, ResultCode) then
     begin
-      Log(Format('Launched detached tray as original user: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
+      Log(Format('Launched detached hidden startup as original user: %s /startup', [ExpandConstant('{app}\{#AppExeName}')]));
       Exit;
     end;
     Sleep(400);
   end;
 
-  Log(Format('Failed to launch tray as original user; not starting elevated: %s /tray', [ExpandConstant('{app}\{#AppExeName}')]));
+  Log(Format('Failed to launch hidden startup as original user; not starting elevated: %s /startup', [ExpandConstant('{app}\{#AppExeName}')]));
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -533,26 +500,41 @@ begin
 
     ssPostInstall:
       begin
+        SetFinalInstallProgress('Preparing PowerPilot repair and uninstall files...', 72);
         EnsureInstalledMaintenanceSetup();
+        SetFinalInstallProgress('Writing PowerPilot install information...', 76);
         WriteMaintenanceRegistry();
+        SetFinalInstallProgress('Checking whether existing user settings should be kept...', 80);
         if not ShouldKeepSettingsOnReinstall() then
+        begin
+          SetFinalInstallProgress('Cleaning old PowerPilot user settings...', 84);
           RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-settings')
+        end
         else
+        begin
+          SetFinalInstallProgress('Keeping existing PowerPilot user settings...', 84);
           Log('Keeping existing user settings because the app preference is enabled.');
+        end;
+        SetFinalInstallProgress('Refreshing the desktop shortcut...', 88);
         RefreshDesktopIconState();
+        SetFinalInstallProgress('Refreshing PowerPilot plans and saved policy...', 92);
         RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/install-refresh');
+        SetFinalInstallProgress('Registering PowerPilot to start with Windows...', 96);
         RegisterStartupForOriginalUser();
+        SetFinalInstallProgress('PowerPilot final setup steps are complete.', 98);
       end;
 
     ssDone:
       begin
-        WizardForm.StatusLabel.Caption := 'Starting PowerPilot; it will close older running versions in the background.';
+        SetFinalInstallProgress('Closing older PowerPilot versions in the background...', 99);
         if RunAsOriginalUserAndWait(ExpandConstant('{app}\{#AppExeName}'), '/log-update-close-if-powerpilot-running') = 0 then
           Log('Running PowerPilot copy reported update close to the PowerPilot log.')
         else
           Log('No running PowerPilot copy reported an update close before background cleanup.');
         RunAsOriginalUserNoWait(ExpandConstant('{app}\{#AppExeName}'), '/cleanup-old-versions');
+        SetFinalInstallProgress('Starting PowerPilot hidden in the notification area...', 100);
         StartInstalledPowerPilot();
+        SetInstallStatus('PowerPilot is installed and running hidden in the tray.');
       end;
   end;
 end;

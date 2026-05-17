@@ -375,7 +375,7 @@ Last updated: $today
 
 ## Verified build state
 
-- Source file compiled successfully: PowerPilot_V1.1.pb
+- Source file compiled successfully: PowerPilot_V1.2.pb
 - Main build artifact verified: $($ExeInfo.RelativePath)
 - Installer assembly verified: $($SetupInfo.RelativePath)
 
@@ -590,7 +590,7 @@ $capturedChat
 }
 
 function Sync-InnoAppVersion {
-    $sourcePath = Join-Path $repoRoot "PowerPilot_V1.1.pb"
+    $sourcePath = Join-Path $repoRoot "PowerPilot_V1.2.pb"
     $installerPath = Join-Path $repoRoot "powerpilot.iss"
     $sourceText = Get-Content -LiteralPath $sourcePath -Raw
 

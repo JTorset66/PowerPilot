@@ -32,15 +32,22 @@ The Overview tab answers: "What is PowerPilot doing right now?"
 - `Windows mode` is the Windows power mode that PowerPilot is following.
 - `Battery` and `Energy Saver` show the live battery state and the active saver policy.
 - `Latest action` shows the most recent automatic or manual thing PowerPilot did.
-- `Hardware` summarizes CPU, memory, and graphics.
-- `Battery Runtime` summarizes watts, estimates, learned full-to-min runtime, capacity, and wear.
+- `Hardware` summarizes CPU, memory, graphics, and display state.
+- `Battery Runtime` summarizes watts, estimates, learned full-run runtime, capacity, and wear.
 - `PowerPilot` shows read/log cadence, app battery cost sampling, Energy Saver policy, and startup controls.
 
 Useful settings:
 
-- `Start with Windows` starts PowerPilot in the tray after sign-in.
+- `Start with Windows` starts PowerPilot hidden in the tray after sign-in, reapplies saved plan settings, follows Windows power mode, and stays hidden until you open it.
 - `Keep settings` keeps your PowerPilot settings during reinstall or update.
 - `Show tips` enables hover explanations in the app.
+- `Theme` can follow the Windows app theme or force PowerPilot to Light or Dark.
+
+The main window uses native PureBasic tabs for navigation. The tab page itself
+is sized to PureBasic's reported panel item area, while section boxes use
+thin custom line borders. This keeps Light mode close to the normal Windows
+look, gives Dark mode a consistent frame, and avoids hidden overlay controls
+that can block checkboxes or combo boxes.
 
 ### Plans
 
@@ -69,7 +76,7 @@ Each setting has a plugged-in value and a battery value.
 The Battery Saver tab answers: "Which Windows battery-saving behavior should PowerPilot control while it is running?"
 
 - `Energy Saver` controls Windows Energy Saver on PowerPilot-owned plans. `Automatic threshold` uses the configured battery percent. `Battery plan always` forces Energy Saver for `PowerPilot Battery`.
-- `Turn on at` is the Energy Saver battery threshold. `Brightness` is the Windows Energy Saver brightness scale when supported by the built-in display.
+- `Turn on at` is the Energy Saver battery threshold and is active only in `Automatic threshold` mode. `Brightness` controls whether PowerPilot writes the Windows Energy Saver brightness scale; unchecked leaves the Windows brightness value untouched.
 - `Throttle background` asks Windows to reduce safe background maintenance work in efficiency mode.
 - `Deep idle saver` reduces hidden-tray wakeups to about 5 minutes, marks PowerPilot itself as background/EcoQoS while hidden, and uses deeper idle-friendly Battery plan settings.
 - `Restore normal plan on exit` switches back to the last non-PowerPilot Windows plan PowerPilot saw when the app exits.
@@ -83,16 +90,16 @@ The Battery Graph tab answers: "How is the battery behaving?"
 
 `Time Estimates` shows several estimates:
 
-- `Average` uses recent logged battery movement. On battery it estimates down to `Empty at`; while charging it estimates up to `Full at` or the configured charge-limit target.
+- `Average` uses recent logged battery movement. On battery it estimates down to `Empty at`; while charging it estimates up to `Full at` or the configured charge-limit target. If the laptop is on AC or the drain is too small to trust, PowerPilot says so instead of showing a huge runtime.
 - `Now` uses the current discharging rate. While charging, PowerPilot shows `Using average` because charging time is best handled by the learned average estimate.
 - `Windows` is Windows or firmware's own on-battery runtime estimate, when available. Windows usually does not report charging time.
-- `Full-to-min` estimates from the configured full point down to the configured empty point.
+- `Full run` estimates from the configured full point down to the configured empty point, only when PowerPilot has believable on-battery drain data.
 - `Wear` compares full-charge capacity with design capacity.
-- `As new` estimates the same full-to-empty runtime as if the battery still had its original design capacity.
+- `As-new run` estimates the same full-to-empty runtime as if the battery still had its original design capacity, using the same believable-data rule.
 - `Capacity` shows full-charge capacity and design capacity.
 - `Cycle count` shows the battery cycle count when Windows exposes it.
 
-The graph shows a selectable battery-percent history window on a fixed 0% to 100% scale, with hour-only labels. Choose 6, 12, 18, 24, 36, 48, 60, or 72 hours. Windows up to 24 hours label every hour; longer windows label every fourth hour. Blue line segments mean normal battery samples. Green line segments mean Energy Saver was active at that point, either from Windows or PowerPilot's controlled Battery plan setting. Orange line segments mean offline/discontinued samples. Red vertical lines show sleep, wake, shutdown, startup, hibernate, improper shutdown, and other PC power events. Marker letters are compact labels: `Z` sleep/suspend, `H` hibernate, `W` wake, `S` shutdown, `P` startup, `!` improper shutdown, `0` offline, `1` online, `E` Energy Saver, and `N` normal. Thin vertical lines mark graph color changes, and crowded marker letters stack as white letters with black shadows above their line instead of being hidden. Use `Markers` on the graph tab to show or hide the marker letters and their legend.
+The graph shows a selectable battery-percent history window on a fixed 0% to 100% scale, with hour-only labels. Choose 1, 3, 6, 12, 18, 24, 36, 48, 60, or 72 hours, or `Max` for the retained 168-hour log window. Windows up to 24 hours label every hour; longer windows label every fourth hour. Blue line segments mean normal battery samples. Green line segments mean Energy Saver was active at that point, either from Windows or PowerPilot's controlled Battery plan setting. Orange line segments mean offline/discontinued samples. Red vertical lines show sleep, wake, shutdown, startup, hibernate, improper shutdown, and other PC power events. Marker letters are compact labels: `Z` sleep/suspend, `H` hibernate, `W` wake, `S` shutdown, `P` startup, `!` improper shutdown, `0` offline, `1` online, `E` Energy Saver, and `N` normal. Thin vertical lines mark graph color changes, and crowded marker letters stack as white letters with black shadows above their line instead of being hidden. Use `Markers` on the graph tab to show or hide the marker letters and their legend.
 
 ### PowerPilot Log
 
@@ -109,10 +116,10 @@ The log is a retained CSV file stored under your user PowerPilot settings folder
 Log settings:
 
 - `Log samples` turns battery sample logging on or off.
-- `Log every` controls how often a saved battery row is written.
+- `Log every` controls how often a saved battery row is written and is active only when `Log samples` is checked.
 - `Read every` controls how often live battery data is refreshed while the window is open. The default is 5 seconds for a responsive visible window. Tray mode backs off to about 5 minutes to reduce background wakeups.
 - `Empty at` is the battery percent treated as empty for PowerPilot estimates. It can be 0%; Windows low and critical battery behavior is on the Battery Saver tab.
-- `Full at` is the percent treated as full for graph, charging target, and full-to-min estimates.
+- `Full at` is the percent treated as full for graph, charging target, and full-run estimates.
 - `Use charge limit` uses the laptop charge limit as the full point.
 - `Average window` controls how much recent history is averaged. Longer is calmer. Shorter reacts faster.
 - `Startup drain` is a temporary percent-per-hour drain used until fresh samples are available.
@@ -159,11 +166,11 @@ Settings backup is optional. Normal reinstall/update keeps settings when `Keep s
 
 The Power Use tab answers: "How much battery might this app be costing?"
 
-PowerPilot estimates app battery cost from process CPU time over a gliding 60-second window.
+PowerPilot estimates app battery cost from process CPU time over a gliding 60-second live window and a configurable average window. The Battery Graph `Avg use` row defaults to 10 minutes and lets you choose 1 to 60 minutes.
 
 `CPU time` is normalized to total logical CPU capacity. It tops out at 60 seconds when PowerPilot uses all logical CPUs for the whole 60-second window.
 
-`CPU load` is shown as a share of total logical CPU capacity, not as a share of one core. This matches the mW estimate below it.
+`CPU load` is shown as a share of total logical CPU capacity, not as a share of one core. This matches the live mW estimate below it; the average mW uses the selected average length.
 
 ```text
 PowerPilot mW =
@@ -192,16 +199,16 @@ The Battery Test tab answers: "What is this battery test doing right now?"
 
 It is a monitor and guided workflow, not a vendor firmware controller.
 
-- `Manual discharge test` starts a report and prompts you to unplug. PowerPilot tracks the discharge part, then switches to charge recovery when you plug in again.
-- `Lenovo reset` waits for the charger, starts the saved drain helper target when Lenovo plugged-in discharge begins, stops load when charging starts, and saves a `.txt` report when charging reaches idle.
-- `Vendor calibration detected` appears automatically when Windows reports plugged in and discharging at the same time, such as Lenovo calibration discharge mode.
+- `Manual test` starts a report and prompts you to unplug. PowerPilot tracks the discharge part, then switches to charge recovery when you plug in again.
+- `Calibration` waits for the charger, starts the saved drain helper target when plugged-in calibration discharge begins, stops load when charging starts, and saves a `.txt` report when charging reaches idle.
+- `Vendor calibration detected` appears automatically when Windows reports plugged in and discharging at the same time.
 - `Charge recovery` tracks charging back to the configured `Full at` or charge-limit target.
-- `Open report` opens the latest saved Battery Test report. `Copy report` copies start/end percent, mWh used/charged, average discharge and charge watts, observed runtime, and capacity notes.
-- `Drain Load` automatically targets a chosen drain time with filtered PI-style load changes about every 10 seconds, starting at 25%, and stops when charging starts. `Test mode` adds detailed controller rows for normal unplug tuning runs.
+- `Report and Log` shows a short screen summary. `Open report` opens the latest saved Battery Test report. `Copy report` copies start/end percent, mWh used/charged, average discharge and charge watts, observed runtime, and capacity notes.
+- `Calibration Drain Helper` automatically targets a chosen drain time with filtered PI-style load changes about every 10 seconds, starting gently during plugged-in calibration discharge, and stops when charging starts. `Test mode` adds detailed controller rows for tuning runs.
 - While Battery Test is the selected tab, live test stats refresh about once per second. Other tabs keep the normal battery read interval.
 - Battery Test uses current discharge watts for its time-to-empty estimate while discharging, so it reacts faster than the normal smoothed Battery Graph estimate.
 
-The PowerPilot Log also gets clear `BATTERY TEST` rows for test start, samples, vendor calibration detection, Lenovo reset phases, drain-helper actions, and test end. Saved reports live in `%APPDATA%\PowerPilot\reports`.
+The PowerPilot Log also gets clear `BATTERY TEST` rows for test start, samples, vendor calibration detection, calibration phases, drain-helper actions, and test end. Saved reports live in `%APPDATA%\PowerPilot\reports`.
 
 ### About
 
@@ -214,7 +221,7 @@ It includes:
 - `Plan Follow`: how Windows power mode maps to PowerPilot Maximum, Balanced, and Battery
 - `Logged Data`: battery fields, screen state, brightness, Energy Saver, power events, and app status rows
 - `Local Data`: what PowerPilot reads locally, what it writes locally, and that it sends nothing by itself
-- `Files`: author, MIT license, included documentation, uninstall reference, plus `Open README` and `Open LICENSE`
+- `Files`: Store developer identity, copyright, MIT license, included documentation, uninstall reference, plus `USER MANUAL`, `README`, and `LICENSE` buttons
 - `Important Boundaries`: what PowerPilot cannot directly measure, including CPU package watts, display watts, fan power, temperature, Wi-Fi, storage, GPU load, and other apps
 
 This tab is intended as an in-app reference so the main behavior is understandable without opening external docs.
@@ -251,15 +258,16 @@ The installer:
 
 - installs into `Program Files\PowerPilot`
 - creates a desktop shortcut
-- registers PowerPilot to start with Windows using `/tray`
-- launches PowerPilot into the notification area after installation
+- shows final setup status after file copy while it refreshes plans, handles settings, registers startup, and starts the tray app
+- registers PowerPilot to start with Windows using `/startup`
+- launches PowerPilot hidden into the notification area after installation
 - requires administrator approval for setup, then runs post-install commands and the tray app as the current user without UAC elevation
 - keeps user settings during reinstall when the app preference is enabled
 - installs newer stamped versions side-by-side
 - writes a `PowerPilot update close` app-log row when replacing a running copy
 - lets the newly launched app close older `PowerPilot_V*.exe` versions in the background
 - removes stale versioned app files after install
-- creates missing PowerPilot-owned plans and refreshes their current CPU, battery, Energy Saver, and hidden platform policy during normal updates without deleting existing plan GUIDs
+- creates missing PowerPilot-owned plans and refreshes their current CPU, battery, Energy Saver, and hidden platform policy during normal updates and hidden startup without deleting existing plan GUIDs
 - checks after install that setup and cleanup processes have exited
 - supports repair and uninstall from Windows Apps/Programs
 
@@ -281,8 +289,8 @@ Build the installer:
 
 The installer build produces:
 
-- `build\PowerPilot_V1.1.YYMM.minute-of-month.exe`
-- `build\PowerPilot_V1.1.YYMM.minute-of-month_Setup.exe`
+- `build\PowerPilot_V1.2.YYMM.minute-of-month.exe`
+- `build\PowerPilot_V1.2.YYMM.minute-of-month_Setup.exe`
 
 ## Build Requirements
 
@@ -297,16 +305,21 @@ PowerPilot reads local hardware and battery data from Windows APIs and providers
 
 PowerPilot does not transfer information to networked systems unless the user or operator specifically asks for that outside the app.
 
+Full privacy policy: [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+
 ## Repository Guide
 
-- `PowerPilot_V1.1.pb` is the main PureBasic source file.
+- `PowerPilot_V1.2.pb` is the main PureBasic source file.
 - `build-purebasic.ps1` builds the app executable.
 - `build-installer.ps1` builds the installer and records build context.
 - `install-powerpilot.ps1` installs the newest setup artifact.
 - `FUNCTION_MAP.md` explains the source layout.
 - `docs\framework\README.md` is the full build-from-scratch framework documentation set.
-- `INSTALLER_README.md` is the source for the user guide bundled into the installer as `README.txt`.
+- `USER_MANUAL.txt` is the detailed user manual bundled with the installer and opened from About.
+- `INSTALLER_README.md` is the source for the quick user guide bundled into the installer as `README.txt`.
 - `RELEASE_CHECKLIST.md` summarizes release steps.
+- `PRIVACY_POLICY.md` is the public privacy policy for GitHub and Microsoft Store listing use.
+- `MICROSOFT_STORE_SUBMISSION.md` records Store-facing publisher, support, privacy, and certification notes.
 - `CODE_SIGNING_POLICY.md` documents signing policy.
 - `SIGNPATH_APPLICATION.md` tracks SignPath Foundation application material.
 - `POWERPILOT_LEARNINGS.md` captures implementation lessons that should survive chat/history cleanup.
@@ -315,6 +328,8 @@ PowerPilot does not transfer information to networked systems unless the user or
 
 This project is licensed under the MIT License. See `LICENSE` in the source tree or installed `LICENSE.txt`.
 
-## Author
+## Copyright
 
-John Torset
+Copyright: Dofta
+
+Publisher / Microsoft Store developer name: Dofta

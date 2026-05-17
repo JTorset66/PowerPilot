@@ -1,23 +1,23 @@
 ﻿# PowerPilot Startup Context
 
-Last updated: 2026-05-11
+Last updated: 2026-05-17
 
 ## Verified build state
 
-- Source file compiled successfully: PowerPilot_V1.1.pb
-- Main build artifact verified: .\build\PowerPilot_V1.1.2605.14550.exe
-- Installer assembly verified: .\build\PowerPilot_V1.1.2605.14550_Setup.exe
+- Source file compiled successfully: PowerPilot_V1.2.pb
+- Main build artifact verified: .\build\PowerPilot_V1.2.2605.23851.exe
+- Installer assembly verified: .\build\PowerPilot_V1.2.2605.23851_Setup.exe
 
 Latest verified artifact details:
 
-- .\build\PowerPilot_V1.1.2605.14550.exe
-  - Size: 1,158,144 bytes
-  - Last write time: 2026-05-11 02:30:29
-  - SHA-256: 1E78EB87576BA2F6970CBF75614C2ECD7222087F4D43AA18F776DFE3FD5E762F
-- .\build\PowerPilot_V1.1.2605.14550_Setup.exe
-  - Size: 2,647,020 bytes
-  - Last write time: 2026-05-11 02:30:31
-  - SHA-256: E516FDDE09FC1F1288083D06DCA798A2BA15BB22C8B567A330F7F6984E1D5921
+- .\build\PowerPilot_V1.2.2605.23851.exe
+  - Size: 1,197,568 bytes
+  - Last write time: 2026-05-17 13:34:49
+  - SHA-256: 95F771747271BE961F7BD345E3F4B950BA9A4F8DAE21991235ABB8BED6FAFE8A
+- .\build\PowerPilot_V1.2.2605.23851_Setup.exe
+  - Size: 2,464,272 bytes
+  - Last write time: 2026-05-17 13:34:51
+  - SHA-256: 3C9D01920D4EF256985A1BE7DD61EE08AF519D4120577CA5A3CDB32C1E4F115E
 
 ## Current feature notes
 
@@ -40,7 +40,9 @@ Latest verified artifact details:
 
 ## Latest snapshot
 
-- Snapshot was skipped for this run.
+- Archive: SNAPSHOTS\powerpilot-prebuild-2026-05-17_13-34-46.zip
+- Created: 2026-05-17 13:34:46
+- Source files captured: 47
 
 ## Where to look first on a new startup
 

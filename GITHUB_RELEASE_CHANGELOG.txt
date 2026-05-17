@@ -4,6 +4,42 @@ Keep this file as the copy/paste source for GitHub Releases. Add new releases at
 
 ---
 
+## PowerPilot v1.2.2605.23851
+
+PowerPilot v1.2.2605.23851 is the current release build for the tray-first PowerPilot app. It focuses on hidden startup behavior, clearer Battery Saver and PowerPilot Log controls, cleaner desktop layout, saved view zoom, Store-facing publisher identity, and installer/startup refresh reliability.
+
+### Highlights
+
+- Hidden startup now launches PowerPilot into the tray, reapplies saved plan and policy settings, follows Windows power mode, and stays hidden until the user opens it.
+- The window is prepared while hidden so opening from the tray is immediate, with stale data refreshed after the first paint.
+- Battery Saver brightness can be left untouched with a dedicated checkbox, and dependent numeric controls now disable when their controlling mode or checkbox makes them inactive.
+- PowerPilot Log sampling controls were realigned into a cleaner grid, with charge-limit, log cadence, and estimate controls using consistent enable/disable behavior.
+- Battery Graph now includes 1-hour, 3-hour, and Max history windows for close-up checks or the full retained 168-hour log window.
+- Battery Graph live status now shows a configurable app-use average, defaulting to 10 minutes.
+- Theme switching now keeps the window visible while locking repaint until the dark/light update is complete.
+- The desktop UI was polished with a Fluent-like light/dark surface, stronger frame titles, and clipping fixes for About, Low Battery Guard, and Battery Graph frame spacing.
+- Hardware details now align in the left column on Overview, and a saved `Zoom factor` selector offers 50%, 75%, 100%, 125%, and 150% content scale.
+- Release artifacts now use the `PowerPilot_V1.2...` filename line and the source file is `PowerPilot_V1.2.pb`.
+- Public publisher / Microsoft Store developer name is Dofta. Support and privacy policy links use GitHub rather than a personal email address.
+
+### Artifacts
+
+- `PowerPilot_V1.2.2605.23851.exe`
+  - SHA-256: `95f771747271be961f7bd345e3f4b950ba9a4f8dae21991235abb8bed6fafe8a`
+- `PowerPilot_V1.2.2605.23851.exe.sha256`
+- `PowerPilot_V1.2.2605.23851_Setup.exe`
+  - SHA-256: `3c9d01920d4ef256985a1be7dd61ee08af519d4120577ca5a3cdb32c1e4f115e`
+- `PowerPilot_V1.2.2605.23851_Setup.exe.sha256`
+
+### Notes
+
+- Platform: Windows x64.
+- Publisher / Microsoft Store developer name: Dofta.
+- PowerPilot runs locally and does not send hardware, battery, or log data anywhere by itself.
+- Release binaries may be unsigned until trusted code-signing onboarding is complete.
+
+---
+
 ## PowerPilot v1.1.2605.14550
 
 PowerPilot v1.1.2605.14550 is the current public release build focused on plan visibility, stronger Battery plan savings, clearer window layout, and release documentation cleanup.

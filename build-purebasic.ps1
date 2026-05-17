@@ -1,5 +1,5 @@
 param(
-    [string]$Source = ".\PowerPilot_V1.1.pb",
+    [string]$Source = ".\PowerPilot_V1.2.pb",
     [string]$OutputDir = ".\build",
     [string]$AppVersion = "",
     [string]$CertificateThumbprint,
@@ -68,12 +68,12 @@ function Update-PureBasicAppVersion {
         $now = Get-Date
         $monthStart = Get-Date -Year $now.Year -Month $now.Month -Day 1 -Hour 0 -Minute 0 -Second 0
         $minutesSinceMonthStart = [int][Math]::Floor(($now - $monthStart).TotalMinutes)
-        $appVersion = "1.1.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
+        $appVersion = "1.2.{0}.{1:D5}" -f $now.ToString("yyMM"), $minutesSinceMonthStart
     }
     else {
         $appVersion = $RequestedVersion.Trim()
         if ($appVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-            throw "AppVersion must be a four-part numeric version such as 1.1.2605.14550."
+            throw "AppVersion must be a four-part numeric version such as 1.2.2605.14550."
         }
     }
 

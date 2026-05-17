@@ -2,13 +2,12 @@
 
 This document describes how release binaries for PowerPilot are built, reviewed, and signed.
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-
 Current status:
 
-- Current release target: `v1.1.2605.14550`.
-- This repository is prepared for a SignPath Foundation application, but SignPath onboarding is not yet integrated.
-- Until that application is approved and integrated, published binaries may be unsigned or signed through a separate trusted Windows code-signing setup controlled by the project maintainer.
+- Current release target: `v1.2`.
+- Public publisher and Microsoft Store developer name: Dofta.
+- SignPath Foundation onboarding is not currently active. The free SignPath route was prepared for, but it is not approved/integrated for this release state.
+- Until a trusted signing path is approved and integrated, published binaries may be unsigned or signed through a separate trusted Windows code-signing setup controlled by the project maintainer.
 
 ## Project roles
 
@@ -42,6 +41,8 @@ Only binaries built from this repository and maintained by this project may be s
 - The installer should contain signed project-owned executables when signing is available.
 
 ## Privacy policy
+
+Public privacy policy: <https://github.com/JTorset66/PowerPilot/blob/main/PRIVACY_POLICY.md>
 
 This program does not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it.
 

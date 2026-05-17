@@ -4,8 +4,8 @@ Use this checklist for public PowerPilot releases.
 
 ## Before tagging
 
-- Confirm the intended version number in `PowerPilot_V1.1.pb` and `powerpilot.iss`.
-- Confirm the full stamped release version from the build metadata, using the full `v1.1.YYMM.minute-of-month` style version for the public release and generated artifact filenames instead of short `v1.1` filenames.
+- Confirm the intended version number in `PowerPilot_V1.2.pb` and `powerpilot.iss`.
+- Confirm the full stamped release version from the build metadata, using the full `v1.2.YYMM.minute-of-month` style version for the public release and generated artifact filenames instead of short `v1.2` filenames.
 - Review `README.md` for current installer, startup, tray, plan-maker, PowerPilot Log, battery graph, battery stats, and hardware-info behavior.
 - Review `INSTALLER_README.md` for user-facing app functionality and usage changes.
 - Review `FUNCTION_MAP.md` after major PureBasic source changes.
@@ -17,6 +17,8 @@ Use this checklist for public PowerPilot releases.
 - Confirm the tray icon uses `powerpilot_tray.ico` and shows the green shield.
 - Confirm the project still matches the statements in `CODE_SIGNING_POLICY.md`.
 - Confirm the SignPath notes in `SIGNPATH_APPLICATION.md` are still accurate.
+- Confirm the public publisher / Microsoft Store developer name is Dofta in the app About tab, installer metadata, and documentation.
+- Confirm `PRIVACY_POLICY.md` and `MICROSOFT_STORE_SUBMISSION.md` are current before using GitHub links in Store listing fields.
 - Build locally with:
 
 ```powershell
@@ -25,7 +27,7 @@ Use this checklist for public PowerPilot releases.
 ```
 
 - Verify the executable and installer exist in `build\`.
-- Confirm the executable and installer filenames include the full stamped version, for example `PowerPilot_V1.1.2605.01042.exe` and `PowerPilot_V1.1.2605.01042_Setup.exe`.
+- Confirm the executable and installer filenames include the full stamped version, for example `PowerPilot_V1.2.2605.01042.exe` and `PowerPilot_V1.2.2605.01042_Setup.exe`.
 - If signing is available, sign and verify the executable and installer before release.
 - Test-launch the built executable on Windows.
 - Test-install the built installer on Windows.
@@ -34,7 +36,7 @@ Use this checklist for public PowerPilot releases.
 - Confirm reinstall/repair closes older running `PowerPilot_V*.exe` processes and leaves only the current stamped app executable in `Program Files\PowerPilot`.
 - Confirm the install helper reports clear post-install elevated/setup/cleanup process checks.
 - Confirm the installed desktop shortcut launches PowerPilot.
-- Confirm Battery Graph shows live battery values, average/instant/Windows estimates, and selectable 6- to 72-hour graph windows.
+- Confirm Battery Graph shows live battery values, average/instant/Windows estimates, and selectable 1 h, 3 h, longer graph windows up to 72 h, plus Max for the retained 168-hour log window.
 - Confirm Battery Saver writes Energy Saver, low/reserve/critical battery settings, and restore-on-exit behavior to PowerPilot-owned plans only.
 - Confirm PowerPilot-owned plans remain Balanced-derived so they stay visible on Modern Standby systems while still mapping Windows power mode to Maximum, Balanced, and Battery.
 - Confirm plan activation succeeds as a normal user through the native `PowerSetActiveScheme` path, with `powercfg /SETACTIVE` only as fallback.
@@ -59,7 +61,7 @@ git diff --stat
 ```
 
 - Commit the release-ready state.
-- Create an annotated tag using the full stamped release version, for example `v1.1.2605.01042`.
+- Create an annotated tag using the full stamped release version, for example `v1.2.2605.01042`.
 - Confirm the version tag matches the four-part `#AppVersion$` exactly so the workflow and local artifact names stay aligned.
 
 ## GitHub release

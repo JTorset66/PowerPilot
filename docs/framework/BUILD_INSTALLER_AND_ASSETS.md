@@ -20,14 +20,14 @@ Run:
 What it does:
 
 1. Calculates a version like `1.1.yymm.minutes`.
-2. Updates `#AppVersion$` in `PowerPilot_V1.1.pb`.
+2. Updates `#AppVersion$` in `PowerPilot_V1.2.pb`.
 3. Compiles the PureBasic source.
 4. Writes a versioned executable under `build\`.
 
 For a release tag or repeatable rebuild, pass the exact four-part version:
 
 ```powershell
-.\build-purebasic.ps1 -AppVersion 1.1.2605.14550
+.\build-purebasic.ps1 -AppVersion 1.2.2605.14550
 ```
 
 ## Build Installer
@@ -73,7 +73,8 @@ The install helper runs the latest setup EXE, waits for completion, verifies ins
 - HKLM maintenance/uninstall metadata.
 - Cleanup of older helper files and old bundled docs.
 - Uninstall cleanup for app-owned installed files.
-- Custom Inno Setup pages and included text-file viewers.
+- A lean Inno Setup flow with one combined two-column front page: setup summary on the left, read buttons for USER MANUAL, README, LICENSE, and THIRD-PARTY NOTICES on the right. The same documents are also opened from the app's About tab after install.
+- A final setup-progress phase after file copy, with visible status text for settings, plan refresh, startup registration, old-version cleanup, and tray launch.
 
 ## Bundled Files
 
@@ -83,6 +84,7 @@ Installed app folder includes:
 - `powerpilot.ico`.
 - `powerpilot_desktop.ico`.
 - `powerpilot_tray.ico`.
+- `USER_MANUAL.txt`.
 - `README.txt` from `INSTALLER_README.md`.
 - `THIRD_PARTY_NOTICES.txt`.
 - `LICENSE.txt`.

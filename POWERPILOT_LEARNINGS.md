@@ -1,7 +1,7 @@
 # PowerPilot Learnings
 
 This file records design principles and debugging lessons agreed during PowerPilot work.
-Read it before changing `PowerPilot_V1.1.pb`, especially graph, logging, installer, DPI, or UI event behavior.
+Read it before changing `PowerPilot_V1.2.pb`, especially graph, logging, installer, DPI, or UI event behavior.
 
 ## Maintenance Rule
 
@@ -68,6 +68,13 @@ Read it before changing `PowerPilot_V1.1.pb`, especially graph, logging, install
 - Minimum window size may be reduced independently from opening size for snapping and small layouts.
 - Preserve DPI awareness and draw graph images at DPI-scaled backing resolution so fonts and lines stay sharp at Windows scale settings.
 - Scaling up should enlarge fonts and controls together; scaling down should keep controls usable and avoid clipping where practical.
+
+## Tab And Frame Painting
+
+- Size tab-page containers to PureBasic's reported panel item area; do not cover the native outer tab frame.
+- Avoid full-size overlay canvases on tab pages because they can block child controls.
+- Avoid native `FrameGadget()` for themed group boxes inside the tab container; use thin line gadgets plus a title label for predictable Light/Dark painting.
+- Compute dark panel border overlays from the current panel/tab geometry, not hard-coded restored-window pixels.
 
 ## Build And Install
 

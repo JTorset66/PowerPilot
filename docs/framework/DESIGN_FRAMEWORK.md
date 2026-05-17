@@ -22,7 +22,7 @@ The application should be designed around workflows, not around which API produc
 The current implementation is mostly contained in one PureBasic source file:
 
 ```text
-PowerPilot_V1.1.pb
+PowerPilot_V1.2.pb
 ```
 
 That file currently owns:
@@ -308,6 +308,9 @@ Design rules:
 
 - Use tabs by workflow, not by implementation subsystem.
 - Use frames for major groups.
+- In the PureBasic implementation, frames are thin line/title helpers rather
+  than native `FrameGadget()` controls, because themed tab pages need stable
+  Light/Dark repainting and clickable child controls.
 - Keep dynamic values in predictable rows.
 - Keep report/log/graph surfaces as contained data areas.
 - Use short button labels.
@@ -361,7 +364,7 @@ Installer responsibilities:
 
 - Install one versioned EXE.
 - Install app, desktop, and tray icons.
-- Install README, license, and third-party notices as `.txt`.
+- Install USER MANUAL, README, LICENSE, and THIRD-PARTY NOTICES as `.txt`.
 - Create a desktop shortcut.
 - Remove obsolete helper files from older prototypes.
 - Start PowerPilot in tray mode after install.

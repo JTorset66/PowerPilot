@@ -198,7 +198,7 @@ function Resolve-InstalledPowerPilotExe {
         return $latestExe.FullName
     }
 
-    return (Join-Path $installDir "PowerPilot_V1.1.exe")
+    return (Join-Path $installDir "PowerPilot_V1.2.exe")
 }
 
 function Test-PowerPilotRunningStable {
@@ -230,7 +230,7 @@ function Start-PowerPilotTrayProcess {
         [string]$ExePath
     )
 
-    Start-Process -FilePath $ExePath -ArgumentList "/tray" -WindowStyle Hidden | Out-Null
+    Start-Process -FilePath $ExePath -ArgumentList "/startup" -WindowStyle Hidden | Out-Null
 }
 
 function Start-InstalledPowerPilotIfNeeded {
@@ -262,7 +262,7 @@ function Start-InstalledPowerPilotIfNeeded {
         if (Test-PowerPilotRunningStable -ProbeCount 6 -DelayMs 900) {
             Start-Sleep -Seconds 3
             if (Test-PowerPilotRunningStable -ProbeCount 3 -DelayMs 700) {
-            Write-Host "Started PowerPilot in tray:" $installedExe
+            Write-Host "Started PowerPilot hidden in tray:" $installedExe
             return
             }
         }

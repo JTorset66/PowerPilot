@@ -1,6 +1,6 @@
 # PowerPilot Function Map
 
-This map describes the current `PowerPilot_V1.1.pb` source layout so stale code and documentation drift are easier to spot during release work.
+This map describes the current `PowerPilot_V1.2.pb` source layout so stale code and documentation drift are easier to spot during release work.
 
 ## Startup Flow
 
@@ -47,8 +47,8 @@ This map describes the current `PowerPilot_V1.1.pb` source layout so stale code 
 
 - In-memory graph: `AddBatteryGraphPoint`, `PruneBatteryGraph`, `BatteryGraphIndexBefore`, `BatteryGraphIndexAfter`.
 - Event markers: `AddBatteryEventPoint`, `PruneBatteryEvents`, `BatteryEventShortName`.
-- Summaries: `RefreshBatteryStatsSummary` updates session, off-time battery loss, and daily battery summary text. `RefreshPowerUseDetails` updates the Power Use tab values and provider status from the gliding 60-second PowerPilot-use sample. Plugged-in Power Use estimates use current full-charge capacity plus learned average discharging as the battery discharging basis.
-- Drawing: `DrawBatteryGraph` renders the selectable gliding graph window into an offscreen image, then blits it to the canvas once to avoid flicker. It uses a fixed 0% to 100% scale, horizontal hour-only labels, a spaced legend, complete plot border, anti-aliased colored line segments, thin labeled full-height color-change markers, flat orange offline/discontinued spans, and event markers. Marker `0` means offline and `1` means online. Crowded marker letters stack above their vertical line as white letters with black shadows, and the Battery Graph `Markers` checkbox can hide the marker letters and marker legend. The graph window can be 6, 12, 18, 24, 36, 48, 60, or 72 hours; windows above 24 hours label every fourth hour. Energy Saver state includes Windows' flag and PowerPilot's controlled Battery plan setting.
+- Summaries: `RefreshBatteryStatsSummary` updates session, off-time battery loss, and daily battery summary text. `RefreshPowerUseDetails` updates the Power Use tab values and provider status from the gliding 60-second PowerPilot-use sample plus the selected app-use average window. Plugged-in Power Use estimates use current full-charge capacity plus learned average discharging as the battery discharging basis.
+- Drawing: `DrawBatteryGraph` renders the selectable gliding graph window into an offscreen image, then blits it to the canvas once to avoid flicker. It uses a fixed 0% to 100% scale, horizontal hour-only labels, a spaced legend, complete plot border, anti-aliased colored line segments, thin labeled full-height color-change markers, flat orange offline/discontinued spans, and event markers. Marker `0` means offline and `1` means online. Crowded marker letters stack above their vertical line as white letters with black shadows, and the Battery Graph `Markers` checkbox can hide the marker letters and marker legend. The graph window can be 1, 3, 6, 12, 18, 24, 36, 48, 60, 72, or Max for the retained 168-hour log window; windows above 24 hours label every fourth hour. Energy Saver state includes Windows' flag and PowerPilot's controlled Battery plan setting.
 
 ## Battery Test
 
@@ -76,6 +76,7 @@ This map describes the current `PowerPilot_V1.1.pb` source layout so stale code 
 - Window and tray: `CreateMainWindow`, `CreateTrayMenu`, `SetupTray`, `HideToTray`, `ShowFromTray`, `MainWindowVisible`.
 - Timer handling: `DesiredRefreshInterval`, `StartRefreshTimer`, `RefreshActiveTimer`, `RunPeriodicRefresh`; the main GUI loop stays blocking so the tab window paints normally, while `#TimerRefresh` owns periodic battery/log refresh. Deep idle tray mode uses a 5-minute timer and `ApplySelfDeepIdleThrottle` marks PowerPilot as EcoQoS while hidden.
 - UI helpers: `SetGadgetTextIfChanged`, `EnsureUiFonts`, `UseBoldFont`, `StoreUiBaseLayout`, `ApplyMainWindowLayoutScale`, `ApplyPlanListColumnWidths`, `SetTip`, `ApplyToolTips`.
+- Theme and framing: `BeginThemeTab` creates a paintable container sized to the PureBasic panel item area; `ThemedFrameGadget`, `DrawThemeFrame`, and `DrawThemeFrames` draw section frames as 1-pixel line gadgets plus a title label so native panel children stay clickable. `ResizeDarkPanelChrome`, `DrawDarkPanelBorderLines`, and `SetPanelOwnerDraw` handle the dark tab/page border without a full-size overlay canvas.
 - Plan UI: `ReadPlanEditor`, `RefreshPlanEditor`, `RefreshPlanList`, `SavePlanEditor`, `ResetSelectedPlan`.
 - Battery/settings UI: `ApplySettingsToGui`, `RefreshBatterySaverSummary`, `ScheduleBatterySettingsApply`, `ApplyPendingBatterySettings`, `SaveBatterySettingsFromGui`, `ResetBatteryStats`, `SaveSettingsFromGui`.
 - Dispatch: `HandleAction`, `HandleMenu`, `RunGui`.
@@ -83,6 +84,6 @@ This map describes the current `PowerPilot_V1.1.pb` source layout so stale code 
 ## Current Cleanup Notes
 
 - The old visible bottom status field has been removed. Status feedback is now retained as shortened `app` rows in the PowerPilot Log.
-- Unused graph-date helpers, assign-only globals, and definition-only constants from older UI/timer flows were removed during the v1.1 cleanup pass.
-- `PowerPilot_V1.0.pb` is obsolete for v1.1 and should stay out of release packages.
+- Unused graph-date helpers, assign-only globals, and definition-only constants from older UI/timer flows were removed during an earlier cleanup pass.
+- `PowerPilot_V1.0.pb` and older versioned source snapshots are obsolete for v1.2 and should stay out of release packages.
 - The repository `pb_*test*.pb` files are local PureBasic experiments and are not included by the installer.

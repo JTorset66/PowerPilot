@@ -1,0 +1,839 @@
+PowerPilot v1.2 User Manual
+============================
+
+Copyright: Dofta
+Publisher / Microsoft Store developer name: Dofta
+License: MIT
+
+This manual describes the PowerPilot window, every visible setting, the tray
+startup behavior, and the files PowerPilot creates.
+
+
+1. What PowerPilot Does
+-----------------------
+
+PowerPilot is a local Windows tray application for power-plan control and
+battery observation.
+
+Its main job is to follow the Windows power mode slider and keep three owned
+Windows power plans aligned:
+
+- Best performance -> PowerPilot Maximum
+- Balanced -> PowerPilot Balanced
+- Best power efficiency -> PowerPilot Battery
+
+PowerPilot does not replace the Windows power mode selector. You still choose
+the mode in Windows. PowerPilot watches that mode and activates the matching
+managed plan.
+
+PowerPilot also logs battery samples, screen events, sleep/wake/shutdown
+events, Energy Saver state, app status rows, and Battery Test rows. All of
+this data stays local unless you copy or export it yourself.
+
+
+2. Important Boundaries
+-----------------------
+
+PowerPilot reads data that Windows exposes through local Windows APIs, WMI,
+powercfg, and the battery driver. Some laptops expose more battery and
+brightness detail than others.
+
+PowerPilot does not directly measure:
+
+- CPU package watts
+- GPU watts
+- display panel watts
+- fan power
+- temperature
+- Wi-Fi, storage, or USB device power
+- power used by other apps
+- battery chemistry details that Windows does not expose
+
+The Power Use tab estimates this app's own battery cost from recent process
+CPU time and battery-drain context. It is useful for comparison, but it is not
+a hardware power meter.
+
+
+3. Startup, Tray, and Window Behavior
+-------------------------------------
+
+PowerPilot is designed to run in the notification area.
+
+After install:
+
+- Setup starts PowerPilot hidden in the notification area.
+- Hidden startup still applies plans and saved settings.
+- You can open the window from the tray icon or desktop shortcut.
+
+When "Start with Windows" is enabled:
+
+- PowerPilot starts when the signed-in Windows user starts.
+- It starts hidden in the tray.
+- It applies saved plan and Battery Saver settings after initialization.
+
+The main window is built once and then hidden or shown. The tray path should
+not rebuild the whole interface each time you click the tray icon.
+
+Use "Hide" to hide the window while keeping PowerPilot running. Use "Exit" to
+stop the application and remove the tray icon.
+
+
+4. Data and Privacy
+-------------------
+
+PowerPilot stores per-user data under:
+
+%APPDATA%\PowerPilot
+
+Important files and folders:
+
+- settings.ini
+  Your PowerPilot settings, edited plan values, visible log-column widths, and
+  saved UI choices.
+
+- battery-log.csv
+  The retained battery/event log. It is kept under the current Windows user.
+
+- reports
+  Battery Test report files.
+
+Installed documentation lives beside the installed executable:
+
+- USER_MANUAL.txt
+- README.txt
+- THIRD_PARTY_NOTICES.txt
+- LICENSE.txt
+
+PowerPilot sends nothing by itself. Clipboard copy, file export, and opening a
+report are actions you choose.
+
+
+5. Tab Strip
+------------
+
+The main window uses one tab strip:
+
+1. Overview
+2. Plans
+3. Battery Saver
+4. PowerPilot Log
+5. Battery Graph
+6. Battery Stats
+7. Power Use
+8. Battery Test
+9. About
+
+The tab names are intentionally descriptive. The tab strip keeps the normal
+Windows panel behavior and adds a little extra caption padding so each tab is
+easier to distinguish. The page area is sized to the real PureBasic panel item
+area so the outer tab frame stays visible. Section boxes are drawn as thin
+line frames instead of heavy overlay panels, which keeps controls clickable in
+both Light and Dark themes.
+
+
+6. Overview Tab
+---------------
+
+The Overview tab is the dashboard.
+
+Live State:
+
+- Active plan
+  The Windows power plan currently active.
+
+- Windows mode
+  The current Windows power mode. This is the input PowerPilot follows.
+
+- Battery
+  Current battery percent and live state, such as plugged in, charging,
+  discharging, or idle.
+
+- Energy Saver
+  Current Energy Saver state and the PowerPilot Energy Saver policy.
+
+- Latest action
+  The newest automatic or manual action PowerPilot logged.
+
+Hardware:
+
+- CPU information
+  Local CPU model, physical cores, logical processors, and memory summary.
+
+- GPU information
+  GPU names detected from Windows. Some integrated GPUs may be refined from
+  local CPU data when Windows reports a generic name.
+
+Display:
+
+- Current screen/display state when known.
+- Laptop brightness percent when Windows exposes a reliable internal-panel
+  value.
+- Energy Saver brightness policy, including "brightness untouched" when that
+  checkbox is off.
+
+Battery Runtime:
+
+- Live battery state.
+- Current or estimated watts.
+- Time estimate when PowerPilot has enough information.
+- Remaining/full/design capacity and wear when Windows exposes it.
+
+PowerPilot:
+
+- Read cadence.
+- Log cadence.
+- Estimated app battery cost.
+- Energy Saver policy summary.
+
+Overview settings:
+
+- Start with Windows
+  Starts PowerPilot with the signed-in Windows user. Startup is hidden in the
+  tray so plans and saved policies are applied without opening the window.
+
+- Keep settings
+  Keeps PowerPilot settings and edited managed plans across reinstall/update
+  flows where possible.
+
+- Show tips
+  Enables or disables hover tooltips.
+
+- Theme
+  Controls the app colors. Windows follows the current Windows app theme.
+  Light keeps the original light appearance. Dark forces PowerPilot dark.
+  The setting changes colors only; it does not change saved plans, battery
+  policies, logs, or startup behavior.
+
+Bottom buttons:
+
+- Hide
+  Hides the window to the notification area.
+
+- Exit
+  Stops PowerPilot and removes the tray icon.
+
+
+7. Plans Tab
+------------
+
+The Plans tab edits the three PowerPilot-owned Windows plans. Windows power
+mode still decides which one is active.
+
+PowerPilot-owned plans:
+
+- PowerPilot Maximum
+  Intended for Best performance.
+
+- PowerPilot Balanced
+  Intended for Balanced.
+
+- PowerPilot Battery
+  Intended for Best power efficiency.
+
+Plan list columns:
+
+- Plan
+  The managed plan name.
+
+- Installed
+  Whether the plan exists in Windows.
+
+- Purpose
+  Short explanation of the plan personality.
+
+Plan Tuning:
+
+- Note
+  Description saved for the selected PowerPilot plan.
+
+- Plugged in
+  AC values used while the computer is plugged in.
+
+- Battery
+  DC values used while the computer is running from battery.
+
+Plan settings:
+
+- Energy
+  Processor energy performance preference. Lower values favor fast response.
+  Higher values favor efficiency.
+
+- CPU boost
+  Controls processor boost behavior.
+
+  Disabled:
+    Prevents CPU boost. Usually saves power and heat.
+
+  Efficient:
+    Allows more conservative boost behavior.
+
+  Aggressive:
+    Responds fastest and usually uses more power.
+
+- Max CPU
+  Maximum processor state in percent. 100 allows full CPU speed. Lower values
+  can reduce heat, noise, and battery drain.
+
+- CPU MHz cap
+  Maximum CPU frequency cap in MHz. 0 means no explicit cap.
+
+- Cooling
+  Windows cooling policy.
+
+  Active:
+    Favors fan/cooling before reducing clocks.
+
+  Passive:
+    Favors lower clocks before fan/cooling.
+
+Buttons:
+
+- Save plan
+  Writes the selected plan settings to Windows and refreshes the managed plan.
+
+- Defaults
+  Restores the selected plan to PowerPilot's default values.
+
+
+8. Battery Saver Tab
+--------------------
+
+The Battery Saver tab controls Windows Energy Saver and battery guard settings
+for PowerPilot-owned plans.
+
+Energy Saver:
+
+- Mode
+  How PowerPilot manages Windows Energy Saver on the managed plans.
+
+  Automatic threshold:
+    Energy Saver follows the configured threshold.
+
+  Battery plan always:
+    The PowerPilot Battery plan forces Energy Saver on. Maximum and Balanced
+    can still follow normal threshold behavior.
+
+- Turn on at
+  Battery percent where Windows Energy Saver should turn on in Automatic
+  threshold mode.
+
+- Brightness checkbox
+  Enables or disables writing the Windows Energy Saver brightness scale.
+
+  Checked:
+    PowerPilot writes the brightness value.
+
+  Unchecked:
+    PowerPilot leaves brightness untouched.
+
+- Brightness percent
+  The brightness scale Windows applies while Energy Saver is active, but only
+  when the Brightness checkbox is checked.
+
+Runtime Saver:
+
+- Throttle background
+  When Windows is in efficiency mode, PowerPilot asks Windows to reduce safe
+  background maintenance process speed for selected maintenance processes.
+
+- Deep idle saver
+  When PowerPilot is hidden in the tray, it reduces hidden refresh work and
+  tunes the Battery plan for deeper idle behavior.
+
+- Restore normal plan on exit
+  When exiting, PowerPilot can restore the last normal Windows plan it saw if
+  a PowerPilot plan is active.
+
+Low Battery Guard:
+
+- Low warning
+  Windows low-battery warning level for PowerPilot-owned plans.
+
+- Critical
+  Windows critical-battery level for PowerPilot-owned plans.
+
+- Reserve
+  Windows reserve-battery warning level. Windows does not expose a separate
+  reserve action here.
+
+- Low action
+  Windows action at the low-battery level:
+
+  Do nothing
+  Sleep
+  Hibernate
+  Shut down
+
+- Critical action
+  Windows action at the critical-battery level:
+
+  Do nothing
+  Sleep
+  Hibernate
+  Shut down
+
+Summary:
+
+- Shows the current Battery Saver policy in plain language.
+
+
+9. PowerPilot Log Tab
+---------------------
+
+The PowerPilot Log tab controls battery sampling, estimates, and retained CSV
+rows.
+
+Sampling and Estimates:
+
+- Log samples
+  Enables or disables retained battery sample logging.
+
+- Log every
+  Minutes between saved battery rows when logging is enabled.
+
+- Read every
+  Seconds between live battery reads while the window is open. Tray mode may
+  slow down background work to reduce wakeups.
+
+- Empty at
+  Battery percent treated as empty for PowerPilot time estimates.
+
+- Full at
+  Battery percent treated as full for graph range, charging target, and
+  full-run runtime estimates.
+
+- Use charge limit
+  Uses a laptop charge-limit target as the "full" point. This is useful when
+  the laptop normally stops around 80 percent instead of 100 percent.
+
+- Charge-limit percent
+  The full point used when Use charge limit is checked. Disabled when the
+  checkbox is off.
+
+- Average window
+  Number of recent minutes averaged for estimates. Longer windows are calmer.
+  Shorter windows react faster.
+
+- Startup drain
+  Temporary percent-per-hour estimate used after startup until enough fresh
+  samples exist.
+
+- Reset log
+  Clears retained battery rows, graph history, and current estimate learning.
+
+Retained Log:
+
+The table shows retained battery, screen, power event, app, and test rows.
+
+Columns include:
+
+- Timestamp
+- Battery %
+- Avg time
+- Instant time
+- Win time
+- Now rate
+- Plugged in
+- Batt W
+- Screen
+- Laptop %
+
+Buttons:
+
+- Copy rows
+  Copies selected visible rows. If no row is selected, it copies the newest
+  visible row.
+
+- Copy CSV
+  Copies the full retained CSV log.
+
+
+10. Battery Graph Tab
+---------------------
+
+The Battery Graph tab shows live battery status, time estimates, and a retained
+history graph.
+
+Live Status:
+
+- Battery
+  Current battery percent.
+
+- State
+  Plugged in/on battery plus charging, discharging, or idle.
+
+- Remaining
+  Remaining battery capacity in mWh.
+
+- Battery draw
+  Live charge/discharge watts from Windows battery status.
+
+- Voltage
+  Battery voltage when the Windows battery driver exposes it.
+
+- App use
+  Estimated PowerPilot app battery cost over the live 60-second window.
+
+- Avg use
+  Estimated PowerPilot app battery cost averaged over the selected minutes.
+  The minutes selector defaults to 10 and can be set from 1 to 60.
+
+Time Estimates:
+
+- Average
+  Smoothed estimate based on recent battery movement. If the laptop is on AC
+  or the drain is too small to trust, PowerPilot says so instead of showing a
+  huge runtime.
+
+- Now
+  Current-rate estimate while discharging.
+
+- Windows
+  Windows or firmware remaining-time estimate when available.
+
+- Full run
+  Learned runtime from Full at down to Empty at. This is paused on AC and hidden
+  when the drain rate is too small to trust.
+
+- Wear
+  Wear calculated from full-charge capacity versus design capacity.
+
+- As-new run
+  Estimated runtime if the battery still had design capacity. It uses the same
+  believable-data rule as Full run.
+
+- Capacity
+  Current full-charge capacity and design capacity.
+
+- Cycle count
+  Battery cycle count when exposed by Windows WMI.
+
+Graph controls:
+
+- Markers
+  Shows or hides marker letters and marker legend.
+
+- History
+  Selects graph history window: 1 h, 3 h, 6 h, 12 h, 18 h, 24 h, 36 h, 48 h,
+  60 h, 72 h, or Max for the retained 168-hour log window.
+
+Graph meaning:
+
+- Blue line/points: normal battery history.
+- Green: Energy Saver.
+- Orange/red markers: power events or discontinuities.
+
+Marker letters:
+
+- Z sleep/suspend
+- H hibernate
+- W wake
+- S shutdown
+- P startup
+- ! bad/improper shutdown
+- 0 offline
+- 1 online
+- E Energy Saver
+- N normal
+
+
+11. Battery Stats Tab
+---------------------
+
+Battery Stats summarizes retained data and display choices.
+
+Latest Event:
+
+- Most recent power lifecycle event such as sleep, wake, shutdown, startup, or
+  app status.
+
+Sleep/Off Loss:
+
+- Battery percent lost while asleep, hibernated, shut down, or during missing
+  sample gaps.
+
+Today:
+
+- Today's battery range, active on-battery time, active drain, wear, and cycle
+  information when enough data exists.
+
+Visible Log Columns:
+
+These checkboxes affect the visible PowerPilot Log table. Copy CSV still keeps
+the full data.
+
+- Avg time
+- Now/rate
+- Win time
+- Plugged in
+- Batt W
+- Laptop %
+- Screen
+- Events
+
+Display only:
+
+- The visible column choices are for readability.
+- Full CSV copy keeps all retained columns.
+
+Settings buttons:
+
+- Export settings
+  Saves PowerPilot settings to an INI file you choose.
+
+- Import settings
+  Restores PowerPilot settings from an exported INI file.
+
+Battery Analysis:
+
+- Rebuilds a retained-log analysis for capacity, power, charging, warnings,
+  and related notes.
+
+- Refresh analysis
+  Reads current battery data and rebuilds the analysis.
+
+
+12. Power Use Tab
+-----------------
+
+Power Use explains PowerPilot's own estimated battery cost.
+
+App Battery Cost:
+
+- Shows estimated app draw based on recent process CPU time.
+- Shows a live 60-second estimate plus the selected average-window estimate.
+- CPU load is normalized to total logical CPU capacity.
+- Full-to-empty cost converts the app estimate into runtime seconds across
+  the configured usable battery window.
+
+Battery Source:
+
+- Shows which Windows battery data path PowerPilot is using.
+
+Reading the Estimate:
+
+- App power draw estimates only PowerPilot.
+- Full-to-empty cost estimates how much battery runtime this app may consume.
+- 0.00 mW can be normal when plugged in, idle, or when Windows does not expose
+  usable watts.
+- This is not a hardware power meter.
+
+Idle Checks:
+
+- Compare the visible window against tray-hidden mode.
+- Check the log for screen, wake, and update rows.
+- Keep Read every and Log every modest.
+- Use Task Manager or Windows energy reports to investigate other apps.
+
+
+13. Battery Test Tab
+--------------------
+
+Battery Test monitors battery runs and laptop calibration workflows. It records
+what Windows reports. It does not command firmware calibration directly.
+
+Workflow:
+
+- Monitor
+  Default mode. Watches live readings without starting a report.
+
+- Manual test
+  Starts an unplug discharge test report. Use this when you want to measure a
+  normal battery run.
+
+- Calibration
+  Starts a guided calibration observer for laptops whose vendor calibration
+  process reports plugged-in discharge through Windows.
+
+- Vendor calibration detected
+  Appears automatically when Windows reports plugged in and discharging at the
+  same time.
+
+- Charge recovery
+  Tracks charging back to the configured full target.
+
+Workflow fields:
+
+- Mode
+  Current Battery Test mode.
+
+- Phase
+  Current live phase from Windows battery state.
+
+- Elapsed
+  Time since the current test log started.
+
+Workflow buttons:
+
+- Manual test
+  Start a report for an unplug discharge and later charge recovery.
+
+- Calibration
+  Watch a laptop calibration workflow. PowerPilot verifies phases Windows
+  reports and can start the optional drain helper.
+
+- End
+  End the current battery test log and freeze the summary.
+
+Live Windows Readings:
+
+- Battery
+  Current battery percent.
+
+- Remaining
+  Remaining battery capacity in mWh.
+
+- Watts
+  Live charging or discharging watts.
+
+- Estimate
+  Current estimated time to empty or configured full target.
+
+- Guide text
+  The next action PowerPilot expects for the current workflow.
+
+Report and Log:
+
+- PowerPilot writes BATTERY TEST rows into the retained PowerPilot Log.
+- End freezes a report.
+- Saved reports live in %APPDATA%\PowerPilot\reports.
+
+Report buttons:
+
+- Open report
+  Opens the latest saved Battery Test report.
+
+- Copy report
+  Copies the current full report to the clipboard.
+
+Calibration Drain Helper:
+
+This optional helper uses local CPU load to speed up a calibration discharge.
+It is mainly for vendor battery calibration workflows where the laptop remains
+plugged in while firmware discharges the battery.
+
+- Target min
+  Target minutes from now to Empty at. Typed values are saved when you leave
+  the field, press Enter while the field is active, or start Auto.
+
+- Auto
+  Starts or stops automatic CPU load control for the chosen drain target.
+
+- Auto status
+  Shows whether Auto is off or displays current target timing.
+
+- Load
+  Shows current CPU load target.
+
+- Test mode
+  Writes detailed drain-helper controller rows for tuning and troubleshooting.
+
+Drain helper rules:
+
+- Auto starts gently.
+- Auto adjusts about every 10 seconds.
+- Auto stops when charging starts.
+- Auto should be stopped when you are done testing.
+
+
+14. About Tab
+-------------
+
+The About tab is the in-app reference page.
+
+It shows:
+
+- PowerPilot version.
+- Purpose.
+- Windows power mode to PowerPilot plan mapping.
+- Logged data categories.
+- Local data and privacy summary.
+- Bundled files.
+- Important measurement boundaries.
+
+Buttons:
+
+- USER MANUAL
+  Opens USER_MANUAL.txt.
+
+- README
+  Opens README.txt.
+
+- LICENSE
+  Opens LICENSE.txt.
+
+
+15. Installer, Update, and Uninstall Notes
+------------------------------------------
+
+The installer installs:
+
+- The versioned PowerPilot executable.
+- Icons.
+- USER_MANUAL.txt.
+- README.txt.
+- THIRD_PARTY_NOTICES.txt.
+- LICENSE.txt.
+- Desktop shortcut.
+- Windows uninstall metadata.
+
+Updates can close an older PowerPilot instance and start the new one hidden in
+the tray. Settings are per-user and are normally preserved when "Keep settings"
+is enabled.
+
+Uninstall removes installed app-owned files. User settings and logs may remain
+depending on the selected uninstall/update flow and the Keep settings choice.
+
+
+16. Troubleshooting
+-------------------
+
+Brightness is blank:
+
+- Windows may not expose reliable internal-panel brightness.
+- External monitors are deliberately avoided so PowerPilot does not log the
+  wrong display.
+
+Battery watts is 0.00 W:
+
+- The battery may be idle, plugged in, or the driver may not expose live watts.
+- Some laptops update battery-rate values slowly.
+
+Windows remaining time is blank:
+
+- Windows often reports this only while discharging.
+
+Estimates jump after startup:
+
+- Startup drain is used until fresh samples exist.
+- Increase Average window for calmer estimates.
+
+Battery calibration does not start:
+
+- Vendor calibration must expose plugged-in discharge through Windows.
+- PowerPilot can observe and log the workflow, but it cannot command firmware
+  calibration by itself.
+
+Tray icon opens slowly:
+
+- The window should already be built. If opening is slow, it is usually because
+  Windows or the app is doing fresh power/battery reads while showing the
+  window.
+
+
+17. Recommended Everyday Setup
+------------------------------
+
+For normal use:
+
+- Enable Start with Windows.
+- Keep settings enabled.
+- Leave Show tips enabled until the layout is familiar.
+- Leave Theme on Windows unless you want to force Light or Dark.
+- Use Automatic threshold unless you specifically want Battery plan always.
+- Leave Brightness unchecked if you want PowerPilot to avoid changing Windows
+  Energy Saver brightness.
+- Use charge limit only when your laptop has a real charge-limit target.
+- Keep Read every and Log every modest for low background activity.
+- Use Hide instead of Exit if you want PowerPilot to keep following Windows
+  power mode.

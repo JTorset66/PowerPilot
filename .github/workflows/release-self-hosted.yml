@@ -48,7 +48,7 @@ jobs:
           if ($env:GITHUB_REF -like 'refs/tags/v*') {
             $tagVersion = $env:GITHUB_REF_NAME -replace '^v', ''
             if ($tagVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-              throw "Release tag must be v followed by a four-part numeric version, for example v1.1.2605.14550."
+              throw "Release tag must be v followed by a four-part numeric version, for example v1.2.2605.14550."
             }
             $buildArgs.AppVersion = $tagVersion
           }

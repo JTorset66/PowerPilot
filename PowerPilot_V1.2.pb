@@ -1,8 +1,8 @@
 EnableExplicit
 
-; PowerPilot v1.1
+; PowerPilot v1.2
 ; PureBasic-only Windows power-plan manager with local CPU/GPU identification.
-; Author: John Torset.
+; Copyright: Dofta.
 ;
 ; Design contract:
 ; - PowerPilot owns only its three named Windows power plans. Normal Windows plans
@@ -11,8 +11,8 @@ EnableExplicit
 ;   commands may run elevated, but the tray app should persist HKCU/AppData data.
 ; - Battery data comes from Windows battery/display APIs and local retained CSV
 ;   rows. PowerPilot does not send telemetry or depend on a background service.
-; - The UI is one fixed tab window with DPI/View scaling. When adding gadgets,
-;   keep labels short and let tooltips/README carry secondary explanation.
+; - The UI is one fixed tab window with DPI/View scaling. Keep control labels
+;   concise and let tooltips/README carry secondary explanation.
 ;
 ; Source layout:
 ; - Constants, structures, globals, and forward declarations.
@@ -23,12 +23,12 @@ EnableExplicit
 ; - GUI construction, event dispatch, tray behavior, and command-line entry.
 
 #AppName$            = "PowerPilot"
-#AppVersion$         = "1.1.2605.14550"
+#AppVersion$         = "1.2.2605.23851"
 #AppFullName$        = #AppName$ + " v" + #AppVersion$
 #AppRunKey$          = "PowerPilot"
 #SettingsFolderName$ = "PowerPilot"
 #SettingsFileName$   = "settings.ini"
-#SettingsVersion = 20
+#SettingsVersion     = 24
 #TrayTooltip$        = #AppFullName$
 
 ; PowerPilot owns exactly three Windows plans. The old "Codex" prefix is kept
@@ -129,7 +129,6 @@ EnableExplicit
 #MainWindowBaseWidth = 760
 #MainWindowBaseHeight = 560
 #MainWindowMinScale = 0.585
-#MainWindowMaxScale = 2.0
 #MainWindowMinWidth = 445
 #MainWindowMinHeight = 328
 #UiFontMinSize = 5
@@ -141,10 +140,15 @@ EnableExplicit
 #PopupTray = 1
 #TimerRefresh = 1
 #TimerBatterySettingsApply = 2
+#TimerDeferredShowRefresh = 3
+#TimerThemeApply = 4
 #RefreshVisibleMs = 5000
 #RefreshBatteryTestTabMs = 1000
 #RefreshHiddenMs = 30000
 #RefreshHiddenDeepIdleMs = 300000
+#RefreshStartupTrayRetryMs = 5000
+#ShowFromTrayRefreshDelayMs = 1000
+#ShowFromTrayFreshDisplayMs = 60000
 #BatterySettingsApplyDelayMs = 1500
 #ProgramTimeoutMs = 10000
 #ThrottleScanMs = 30000
@@ -153,9 +157,10 @@ EnableExplicit
 ; how much history the PowerPilot Log tab and startup graph reload can show.
 #BatteryGraphMaxPoints = 60000
 #BatteryGraphDefaultHours = 24
-#BatteryGraphMaxWindowSeconds = 259200
-#BatteryGraphLongAppGapSeconds = 3600
 #BatteryLogRetentionSeconds = 604800
+#BatteryGraphMaxWindowHours = 168
+#BatteryGraphMaxWindowSeconds = #BatteryLogRetentionSeconds
+#BatteryGraphLongAppGapSeconds = 3600
 #BatteryStaticRefreshSeconds = 86400
 #BatteryDefaultLogMinutes = 5
 #BatteryDefaultRefreshSeconds = 5
@@ -172,11 +177,15 @@ EnableExplicit
 #BatteryStableCapacityMinSamples = 3
 #BatteryCapacityRecalibrationThreshold = 0.02
 #BatteryLowGaugePercent = 7
+#BatteryRuntimeDisplayMaxMinutes = 4320
 #BatteryRollingMaxSamples = 96
 #BatteryAutoDrainMinHoldSeconds = 20
 #BatteryAutoDrainMaxStep = 10
 #PowerPilotUseWindowSeconds = 60
-#PowerPilotUseMaxPoints = 64
+#PowerPilotUseAverageDefaultMinutes = 10
+#PowerPilotUseAverageMinMinutes = 1
+#PowerPilotUseAverageMaxMinutes = 60
+#PowerPilotUseMaxPoints = 4096
 #TabBatteryGraph = 4
 #TabBatteryTest = 7
 
@@ -191,16 +200,28 @@ EnableExplicit
 #BatteryUseActive = 3
 #BatteryUseHighLoad = 4
 
+#ThemeModeWindows = 0
+#ThemeModeLight = 1
+#ThemeModeDark = 2
+
 ; Window and power-broadcast messages used to distinguish real PC power events
 ; from installer/restart-manager app closes. CLOSEAPP is intentionally ignored
 ; as a PC shutdown marker elsewhere in the code.
 #WM_QUERYENDSESSION = $0011
 #WM_ENDSESSION = $0016
+#WM_ERASEBKGND = $0014
+#WM_SETTINGCHANGE = $001A
 #WM_SETREDRAW = $000B
 #WM_SETFONT = $0030
 #WM_POWERBROADCAST = $0218
+#WM_CTLCOLOREDIT = $0133
+#WM_CTLCOLORLISTBOX = $0134
+#WM_CTLCOLORBTN = $0135
+#WM_CTLCOLORSTATIC = $0138
+#WM_DRAWITEM = $002B
 #WM_APP = $8000
 #WM_POWERPILOT_UPDATE_CLOSE = #WM_APP + $66
+#WM_POWERPILOT_SHOW = #WM_APP + $67
 #ENDSESSION_CLOSEAPP = $00000001
 #PBT_APMSUSPEND = $0004
 #PBT_APMRESUMECRITICAL = $0006
@@ -209,8 +230,27 @@ EnableExplicit
 #PBT_APMRESUMEAUTOMATIC = $0012
 #PBT_POWERSETTINGCHANGE = $8013
 #DEVICE_NOTIFY_WINDOW_HANDLE = 0
+#HWND_BOTTOM = 1
+#SWP_NOSIZE = $0001
+#SWP_NOMOVE = $0002
 #SWP_NOZORDER = $0004
 #SWP_NOACTIVATE = $0010
+#SWP_FRAMECHANGED = $0020
+#SW_RESTORE = 9
+#GWL_WNDPROC = -4
+#GWL_STYLE = -16
+#TCS_FLATBUTTONS = $0008
+#TCS_BUTTONS = $0100
+#TCS_OWNERDRAWFIXED = $2000
+#ODS_SELECTED = $0001
+#DT_CENTER = $00000001
+#DT_VCENTER = $00000004
+#DT_SINGLELINE = $00000020
+#TRANSPARENT = 1
+#RDW_INVALIDATE = $0001
+#RDW_ERASE = $0004
+#RDW_ALLCHILDREN = $0080
+#RDW_UPDATENOW = $0100
 #DisplayStateOff = 0
 #DisplayStateOn = 1
 #DisplayStateDimmed = 2
@@ -233,6 +273,10 @@ EnableExplicit
 #BatteryOpenExisting = 3
 #BatteryGenericRead = $80000000
 #BatteryGenericWrite = $40000000
+#HKEY_CURRENT_USER = $80000001
+#KEY_QUERY_VALUE = $0001
+#ERROR_SUCCESS = 0
+#REG_DWORD = 4
 
 ; Process and EcoQoS constants. These are deliberately minimal so PowerPilot
 ; can throttle only safe background maintenance processes without a helper exe.
@@ -262,14 +306,21 @@ Prototype.i SetupDiDestroyDeviceInfoListProto(deviceInfoSet.i)
 Enumeration 100
   #MenuOpen
   #MenuExit
+  #MenuCommitBatteryLoadTarget
 EndEnumeration
 
 ; Gadget ids are centralized because PureBasic uses integer ids for event
 ; dispatch. Keep this list aligned with CreateMainWindow and HandleAction.
 Enumeration 200
   #GadgetPanel
+  #GadgetDarkTabBar
+  #GadgetDarkPanelTopBorder
+  #GadgetDarkPanelLeftBorder
+  #GadgetDarkPanelRightBorder
+  #GadgetDarkPanelBottomBorder
   #GadgetCpuInfo
   #GadgetGpuInfo
+  #GadgetOverviewDisplay
   #GadgetActivePlan
   #GadgetPowerSource
   #GadgetLastAction
@@ -297,6 +348,7 @@ Enumeration 200
   #GadgetDeepIdleSaver
   #GadgetEnergySaverMode
   #GadgetEnergySaverThreshold
+  #GadgetEnergySaverBrightnessEnabled
   #GadgetEnergySaverBrightness
   #GadgetBatteryLowWarningPercent
   #GadgetBatteryReservePercent
@@ -306,6 +358,7 @@ Enumeration 200
   #GadgetRestoreNormalPlanOnExit
   #GadgetBatterySaverSummary
   #GadgetShowToolTips
+  #GadgetThemeMode
   #GadgetHideToTray
   #GadgetExit
   #GadgetBatteryPercent
@@ -315,6 +368,8 @@ Enumeration 200
   #GadgetBatteryRates
   #GadgetBatteryVoltage
   #GadgetPowerPilotDraw
+  #GadgetPowerPilotDrawAverage
+  #GadgetPowerPilotAverageMinutes
   #GadgetBatteryEstimate
   #GadgetBatteryInstantEstimate
   #GadgetBatteryRuntime
@@ -385,6 +440,7 @@ Enumeration 200
   #GadgetAboutData
   #GadgetAboutVersion
   #GadgetAboutLicense
+  #GadgetAboutOpenManual
   #GadgetAboutOpenReadme
   #GadgetAboutOpenLicense
   #GadgetAboutBoundaries
@@ -428,12 +484,14 @@ Structure AppSettings
   ThrottleMaintenance.i
   DeepIdleSaver.i
   ShowToolTips.i
+  ThemeMode.i
 
   ; Battery Saver tab. These values are written to PowerPilot-owned Windows
   ; plans while the tray app is running, then normal-plan restore can switch the
   ; user back to the last non-PowerPilot plan on exit.
   EnergySaverMode.i
   EnergySaverThreshold.i
+  EnergySaverBrightnessEnabled.i
   EnergySaverBrightness.i
   BatteryLowWarningPercent.i
   BatteryReservePercent.i
@@ -457,6 +515,7 @@ Structure AppSettings
   BatteryLastChargePctPerHour.d
   BatteryChargeLearningCount.i
   BatteryLastStaticQuery.q
+  PowerPilotUseAverageMinutes.i
 
   ; Battery Test and graph presentation.
   BatteryCalibrationDrainMinutes.i
@@ -613,6 +672,15 @@ Structure PowerPilotUsePoint
   CpuTime100Ns.q
 EndStructure
 
+Structure PowerPilotUseWindowResult
+  Valid.i
+  ElapsedSeconds.d
+  CpuWindowSeconds.d
+  CpuTotalPercent.d
+  Milliwatts.d
+  SecondsCost.q
+EndStructure
+
 ; PC power events are graph markers. App lifecycle/status rows stay in the CSV
 ; and average-break list, but are not drawn as PC shutdown/sleep markers.
 Structure BatteryEventPoint
@@ -697,11 +765,35 @@ EndStructure
 
 Structure UiChildLayout
   Hwnd.i
+  Gadget.i
   Parent.i
   X.i
   Y.i
   Width.i
   Height.i
+EndStructure
+
+Structure ThemeFrameLayout
+  Gadget.i
+  TitleGadget.i
+  TopLeft.i
+  TopRight.i
+  Left.i
+  Right.i
+  Bottom.i
+  Title.s
+EndStructure
+
+Structure PowerPilotDrawItemStruct
+  CtlType.l
+  CtlID.l
+  itemID.l
+  itemAction.l
+  itemState.l
+  hwndItem.i
+  hDC.i
+  rcItem.RECT
+  itemData.i
 EndStructure
 
 ; Fixed plans and application state.
@@ -718,22 +810,39 @@ Global gCachedActiveName$
 Global gCachedPowerModeGuid$
 Global gCachedPowerModeText$
 Global gSchemeCacheValid.i
+Global gFoundPowerPilotWindow.i
 
 ; Timer state is intentionally tiny. The desired cadence is recalculated each
 ; time the window is shown/hidden or Battery Test becomes active, so the app
 ; only needs to remember whether a window timer currently exists.
 Global gRefreshTimerActive.i
 Global gBatterySettingsApplyPending.i
+Global gDeferredShowRefreshActive.i
+Global gThemeApplyPending.i
+Global gLastWindowDisplayPrepareTick.q
 
 ; UI scaling uses the original gadget rectangles captured after construction.
 ; The base list is rebuilt only when the window is created; resizing then scales
 ; every child window from those stable coordinates to avoid cumulative drift.
 Global gFontUi.i
 Global gFontBold.i
+Global gFontTab.i
+Global gTabFontSize.i
 Global gUiFontSize.i
 Global gUiScale.d = 1.0
 Global gUiBaseClientWidth.i
 Global gUiBaseClientHeight.i
+Global gThemeDarkActive.i
+Global gThemeBackBrush.i
+Global gThemeFieldBackBrush.i
+Global gThemeBackColor.i = RGB(240, 240, 240)
+Global gThemeFieldBackColor.i = RGB(255, 255, 255)
+Global gThemeTextColor.i = RGB(0, 0, 0)
+Global gThemeSubtleTextColor.i = RGB(70, 70, 70)
+Global gThemeBorderColor.i = RGB(160, 160, 160)
+Global gThemeAccentColor.i = RGB(0, 95, 184)
+Global gThemeTabSelectedColor.i = RGB(255, 255, 255)
+Global gThemeTabRestColor.i = RGB(245, 245, 245)
 Global gPowrProfLibrary.i
 Global gPowerApiTried.i
 Global gPowerGetActiveScheme.PowerGetActiveSchemeProto
@@ -788,13 +897,19 @@ Global gBatteryPowerStateKnown.i
 Global gBatteryPowerStateConnected.i
 Global gBatteryPowerStateCharging.i
 Global gBatteryNativeFallbackUsed.i
+Global gPowerPilotCpuWindowValid.i
 Global gPowerPilotCpuWindowSeconds.d
 Global gPowerPilotCpuWindowTotalPercent.d
 Global gPowerPilotCpuWindowMw.d
-Global gPowerPilotCpuWindowSecondsCost.d
+Global gPowerPilotCpuWindowSecondsCost.q
 Global gPowerPilotCpuWindowDrainBasisMW.d
 Global gPowerPilotCpuWindowDrainBasisEstimated.i
 Global gPowerPilotCpuWindowDrainBasisPctPerHour.d
+Global gPowerPilotCpuAverageValid.i
+Global gPowerPilotCpuAverageSeconds.d
+Global gPowerPilotCpuAverageTotalPercent.d
+Global gPowerPilotCpuAverageMw.d
+Global gPowerPilotCpuAverageSecondsCost.q
 Global gLastSuspendTime.q
 Global gShutdownLogged.i
 Global gBatteryTestActive.i
@@ -875,6 +990,9 @@ Global gFrameBatterySettings.i
 Global gWindowPreparingForDisplay.i
 Global NewList gUiLayout.UiChildLayout()
 Global NewList gUiBoldHwnds.i()
+Global NewList gThemePageContainers.i()
+Global NewList gThemeFrames.ThemeFrameLayout()
+Global NewMap gThemePageOldProc.i()
 
 ; Windows scheme cache maps both directions because UI refreshes often need
 ; names while plan application paths usually need GUIDs.
@@ -910,6 +1028,8 @@ Declare StopBatteryCpuLoad(logEvent.i = #True)
 Declare SetBatteryDrainHelperTestMode(enabled.i)
 Declare WriteBatteryDrainHelperTrace(reason$, targetMinutes.d, currentMinutes.d, errorMinutes.d, measuredW.d, usableMWh.d, selectedLoad.i, force.i = #False, targetW.d = 0.0, errorW.d = 0.0, phase$ = "")
 Declare RefreshBatteryCpuLoadDisplay()
+Declare.i BatteryCalibrationTargetMinutesFromGui(updateGui.i = #True)
+Declare ApplyBatteryCalibrationTargetMinutes(updateActive.i = #True)
 Declare SaveBatterySettingsFromGui()
 Declare SaveBatteryGraphDisplaySettingsFromGui()
 Declare RefreshBatterySaverSummary()
@@ -961,6 +1081,8 @@ Declare.i LogUpdateCloseIfSameExeRunning()
 Declare.i LogUpdateCloseIfAnyPowerPilotRunning()
 Declare.i MainWindowVisible()
 Declare.i EnsureSingleInstance()
+Declare.i SignalRunningInstanceToShow()
+Declare.i ThemePageCallback(hwnd.i, message.i, wParam.i, lParam.i)
 
 ; Quotes command arguments for RunProgram calls. The app builds its own command
 ; strings for powercfg and PowerShell rather than invoking a shell pipeline.
@@ -988,6 +1110,26 @@ Procedure EnsureSettingsDirectory()
   If FileSize(SettingsDirectory()) <> -2
     CreateDirectory(SettingsDirectory())
   EndIf
+EndProcedure
+
+Procedure RuntimeErrorHandler()
+  Protected path$ = GetEnvironmentVariable("APPDATA")
+  If path$ = ""
+    path$ = GetCurrentDirectory()
+  Else
+    path$ + "\" + #SettingsFolderName$
+  EndIf
+  If FileSize(path$) <> -2
+    CreateDirectory(path$)
+  EndIf
+  If CreateFile(0, path$ + "\runtime-error.txt")
+    WriteStringN(0, FormatDate("%yyyy-%mm-%dd %hh:%ii:%ss", Date()))
+    WriteStringN(0, "Message: " + ErrorMessage())
+    WriteStringN(0, "Line: " + Str(ErrorLine()))
+    WriteStringN(0, "Address: " + Str(ErrorAddress()))
+    CloseFile(0)
+  EndIf
+  End 1
 EndProcedure
 
 Procedure.s BatteryReportDirectory()
@@ -1077,6 +1219,13 @@ Procedure.s EnergySaverModeName(mode.i)
       ProcedureReturn "Battery plan always"
   EndSelect
   ProcedureReturn "Automatic threshold"
+EndProcedure
+
+Procedure.s EnergySaverBrightnessText()
+  If gSettings\EnergySaverBrightnessEnabled
+    ProcedureReturn "brightness " + Str(ClampInt(gSettings\EnergySaverBrightness, 0, 100)) + "%"
+  EndIf
+  ProcedureReturn "brightness untouched"
 EndProcedure
 
 ; Default PowerPilot Log column widths are deliberately below the full list
@@ -1354,6 +1503,7 @@ Procedure LoadSettings()
   gSettings\DeepIdleSaver = #True
   gSettings\EnergySaverMode = #EnergySaverFollowWindows
   gSettings\EnergySaverThreshold = #EnergySaverWindowsThreshold
+  gSettings\EnergySaverBrightnessEnabled = #True
   gSettings\EnergySaverBrightness = #EnergySaverDefaultBrightness
   gSettings\BatteryLowWarningPercent = #BatteryLowWarningDefaultPercent
   gSettings\BatteryReservePercent = #BatteryReserveDefaultPercent
@@ -1362,6 +1512,7 @@ Procedure LoadSettings()
   gSettings\BatteryCriticalAction = #BatteryActionSleep
   gSettings\RestoreNormalPlanOnExit = #True
   gSettings\ShowToolTips = #True
+  gSettings\ThemeMode = #ThemeModeWindows
   gSettings\BatteryLogEnabled = #True
   gSettings\BatteryLogIntervalMinutes = #BatteryDefaultLogMinutes
   gSettings\BatteryRefreshSeconds = #BatteryDefaultRefreshSeconds
@@ -1375,6 +1526,7 @@ Procedure LoadSettings()
   gSettings\BatteryLastChargePctPerHour = 0.0
   gSettings\BatteryChargeLearningCount = 0
   gSettings\BatteryLastStaticQuery = 0
+  gSettings\PowerPilotUseAverageMinutes = #PowerPilotUseAverageDefaultMinutes
   gSettings\BatteryCalibrationDrainMinutes = #BatteryCalibrationDefaultDrainMinutes
   gSettings\BatteryGraphHours = #BatteryGraphDefaultHours
   gSettings\BatteryGraphShowMarkers = #True
@@ -1408,6 +1560,7 @@ Procedure LoadSettings()
     gSettings\DeepIdleSaver = ReadPreferenceInteger("DeepIdleSaver", gSettings\DeepIdleSaver)
     gSettings\EnergySaverMode = ReadPreferenceInteger("EnergySaverMode", gSettings\EnergySaverMode)
     gSettings\EnergySaverThreshold = ReadPreferenceInteger("EnergySaverThreshold", gSettings\EnergySaverThreshold)
+    gSettings\EnergySaverBrightnessEnabled = ReadPreferenceInteger("EnergySaverBrightnessEnabled", gSettings\EnergySaverBrightnessEnabled)
     gSettings\EnergySaverBrightness = ReadPreferenceInteger("EnergySaverBrightness", gSettings\EnergySaverBrightness)
     gSettings\BatteryLowWarningPercent = ReadPreferenceInteger("BatteryLowWarningPercent", gSettings\BatteryLowWarningPercent)
     gSettings\BatteryReservePercent = ReadPreferenceInteger("BatteryReservePercent", gSettings\BatteryReservePercent)
@@ -1416,6 +1569,7 @@ Procedure LoadSettings()
     gSettings\BatteryCriticalAction = ReadPreferenceInteger("BatteryCriticalAction", gSettings\BatteryCriticalAction)
     gSettings\RestoreNormalPlanOnExit = ReadPreferenceInteger("RestoreNormalPlanOnExit", gSettings\RestoreNormalPlanOnExit)
     gSettings\ShowToolTips = ReadPreferenceInteger("ShowToolTips", gSettings\ShowToolTips)
+    gSettings\ThemeMode = ReadPreferenceInteger("ThemeMode", gSettings\ThemeMode)
     gSettings\BatteryLogEnabled = ReadPreferenceInteger("BatteryLogEnabled", gSettings\BatteryLogEnabled)
     gSettings\BatteryLogIntervalMinutes = ReadPreferenceInteger("BatteryLogIntervalMinutes", gSettings\BatteryLogIntervalMinutes)
     gSettings\BatteryRefreshSeconds = ReadPreferenceInteger("BatteryRefreshSeconds", gSettings\BatteryRefreshSeconds)
@@ -1429,6 +1583,7 @@ Procedure LoadSettings()
     gSettings\BatteryLastChargePctPerHour = ValD(ReadPreferenceString("BatteryLastChargePctPerHour", StrD(gSettings\BatteryLastChargePctPerHour, 2)))
     gSettings\BatteryChargeLearningCount = ReadPreferenceInteger("BatteryChargeLearningCount", gSettings\BatteryChargeLearningCount)
     gSettings\BatteryLastStaticQuery = Val(ReadPreferenceString("BatteryLastStaticQuery", Str(gSettings\BatteryLastStaticQuery)))
+    gSettings\PowerPilotUseAverageMinutes = ReadPreferenceInteger("PowerPilotUseAverageMinutes", gSettings\PowerPilotUseAverageMinutes)
     gSettings\BatteryCalibrationDrainMinutes = ReadPreferenceInteger("BatteryCalibrationDrainMinutes", gSettings\BatteryCalibrationDrainMinutes)
     gSettings\BatteryGraphHours = ReadPreferenceInteger("BatteryGraphHours", gSettings\BatteryGraphHours)
     gSettings\BatteryGraphShowMarkers = ReadPreferenceInteger("BatteryGraphShowMarkers", gSettings\BatteryGraphShowMarkers)
@@ -1480,6 +1635,7 @@ Procedure LoadSettings()
   gSettings\BatteryRefreshSeconds = ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)
   gSettings\EnergySaverMode = ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled)
   gSettings\EnergySaverThreshold = ClampInt(gSettings\EnergySaverThreshold, 0, 100)
+  gSettings\EnergySaverBrightnessEnabled = Bool(gSettings\EnergySaverBrightnessEnabled)
   gSettings\EnergySaverBrightness = ClampInt(gSettings\EnergySaverBrightness, 0, 100)
   gSettings\BatteryCriticalPercent = ClampInt(gSettings\BatteryCriticalPercent, 1, 99)
   gSettings\BatteryLowWarningPercent = ClampInt(gSettings\BatteryLowWarningPercent, gSettings\BatteryCriticalPercent + 1, 100)
@@ -1487,10 +1643,12 @@ Procedure LoadSettings()
   gSettings\BatteryLowAction = ClampInt(gSettings\BatteryLowAction, #BatteryActionDoNothing, #BatteryActionShutdown)
   gSettings\BatteryCriticalAction = ClampInt(gSettings\BatteryCriticalAction, #BatteryActionDoNothing, #BatteryActionShutdown)
   gSettings\RestoreNormalPlanOnExit = Bool(gSettings\RestoreNormalPlanOnExit)
+  gSettings\ThemeMode = ClampInt(gSettings\ThemeMode, #ThemeModeWindows, #ThemeModeDark)
   gSettings\BatteryMinPercent = ClampInt(gSettings\BatteryMinPercent, 0, 99)
   gSettings\BatteryMaxPercent = ClampInt(gSettings\BatteryMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatteryLimiterMaxPercent = ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatterySmoothingMinutes = ClampInt(gSettings\BatterySmoothingMinutes, 5, 240)
+  gSettings\PowerPilotUseAverageMinutes = ClampInt(gSettings\PowerPilotUseAverageMinutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes)
   gSettings\BatteryCalibrationDrainMinutes = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
   gSettings\BatteryGraphHours = NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)
   gSettings\BatteryGraphShowMarkers = Bool(gSettings\BatteryGraphShowMarkers)
@@ -1535,6 +1693,7 @@ Procedure SaveSettings()
     WritePreferenceInteger("DeepIdleSaver", Bool(gSettings\DeepIdleSaver))
     WritePreferenceInteger("EnergySaverMode", ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled))
     WritePreferenceInteger("EnergySaverThreshold", ClampInt(gSettings\EnergySaverThreshold, 0, 100))
+    WritePreferenceInteger("EnergySaverBrightnessEnabled", Bool(gSettings\EnergySaverBrightnessEnabled))
     WritePreferenceInteger("EnergySaverBrightness", ClampInt(gSettings\EnergySaverBrightness, 0, 100))
     WritePreferenceInteger("BatteryLowWarningPercent", ClampInt(gSettings\BatteryLowWarningPercent, gSettings\BatteryCriticalPercent + 1, 100))
     WritePreferenceInteger("BatteryReservePercent", ClampInt(gSettings\BatteryReservePercent, gSettings\BatteryCriticalPercent, 100))
@@ -1543,6 +1702,7 @@ Procedure SaveSettings()
     WritePreferenceInteger("BatteryCriticalAction", ClampInt(gSettings\BatteryCriticalAction, #BatteryActionDoNothing, #BatteryActionShutdown))
     WritePreferenceInteger("RestoreNormalPlanOnExit", Bool(gSettings\RestoreNormalPlanOnExit))
     WritePreferenceInteger("ShowToolTips", Bool(gSettings\ShowToolTips))
+    WritePreferenceInteger("ThemeMode", ClampInt(gSettings\ThemeMode, #ThemeModeWindows, #ThemeModeDark))
     WritePreferenceInteger("BatteryLogEnabled", Bool(gSettings\BatteryLogEnabled))
     WritePreferenceInteger("BatteryLogIntervalMinutes", ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440))
     WritePreferenceInteger("BatteryRefreshSeconds", ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600))
@@ -1556,6 +1716,7 @@ Procedure SaveSettings()
     WritePreferenceString("BatteryLastChargePctPerHour", StrD(gSettings\BatteryLastChargePctPerHour, 2))
     WritePreferenceInteger("BatteryChargeLearningCount", ClampInt(gSettings\BatteryChargeLearningCount, 0, #BatteryChargeLearningCap))
     WritePreferenceString("BatteryLastStaticQuery", Str(gSettings\BatteryLastStaticQuery))
+    WritePreferenceInteger("PowerPilotUseAverageMinutes", ClampInt(gSettings\PowerPilotUseAverageMinutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes))
     WritePreferenceInteger("BatteryCalibrationDrainMinutes", ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720))
     WritePreferenceInteger("BatteryGraphHours", NormalizeBatteryGraphHours(gSettings\BatteryGraphHours))
     WritePreferenceInteger("BatteryGraphShowMarkers", Bool(gSettings\BatteryGraphShowMarkers))
@@ -2140,6 +2301,16 @@ Procedure.s FormatBatteryMinutes(minutes.i)
   ProcedureReturn Str(hours) + "h " + RSet(Str(mins), 2, "0") + "m"
 EndProcedure
 
+Procedure.i BatteryRuntimeEstimateDisplayable(minutes.d, drainPctPerHour.d)
+  If minutes <= 0.0 Or drainPctPerHour <= 0.0
+    ProcedureReturn #False
+  EndIf
+  If minutes > #BatteryRuntimeDisplayMaxMinutes
+    ProcedureReturn #False
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
 Procedure.s FormatBatteryRuntimeMinutes(minutes.i, connected.i)
   If minutes <= 0 And connected
     ProcedureReturn "Plugged in"
@@ -2332,14 +2503,14 @@ Procedure.q CurrentProcessCpuTime100Ns()
   ProcedureReturn 0
 EndProcedure
 
-; Keep a short rolling CPU-time series for the Power Use tab. The app compares
-; the first and last points in the recent window, normalizes by logical CPU
+; Keep a rolling CPU-time series for the Power Use tab. The app compares the
+; first and last points in the selected window, normalizes by logical CPU
 ; capacity, then estimates how much of the observed/learned battery drain is
 ; attributable to this process. The raw points are tiny, so an array is simpler
 ; and more predictable than a list for a tray app.
 Procedure AddPowerPilotUsePoint(timestamp.q, cpuTime100Ns.q)
   Protected i.i
-  Protected cutoff.q = timestamp - (#PowerPilotUseWindowSeconds * 4)
+  Protected cutoff.q = timestamp - (#PowerPilotUseAverageMaxMinutes * 60)
   Protected removeCount.i
   If timestamp <= 0 Or cpuTime100Ns <= 0
     ProcedureReturn
@@ -2366,6 +2537,89 @@ Procedure AddPowerPilotUsePoint(timestamp.q, cpuTime100Ns.q)
     Next
     gPowerPilotUsePointCount - removeCount
   EndIf
+EndProcedure
+
+Procedure.s FormatPowerPilotUseEstimate(milliwatts.d, secondsCost.q)
+  ProcedureReturn StrD(milliwatts, 2) + " mW, " + Str(secondsCost) + " sec"
+EndProcedure
+
+Procedure CalculatePowerPilotUseWindow(windowSeconds.i, now.q, nowCpu.q, drainBasisMW.d, runtimeFullMWh.d, *result.PowerPilotUseWindowResult)
+  Protected windowStart.q
+  Protected startIndex.i = -1
+  Protected endIndex.i = -1
+  Protected spanSeconds.d
+  Protected interpolation.d
+  Protected cpuStart.d
+  Protected elapsedSeconds.d
+  Protected cpuSeconds.d
+  Protected totalLogicalCpuSeconds.d
+  Protected processCpuShare.d
+  Protected windowMinutes.d
+  Protected i.i
+  If *result = 0
+    ProcedureReturn
+  EndIf
+  *result\Valid = #False
+  *result\ElapsedSeconds = 0.0
+  *result\CpuWindowSeconds = 0.0
+  *result\CpuTotalPercent = 0.0
+  *result\Milliwatts = 0.0
+  *result\SecondsCost = 0
+  If windowSeconds <= 0 Or now <= 0 Or nowCpu <= 0 Or gPowerPilotUsePointCount < 2
+    ProcedureReturn
+  EndIf
+  windowStart = now - windowSeconds
+  For i = gPowerPilotUsePointCount - 1 To 0 Step -1
+    If gPowerPilotUsePoints(i)\Timestamp <= windowStart
+      startIndex = i
+      Break
+    EndIf
+  Next
+  If startIndex < 0
+    startIndex = 0
+  EndIf
+  If gPowerPilotUsePoints(startIndex)\Timestamp < windowStart And startIndex + 1 < gPowerPilotUsePointCount
+    endIndex = startIndex + 1
+    spanSeconds = gPowerPilotUsePoints(endIndex)\Timestamp - gPowerPilotUsePoints(startIndex)\Timestamp
+    If spanSeconds > 0.0
+      interpolation = (windowStart - gPowerPilotUsePoints(startIndex)\Timestamp) / spanSeconds
+      If interpolation < 0.0 : interpolation = 0.0 : EndIf
+      If interpolation > 1.0 : interpolation = 1.0 : EndIf
+      cpuStart = gPowerPilotUsePoints(startIndex)\CpuTime100Ns + ((gPowerPilotUsePoints(endIndex)\CpuTime100Ns - gPowerPilotUsePoints(startIndex)\CpuTime100Ns) * interpolation)
+      elapsedSeconds = now - windowStart
+    EndIf
+  EndIf
+  If elapsedSeconds <= 0.0
+    cpuStart = gPowerPilotUsePoints(startIndex)\CpuTime100Ns
+    elapsedSeconds = now - gPowerPilotUsePoints(startIndex)\Timestamp
+  EndIf
+  If elapsedSeconds <= 0.0
+    ProcedureReturn
+  EndIf
+  cpuSeconds = (nowCpu - cpuStart) / 10000000.0
+  If cpuSeconds < 0.0
+    cpuSeconds = 0.0
+  EndIf
+  totalLogicalCpuSeconds = elapsedSeconds * CountCPUs()
+  If totalLogicalCpuSeconds > 0.0
+    processCpuShare = cpuSeconds / totalLogicalCpuSeconds
+    If processCpuShare < 0.0 : processCpuShare = 0.0 : EndIf
+    If processCpuShare > 1.0 : processCpuShare = 1.0 : EndIf
+    *result\CpuTotalPercent = processCpuShare * 100.0
+    *result\CpuWindowSeconds = elapsedSeconds * processCpuShare
+    If *result\CpuWindowSeconds > windowSeconds
+      *result\CpuWindowSeconds = windowSeconds
+    EndIf
+  EndIf
+  If drainBasisMW > 0.0
+    *result\Milliwatts = drainBasisMW * processCpuShare
+    If *result\Milliwatts > 0.0 And runtimeFullMWh > 0.0
+      windowMinutes = (((BatteryEffectiveMaxPercent() - gSettings\BatteryMinPercent) / 100.0) * runtimeFullMWh / drainBasisMW) * 60.0
+      *result\SecondsCost = Round(windowMinutes * 60.0 * (*result\Milliwatts / drainBasisMW), #PB_Round_Nearest)
+    EndIf
+  EndIf
+  *result\ElapsedSeconds = elapsedSeconds
+  *result\Valid = #True
 EndProcedure
 
 ; GUID_DEVCLASS_BATTERY is filled manually so the source stays PureBasic-only
@@ -2595,7 +2849,7 @@ EndProcedure
 
 Procedure.i NormalizeBatteryGraphHours(hours.i)
   Select hours
-    Case 6, 12, 18, 24, 36, 48, 60, 72
+    Case 1, 3, 6, 12, 18, 24, 36, 48, 60, 72, #BatteryGraphMaxWindowHours
       ProcedureReturn hours
     Case 35
       ProcedureReturn 36
@@ -2605,28 +2859,34 @@ EndProcedure
 
 Procedure.i BatteryGraphHoursIndex(hours.i)
   Select NormalizeBatteryGraphHours(hours)
-    Case 6 : ProcedureReturn 0
-    Case 12 : ProcedureReturn 1
-    Case 18 : ProcedureReturn 2
-    Case 24 : ProcedureReturn 3
-    Case 36 : ProcedureReturn 4
-    Case 48 : ProcedureReturn 5
-    Case 60 : ProcedureReturn 6
-    Case 72 : ProcedureReturn 7
+    Case 1 : ProcedureReturn 0
+    Case 3 : ProcedureReturn 1
+    Case 6 : ProcedureReturn 2
+    Case 12 : ProcedureReturn 3
+    Case 18 : ProcedureReturn 4
+    Case 24 : ProcedureReturn 5
+    Case 36 : ProcedureReturn 6
+    Case 48 : ProcedureReturn 7
+    Case 60 : ProcedureReturn 8
+    Case 72 : ProcedureReturn 9
+    Case #BatteryGraphMaxWindowHours : ProcedureReturn 10
   EndSelect
-  ProcedureReturn 3
+  ProcedureReturn 5
 EndProcedure
 
 Procedure.i BatteryGraphHoursFromIndex(index.i)
   Select index
-    Case 0 : ProcedureReturn 6
-    Case 1 : ProcedureReturn 12
-    Case 2 : ProcedureReturn 18
-    Case 3 : ProcedureReturn 24
-    Case 4 : ProcedureReturn 36
-    Case 5 : ProcedureReturn 48
-    Case 6 : ProcedureReturn 60
-    Case 7 : ProcedureReturn 72
+    Case 0 : ProcedureReturn 1
+    Case 1 : ProcedureReturn 3
+    Case 2 : ProcedureReturn 6
+    Case 3 : ProcedureReturn 12
+    Case 4 : ProcedureReturn 18
+    Case 5 : ProcedureReturn 24
+    Case 6 : ProcedureReturn 36
+    Case 7 : ProcedureReturn 48
+    Case 8 : ProcedureReturn 60
+    Case 9 : ProcedureReturn 72
+    Case 10 : ProcedureReturn #BatteryGraphMaxWindowHours
   EndSelect
   ProcedureReturn #BatteryGraphDefaultHours
 EndProcedure
@@ -2636,7 +2896,11 @@ Procedure.q BatteryGraphWindowSeconds()
 EndProcedure
 
 Procedure.s BatteryGraphWindowTitle()
-  ProcedureReturn Str(NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)) + "-Hour Battery Percent"
+  Protected hours.i = NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)
+  If hours = #BatteryGraphMaxWindowHours
+    ProcedureReturn "Max Battery Graph"
+  EndIf
+  ProcedureReturn Str(hours) + "h Battery Graph"
 EndProcedure
 
 ; In-memory graph points are capped by both count and the largest selectable
@@ -2999,7 +3263,7 @@ Procedure.s PowerPilotVersionFromExeName(exeName$)
 EndProcedure
 
 ; Numeric dotted-version compare for stamped app filenames. Missing segments are
-; treated as zero, which is enough for 1.1.YYMM.minute-of-month.
+; treated as zero, which is enough for stamped YYMM.minute-of-month builds.
 Procedure.i CompareVersionStrings(leftVersion$, rightVersion$)
   Protected i.i
   Protected leftPart.i
@@ -4429,8 +4693,8 @@ EndProcedure
 
 Procedure.s BatteryTestMode()
   If gBatteryTestActive = #False And gBatteryTestHasSummary
-    If gBatteryTestWorkflow$ = "Lenovo calibration reset"
-      ProcedureReturn "Lenovo reset complete"
+    If gBatteryTestWorkflow$ = "Battery calibration"
+      ProcedureReturn "Calibration complete"
     EndIf
     ProcedureReturn "Complete"
   EndIf
@@ -4454,51 +4718,51 @@ EndProcedure
 
 Procedure.s BatteryTestGuide()
   Protected mode$ = BatteryTestMode()
-  If mode$ = "Complete" Or mode$ = "Lenovo reset complete"
+  If mode$ = "Complete" Or mode$ = "Calibration complete"
     If gBatteryTestReportPath$ <> ""
-      ProcedureReturn "Review, copy, or open the saved report."
+      ProcedureReturn "Next: review, copy, or open the saved report."
     EndIf
-    ProcedureReturn "Review or copy the report."
+    ProcedureReturn "Next: review or copy the report."
   EndIf
-  If mode$ = "Lenovo calibration reset"
+  If mode$ = "Battery calibration"
     If gBattery\Valid = #False
-      ProcedureReturn "Waiting for battery data."
+      ProcedureReturn "Next: waiting for Windows battery data."
     EndIf
     If gBattery\Connected = #False
-      ProcedureReturn "Connect the charger. Keep Lenovo reset selected."
+      ProcedureReturn "Next: connect the charger and keep this tab open."
     EndIf
     If gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False
-      ProcedureReturn "Plugged-in discharge is active; drain helper is running."
+      ProcedureReturn "Next: plugged-in discharge is active; Auto is running."
     EndIf
     If gBattery\Charging
-      ProcedureReturn "Charging now; drain helper is off."
+      ProcedureReturn "Next: charging recovery is active; Auto is off."
     EndIf
     If gBatteryTestLenovoSawCharging
-      ProcedureReturn "Waiting for Lenovo to finish after charging."
+      ProcedureReturn "Next: waiting for calibration to finish after charging."
     EndIf
-    ProcedureReturn "Waiting for plugged-in discharge mode."
+    ProcedureReturn "Next: waiting for plugged-in calibration discharge."
   EndIf
   If mode$ = "Vendor calibration detected"
-    ProcedureReturn "Watching plugged-in discharge. Keep calibration running."
+    ProcedureReturn "Next: keep this tab open until calibration finishes."
   EndIf
   If mode$ = "Charge recovery"
-    ProcedureReturn "Tracking charge recovery to the full target."
+    ProcedureReturn "Next: keep charging; recovery is being tracked."
   EndIf
   If mode$ = "Manual discharge test"
     If gBattery\Valid = #False
-      ProcedureReturn "Waiting for battery data."
+      ProcedureReturn "Next: waiting for Windows battery data."
     EndIf
     If gBattery\Connected And gBattery\Charging = #False And gBattery\DisconnectedBattery = #False
-      ProcedureReturn "Unplug to start discharge."
+      ProcedureReturn "Next: unplug to start the discharge run."
     EndIf
     If gBattery\DisconnectedBattery
-      ProcedureReturn "Discharge, then plug in to track recovery."
+      ProcedureReturn "Next: discharge, then plug in for recovery."
     EndIf
     If gBattery\Charging
-      ProcedureReturn "Tracking charge recovery to the full target."
+      ProcedureReturn "Next: keep charging; recovery is being tracked."
     EndIf
   EndIf
-  ProcedureReturn "Start a manual test or leave this open during vendor calibration."
+  ProcedureReturn "Next: click Manual test, Calibration, or just monitor."
 EndProcedure
 
 Procedure.s BatteryTestElapsedText(seconds.q)
@@ -4614,7 +4878,7 @@ Procedure.s BatteryTestReport()
   Protected workflow$
   Protected result$
   If gBatteryTestActive = #False And gBatteryTestHasSummary = #False
-    ProcedureReturn "No test running." + #CRLF$ + #CRLF$ + "Start Manual, Lenovo reset, or leave this tab open during vendor calibration."
+    ProcedureReturn "PowerPilot Battery Test" + #CRLF$ + #CRLF$ + "No test is running." + #CRLF$ + "Manual test records an unplug discharge and charge recovery." + #CRLF$ + "Calibration watches plugged-in calibration and optional Auto drain." + #CRLF$ + "Vendor calibration starts automatically when Windows reports plugged in + discharging."
   EndIf
   workflow$ = gBatteryTestWorkflow$
   If workflow$ = ""
@@ -4630,10 +4894,10 @@ Procedure.s BatteryTestReport()
     endRemaining = gBatteryTestEndRemainingMWh
   EndIf
   elapsed = endTime - gBatteryTestStartTime
-  If gBatteryTestHasSummary And workflow$ = "Lenovo calibration reset" And gBatteryTestLenovoSawPluggedDrain And gBatteryTestLenovoSawCharging
-    result$ = "Lenovo battery calibration reset completed."
-  ElseIf gBatteryTestHasSummary And workflow$ = "Lenovo calibration reset"
-    result$ = "Lenovo battery calibration reset ended before all expected phases were observed."
+  If gBatteryTestHasSummary And workflow$ = "Battery calibration" And gBatteryTestLenovoSawPluggedDrain And gBatteryTestLenovoSawCharging
+    result$ = "Battery calibration workflow completed."
+  ElseIf gBatteryTestHasSummary And workflow$ = "Battery calibration"
+    result$ = "Battery calibration workflow ended before all expected phases were observed."
   ElseIf gBatteryTestHasSummary
     result$ = "Battery test completed."
   Else
@@ -4659,8 +4923,8 @@ Procedure.s BatteryTestReport()
   report$ + "mWh     " + StrD(gBatteryTestStartRemainingMWh, 0) + " -> " + StrD(endRemaining, 0) + #CRLF$
   report$ + "Moved   " + StrD(gBatteryTestUsedMWh, 0) + " mWh used, " + StrD(gBatteryTestChargedMWh, 0) + " mWh charged" + #CRLF$
   report$ + "Power   " + StrD(BatteryTestAverageDischargeWatts(), 2) + " W average discharging, " + StrD(BatteryTestAverageChargeWatts(), 2) + " W average charging" + #CRLF$ + #CRLF$
-  If workflow$ = "Lenovo calibration reset"
-    report$ + "Lenovo reset phases" + #CRLF$
+  If workflow$ = "Battery calibration"
+    report$ + "Calibration phases" + #CRLF$
     report$ + "Plugged-in discharge observed: " + YesNo(gBatteryTestLenovoSawPluggedDrain) + #CRLF$
     report$ + "Charge recovery observed:       " + YesNo(gBatteryTestLenovoSawCharging) + #CRLF$
     report$ + "Configured drain target:        " + Str(gSettings\BatteryCalibrationDrainMinutes) + " min" + #CRLF$ + #CRLF$
@@ -4668,8 +4932,39 @@ Procedure.s BatteryTestReport()
   report$ + "Capacity notes" + #CRLF$
   report$ + BatteryTestCapacityNotes() + #CRLF$ + #CRLF$
   report$ + "Interpretation" + #CRLF$
-  report$ + "PowerPilot records Windows battery telemetry and local CPU-load actions. It cannot command Lenovo firmware calibration directly; it verifies the reset workflow from the observed plugged-in discharge, charge recovery, and final idle states."
+  report$ + "PowerPilot records Windows battery telemetry and local CPU-load actions. It cannot command vendor firmware calibration directly; it verifies the workflow from the observed plugged-in discharge, charge recovery, and final idle states."
   ProcedureReturn report$
+EndProcedure
+
+Procedure.s BatteryTestUiSummary()
+  Protected now.q = Date()
+  Protected elapsed.q
+  Protected text$
+  Protected reportPath$
+  If gBatteryTestActive
+    elapsed = now - gBatteryTestStartTime
+  ElseIf gBatteryTestHasSummary
+    elapsed = gBatteryTestEndTime - gBatteryTestStartTime
+  Else
+    text$ = "Monitor mode: no test is running." + #CRLF$
+    text$ + "Manual test: unplug, discharge, then plug in to track recovery." + #CRLF$
+    text$ + "Calibration: watch plugged-in discharge; Auto drain is optional." + #CRLF$
+    text$ + "Vendor calibration: detected from plugged-in discharge."
+    ProcedureReturn text$
+  EndIf
+  text$ = "Workflow: " + BatteryTestMode() + #CRLF$
+  text$ + "Phase: " + BatteryTestPhase() + ", elapsed " + BatteryTestElapsedText(elapsed) + "." + #CRLF$
+  text$ + "Moved: " + StrD(gBatteryTestUsedMWh, 0) + " mWh used, " + StrD(gBatteryTestChargedMWh, 0) + " mWh charged." + #CRLF$
+  text$ + "Average: " + StrD(BatteryTestAverageDischargeWatts(), 2) + " W discharge, " + StrD(BatteryTestAverageChargeWatts(), 2) + " W charge."
+  If gBatteryTestHasSummary
+    reportPath$ = LatestBatteryReportPath()
+    If reportPath$ <> ""
+      text$ + #CRLF$ + "Saved report is ready."
+    Else
+      text$ + #CRLF$ + "Copy report is ready."
+    EndIf
+  EndIf
+  ProcedureReturn text$
 EndProcedure
 
 Procedure.s BatteryTestShortSummary()
@@ -4774,21 +5069,19 @@ EndProcedure
 
 Procedure StartLenovoCalibrationReset()
   If gBatteryTestActive
-    MessageRequester(#AppName$, "End the current battery test before starting Lenovo reset.", #PB_MessageRequester_Info)
+    MessageRequester(#AppName$, "End the current battery test before starting calibration.", #PB_MessageRequester_Info)
     ProcedureReturn
   EndIf
-  If IsGadget(#GadgetBatteryLoadMinutes)
-    gSettings\BatteryCalibrationDrainMinutes = ClampInt(GetGadgetState(#GadgetBatteryLoadMinutes), 15, 720)
-    SaveSettings()
-  EndIf
+  BatteryCalibrationTargetMinutesFromGui(#True)
+  SaveSettings()
   ResetBatteryTestWorkflowState()
-  BeginBatteryTestSession("Lenovo calibration reset")
+  BeginBatteryTestSession("Battery calibration")
   gBatteryTestLenovoReset = #True
-  WriteBatteryTestRow("start Lenovo calibration reset - " + BatteryTestPhase(), #True)
+  WriteBatteryTestRow("start battery calibration - " + BatteryTestPhase(), #True)
   If gBattery\Valid And gBattery\Connected And gBattery\DisconnectedBattery And gBattery\Charging = #False
     gBatteryTestLenovoSawPluggedDrain = #True
     StartAutoDrainTarget()
-    WriteBatteryTestRow("Lenovo reset drain helper auto started", #True)
+    WriteBatteryTestRow("battery calibration drain helper auto started", #True)
   EndIf
   RefreshBatteryTestDisplay()
 EndProcedure
@@ -4813,7 +5106,7 @@ Procedure EndBatteryTestLog()
   StopBatteryCpuLoad(#False)
   WriteBatteryTestRow("end - " + BatteryTestShortSummary(), #True)
   If gBatteryTestLenovoReset
-    SaveBatteryTestReportFile("lenovo_calibration_reset_manual_end")
+    SaveBatteryTestReportFile("battery_calibration_manual_end")
   EndIf
   gBatteryTestLenovoReset = #False
   gBatteryTestVendorAuto = #False
@@ -4956,14 +5249,10 @@ EndProcedure
 ; Start automatic drain control. The target is a time-to-empty goal, not a fixed
 ; CPU percentage: the controller samples current battery watts and adjusts the
 ; local CPU load helper so the remaining usable mWh trends toward the selected
-; target time. Lenovo calibration starts gently because plugged-in discharge can
-; already have a vendor-controlled load.
+; target time. Plugged-in calibration starts gently because firmware can already
+; have a vendor-controlled load.
 Procedure StartAutoDrainTarget()
-  If IsGadget(#GadgetBatteryLoadMinutes)
-    gBatteryAutoDrainMinutes = ClampInt(GetGadgetState(#GadgetBatteryLoadMinutes), 15, 720)
-  Else
-    gBatteryAutoDrainMinutes = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
-  EndIf
+  gBatteryAutoDrainMinutes = BatteryCalibrationTargetMinutesFromGui(#True)
   gSettings\BatteryCalibrationDrainMinutes = gBatteryAutoDrainMinutes
   SaveSettings()
   If gBatteryTestActive = #False
@@ -5222,8 +5511,8 @@ Procedure CompleteLenovoCalibrationReset()
   EndIf
   gBatteryAutoDrainActive = #False
   StopBatteryCpuLoad(#False)
-  WriteBatteryTestRow("Lenovo calibration reset completed - " + BatteryTestShortSummary(), #True)
-  SaveBatteryTestReportFile("lenovo_calibration_reset_completed")
+  WriteBatteryTestRow("battery calibration completed - " + BatteryTestShortSummary(), #True)
+  SaveBatteryTestReportFile("battery_calibration_completed")
   gBatteryTestLenovoReset = #False
   gBatteryTestVendorAuto = #False
   RefreshBatteryTestDisplay()
@@ -5261,24 +5550,24 @@ Procedure RefreshBatteryTest()
   EndIf
   If gBatteryTestLenovoReset
     If calibrationNow And gBatteryTestLenovoSawPluggedDrain = #False
-      BeginBatteryTestSession("Lenovo calibration reset")
+      BeginBatteryTestSession("Battery calibration")
       gBatteryTestLenovoReset = #True
       gBatteryTestLenovoSawPluggedDrain = #True
       gBatteryTestLenovoSawCharging = #False
-      WriteBatteryTestRow("Lenovo reset plugged-in discharge started", #True)
+      WriteBatteryTestRow("battery calibration plugged-in discharge started", #True)
       If gBatteryAutoDrainActive = #False
         StartAutoDrainTarget()
       EndIf
     EndIf
     If gBattery\Charging
       If gBatteryTestLenovoSawCharging = #False
-        WriteBatteryTestRow("Lenovo reset charge recovery started", #True)
+        WriteBatteryTestRow("battery calibration charge recovery started", #True)
       EndIf
       gBatteryTestLenovoSawCharging = #True
       If gBatteryAutoDrainActive Or gBatteryCpuLoadTarget > 0
         gBatteryAutoDrainActive = #False
         StopBatteryCpuLoad(#False)
-        WriteBatteryTestRow("Lenovo reset drain helper stopped for charging", #True)
+        WriteBatteryTestRow("battery calibration drain helper stopped for charging", #True)
       EndIf
     EndIf
   EndIf
@@ -5372,7 +5661,7 @@ Procedure RefreshBatteryTestDisplay()
   SetGadgetTextIfChanged(#GadgetBatteryTestMode, BatteryTestMode())
   SetGadgetTextIfChanged(#GadgetBatteryTestGuide, BatteryTestGuide())
   SetGadgetTextIfChanged(#GadgetBatteryTestElapsed, BatteryTestElapsedText(elapsed))
-  summary$ = BatteryTestReport()
+  summary$ = BatteryTestUiSummary()
   SetGadgetTextIfChanged(#GadgetBatteryTestSummary, summary$)
   DisableGadget(#GadgetBatteryTestStart, Bool(gBatteryTestActive))
   DisableGadget(#GadgetBatteryTestLenovo, Bool(gBatteryTestActive))
@@ -6509,8 +6798,10 @@ Procedure.i ConfigureEnergySaverPolicy(planName$, schemeGuid$)
   TrySetSchemeValue(schemeGuid$, #False, #EnergySaverSubgroup$, #EnergySaverPolicySetting$, dcPolicy)
   TrySetSchemeValue(schemeGuid$, #True, #EnergySaverSubgroup$, #EnergySaverThresholdSetting$, acThreshold)
   TrySetSchemeValue(schemeGuid$, #False, #EnergySaverSubgroup$, #EnergySaverThresholdSetting$, dcThreshold)
-  TrySetSchemeValue(schemeGuid$, #True, #EnergySaverSubgroup$, #EnergySaverBrightnessSetting$, brightness)
-  TrySetSchemeValue(schemeGuid$, #False, #EnergySaverSubgroup$, #EnergySaverBrightnessSetting$, brightness)
+  If gSettings\EnergySaverBrightnessEnabled
+    TrySetSchemeValue(schemeGuid$, #True, #EnergySaverSubgroup$, #EnergySaverBrightnessSetting$, brightness)
+    TrySetSchemeValue(schemeGuid$, #False, #EnergySaverSubgroup$, #EnergySaverBrightnessSetting$, brightness)
+  EndIf
   ProcedureReturn #True
 EndProcedure
 
@@ -6991,6 +7282,17 @@ Procedure.i InstallRefresh()
   ProcedureReturn #False
 EndProcedure
 
+; Hidden app launches are used after install and from the Windows startup entry.
+; Reapply saved PowerPilot settings there so plan values, battery floors,
+; Energy Saver policy, and hidden platform tuning are current before following
+; the active Windows power mode.
+Procedure.i ApplyHiddenStartupSettings()
+  If ManagedPlansInstalled() = #False
+    ProcedureReturn CreateManagedPlansFromBase(GetActiveSchemeGuid(), #False)
+  EndIf
+  ProcedureReturn Bool(ApplyFullPlanSettingsToManagedPlans() = 3)
+EndProcedure
+
 ; Uninstall/cleanup path. If a managed plan is active, switch to Balanced before
 ; deleting owned plans.
 Procedure.i CleanupManagedPlans()
@@ -7071,6 +7373,33 @@ Procedure.i EnsureSingleInstance()
   ProcedureReturn #True
 EndProcedure
 
+Procedure.i FindRunningPowerPilotWindowCallback(hwnd.i, lParam.i)
+  Protected title$ = Space(128)
+  If GetWindowText_(hwnd, @title$, 128)
+    title$ = Trim(title$)
+    If title$ = #AppFullName$ Or Left(title$, Len(#AppName$ + " v")) = #AppName$ + " v"
+      gFoundPowerPilotWindow = hwnd
+      ProcedureReturn #False
+    EndIf
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i FindRunningPowerPilotWindow()
+  gFoundPowerPilotWindow = 0
+  EnumWindows_(@FindRunningPowerPilotWindowCallback(), 0)
+  ProcedureReturn gFoundPowerPilotWindow
+EndProcedure
+
+Procedure.i SignalRunningInstanceToShow()
+  Protected hwnd.i = FindRunningPowerPilotWindow()
+  If hwnd
+    PostMessage_(hwnd, #WM_POWERPILOT_SHOW, 0, 0)
+    ProcedureReturn #True
+  EndIf
+  ProcedureReturn #False
+EndProcedure
+
 Procedure.i BatteryGraphTabVisible()
   If MainWindowVisible() = #False Or IsGadget(#GadgetPanel) = #False
     ProcedureReturn #False
@@ -7115,12 +7444,6 @@ Procedure.d UiDpiStrokeScale()
   ProcedureReturn gUiScale * ((DesktopResolutionX() + DesktopResolutionY()) / 2.0)
 EndProcedure
 
-Procedure.d ClampUiScale(scale.d)
-  If scale < #MainWindowMinScale : scale = #MainWindowMinScale : EndIf
-  If scale > #MainWindowMaxScale : scale = #MainWindowMaxScale : EndIf
-  ProcedureReturn scale
-EndProcedure
-
 Procedure EnsureUiFonts(fontSize.i = #UiFontBaseSize)
   Protected newUi.i
   Protected newBold.i
@@ -7148,9 +7471,9 @@ Procedure EnsureUiFonts(fontSize.i = #UiFontBaseSize)
   EndIf
 EndProcedure
 
-; Bold gadgets are tracked separately because changing the View scale reloads
-; the shared Segoe UI fonts. PureBasic does not remember which gadgets were
-; manually bolded after the default font changes, so this list reapplies them.
+; Bold gadgets are tracked separately because resizing can reload the shared
+; Segoe UI fonts. PureBasic does not remember which gadgets were manually
+; bolded after the default font changes, so this list reapplies them.
 Procedure UseBoldFont(gadget.i)
   If IsGadget(gadget) And gFontBold
     SetGadgetFont(gadget, FontID(gFontBold))
@@ -7195,6 +7518,7 @@ Procedure.i StoreUiChildLayoutCallback(hwnd.i, lParam.i)
     ScreenToClient_(parent, @pt)
     AddElement(gUiLayout())
     gUiLayout()\Hwnd = hwnd
+    gUiLayout()\Gadget = GetDlgCtrlID_(hwnd)
     gUiLayout()\Parent = parent
     gUiLayout()\X = pt\x
     gUiLayout()\Y = pt\y
@@ -7241,12 +7565,923 @@ Procedure ApplyPlanListColumnWidths()
   SetGadgetItemAttribute(#GadgetPlanList, #PB_Ignore, #PB_ListIcon_ColumnWidth, purposeWidth, 2)
 EndProcedure
 
+Procedure ApplyPanelTabSpacing()
+  Protected paddingX.i = UiDpiScaleX(6)
+  Protected paddingY.i = UiDpiScaleY(3)
+  If IsGadget(#GadgetPanel) = #False
+    ProcedureReturn
+  EndIf
+  ; TCM_SETPADDING spaces the native tab captions without changing tab styles.
+  ; Style mutations such as TCS_BUTTONS can disturb TextGadget backgrounds on
+  ; PureBasic panel pages.
+  SendMessage_(GadgetID(#GadgetPanel), $132B, 0, (paddingX & $FFFF) | ((paddingY & $FFFF) << 16))
+  InvalidateRect_(GadgetID(#GadgetPanel), 0, #True)
+EndProcedure
+
+Procedure BeginThemeTab()
+  Protected container.i
+  Protected width.i = #MainWindowBaseWidth - 24
+  Protected height.i = #MainWindowBaseHeight - 94
+  If IsGadget(#GadgetPanel)
+    width = GetGadgetAttribute(#GadgetPanel, #PB_Panel_ItemWidth)
+    height = GetGadgetAttribute(#GadgetPanel, #PB_Panel_ItemHeight)
+  EndIf
+  If width <= 0 : width = #MainWindowBaseWidth - 24 : EndIf
+  If height <= 0 : height = #MainWindowBaseHeight - 94 : EndIf
+  ; A borderless container gives each tab a real paintable surface. It avoids
+  ; relying on the native tab control's white page background in dark mode.
+  ; Keep it inside PureBasic's documented panel item area so the outer tab
+  ; frame remains visible; oversizing this container hides the panel frame.
+  container = ContainerGadget(#PB_Any, 0, 0, width, height, #PB_Container_BorderLess)
+  If IsGadget(container)
+    AddElement(gThemePageContainers())
+    gThemePageContainers() = container
+  EndIf
+EndProcedure
+
+Procedure.s PanelTabTitle(index.i)
+  Select index
+    Case 0 : ProcedureReturn "Overview"
+    Case 1 : ProcedureReturn "Plans"
+    Case 2 : ProcedureReturn "Battery Saver"
+    Case 3 : ProcedureReturn "PowerPilot Log"
+    Case 4 : ProcedureReturn "Battery Graph"
+    Case 5 : ProcedureReturn "Battery Stats"
+    Case 6 : ProcedureReturn "Power Use"
+    Case 7 : ProcedureReturn "Battery Test"
+    Case 8 : ProcedureReturn "About"
+  EndSelect
+  ProcedureReturn ""
+EndProcedure
+
+Procedure.i TabBarTotalWidth(padX.i, gap.i)
+  Protected i.i
+  Protected total.i
+  Protected title$
+  For i = 0 To 8
+    title$ = PanelTabTitle(i)
+    total + TextWidth(title$) + (padX * 2)
+    If i < 8
+      total + gap
+    EndIf
+  Next
+  ProcedureReturn total
+EndProcedure
+
+Procedure UseFittedTabFont(width.i, padX.i, gap.i)
+  Protected maxSize.i
+  Protected candidate.i
+  Protected testFont.i
+  Protected total.i
+  Protected chosen.i
+
+  maxSize = #UiFontBaseSize
+  If maxSize < #UiFontMinSize
+    maxSize = #UiFontMinSize
+  EndIf
+
+  For candidate = maxSize To #UiFontMinSize Step -1
+    testFont = LoadFont(#PB_Any, "Segoe UI", candidate)
+    If testFont
+      DrawingFont(FontID(testFont))
+      total = TabBarTotalWidth(padX, gap)
+      If total <= width Or candidate = #UiFontMinSize
+        chosen = candidate
+        If gFontTab And gTabFontSize <> chosen
+          FreeFont(gFontTab)
+          gFontTab = 0
+          gTabFontSize = 0
+        EndIf
+        If gFontTab = 0
+          gFontTab = testFont
+          gTabFontSize = chosen
+          testFont = 0
+        EndIf
+        If testFont
+          FreeFont(testFont)
+        EndIf
+        DrawingFont(FontID(gFontTab))
+        ProcedureReturn
+      EndIf
+      FreeFont(testFont)
+    EndIf
+  Next
+
+  If gFontUi
+    DrawingFont(FontID(gFontUi))
+  EndIf
+EndProcedure
+
+Procedure UseTabDrawingFont()
+  If gFontUi
+    DrawingFont(FontID(gFontUi))
+  EndIf
+EndProcedure
+
+Procedure SetPanelOwnerDraw(enabled.i)
+  Protected style.i
+  If IsGadget(#GadgetPanel) = #False
+    ProcedureReturn
+  EndIf
+  style = GetWindowLongPtr_(GadgetID(#GadgetPanel), #GWL_STYLE)
+  If enabled
+    If (style & #TCS_OWNERDRAWFIXED) = 0
+      SetWindowLongPtr_(GadgetID(#GadgetPanel), #GWL_STYLE, style | #TCS_OWNERDRAWFIXED)
+    EndIf
+  Else
+    If style & #TCS_OWNERDRAWFIXED
+      SetWindowLongPtr_(GadgetID(#GadgetPanel), #GWL_STYLE, style - #TCS_OWNERDRAWFIXED)
+    EndIf
+  EndIf
+  SetWindowPos_(GadgetID(#GadgetPanel), 0, 0, 0, 0, 0, #SWP_NOMOVE | #SWP_NOSIZE | #SWP_NOZORDER | #SWP_NOACTIVATE | #SWP_FRAMECHANGED)
+EndProcedure
+
+Procedure.i DrawThemePanelTab(*draw.DrawItemStruct)
+  Protected title$ = PanelTabTitle(*draw\itemID)
+  Protected rc.RECT
+  Protected accentRc.RECT
+  Protected back.i
+  Protected text.i
+  Protected border.i
+  Protected brush.i
+  Protected borderBrush.i
+  Protected accentBrush.i
+  Protected accentHeight.i
+  Protected selected.i
+  Protected oldFont.i
+
+  If gThemeDarkActive = #False
+    ProcedureReturn #False
+  EndIf
+  If title$ = ""
+    ProcedureReturn #False
+  EndIf
+
+  rc = *draw\rcItem
+  rc\left - 1
+  rc\top - 1
+  rc\right + 1
+  rc\bottom + 1
+  selected = Bool(*draw\itemState & #ODS_SELECTED)
+  If selected
+    back = gThemeTabSelectedColor
+    text = gThemeTextColor
+  Else
+    back = gThemeTabRestColor
+    text = gThemeSubtleTextColor
+  EndIf
+  border = gThemeBorderColor
+
+  brush = CreateSolidBrush_(back)
+  If brush
+    FillRect_(*draw\hDC, @rc, brush)
+    DeleteObject_(brush)
+  EndIf
+  borderBrush = CreateSolidBrush_(border)
+  If borderBrush
+    FrameRect_(*draw\hDC, @rc, borderBrush)
+    DeleteObject_(borderBrush)
+  EndIf
+  If selected
+    accentHeight = UiDpiScaleY(2)
+    If accentHeight < 2 : accentHeight = 2 : EndIf
+    accentRc = rc
+    accentRc\top = accentRc\bottom - accentHeight
+    accentBrush = CreateSolidBrush_(gThemeAccentColor)
+    If accentBrush
+      FillRect_(*draw\hDC, @accentRc, accentBrush)
+      DeleteObject_(accentBrush)
+    EndIf
+  EndIf
+  SetBkMode_(*draw\hDC, #TRANSPARENT)
+  SetTextColor_(*draw\hDC, text)
+  If selected And gFontBold
+    oldFont = SelectObject_(*draw\hDC, FontID(gFontBold))
+  ElseIf gFontUi
+    oldFont = SelectObject_(*draw\hDC, FontID(gFontUi))
+  EndIf
+  rc\top + 1
+  rc\bottom - UiDpiScaleY(1)
+  DrawText_(*draw\hDC, title$, Len(title$), @rc, #DT_CENTER | #DT_VCENTER | #DT_SINGLELINE)
+  If oldFont
+    SelectObject_(*draw\hDC, oldFont)
+  EndIf
+  ProcedureReturn #True
+EndProcedure
+
+Procedure DrawDarkTabBar()
+  Protected selected.i
+  Protected width.i
+  Protected height.i
+  Protected x.i
+  Protected i.i
+  Protected tabWidth.i
+  Protected title$
+  Protected back.i
+  Protected border.i
+  Protected text.i
+  Protected padX.i
+  Protected gap.i
+
+  If gThemeDarkActive = #False
+    ProcedureReturn
+  EndIf
+  If IsGadget(#GadgetDarkTabBar) = #False
+    ProcedureReturn
+  EndIf
+  If StartDrawing(CanvasOutput(#GadgetDarkTabBar)) = 0
+    ProcedureReturn
+  EndIf
+  width = OutputWidth()
+  height = OutputHeight()
+  selected = GetGadgetState(#GadgetPanel)
+  padX = UiScaledCoord(4, gUiScale)
+  gap = UiScaledCoord(1, gUiScale)
+  If gap < 1 : gap = 1 : EndIf
+  If padX < 2 : padX = 2 : EndIf
+  UseTabDrawingFont()
+  If gThemeDarkActive
+    border = gThemeBorderColor
+    text = gThemeTextColor
+  Else
+    border = RGB(220, 220, 220)
+    text = RGB(0, 0, 0)
+  EndIf
+  Box(0, 0, width, height, gThemeBackColor)
+  For i = 0 To 8
+    title$ = PanelTabTitle(i)
+    tabWidth = TextWidth(title$) + (padX * 2)
+    If i = selected
+      back = gThemeTabSelectedColor
+      text = gThemeTextColor
+    Else
+      back = gThemeTabRestColor
+      text = gThemeSubtleTextColor
+    EndIf
+    Box(x, 0, tabWidth, height, back)
+    LineXY(x, 0, x + tabWidth - 1, 0, border)
+    LineXY(x, 0, x, height - 1, border)
+    LineXY(x + tabWidth - 1, 0, x + tabWidth - 1, height - 1, border)
+    LineXY(x, height - 1, x + tabWidth - 1, height - 1, border)
+    If i = selected
+      Box(x + 1, height - UiScaledCoord(3, gUiScale), tabWidth - 2, UiScaledCoord(2, gUiScale), gThemeAccentColor)
+    EndIf
+    DrawText(x + padX, (height - TextHeight(title$)) / 2, title$, text, back)
+    x + tabWidth + gap
+    If x > width
+      Break
+    EndIf
+  Next
+  StopDrawing()
+EndProcedure
+
+Procedure ResizeDarkPanelChrome()
+  Protected panelX.i
+  Protected panelY.i
+  Protected panelW.i
+  Protected panelH.i
+  Protected tabH.i
+  Protected lineSize.i
+  Protected topY.i
+  Protected bottomY.i
+  Protected rightX.i
+  Protected height.i
+
+  If IsGadget(#GadgetPanel) = #False
+    ProcedureReturn
+  EndIf
+  panelX = GadgetX(#GadgetPanel)
+  panelY = GadgetY(#GadgetPanel)
+  panelW = GadgetWidth(#GadgetPanel)
+  panelH = GadgetHeight(#GadgetPanel)
+  tabH = GetGadgetAttribute(#GadgetPanel, #PB_Panel_TabHeight)
+  If tabH <= 0
+    tabH = UiScaledCoord(27, gUiScale)
+  EndIf
+  lineSize = UiScaledCoord(1, gUiScale)
+  If lineSize < 1 : lineSize = 1 : EndIf
+  topY = panelY + tabH
+  bottomY = panelY + panelH - lineSize
+  rightX = panelX + panelW - lineSize
+  height = bottomY - topY + lineSize
+  If height < lineSize : height = lineSize : EndIf
+
+  If IsGadget(#GadgetDarkPanelTopBorder)
+    ResizeGadget(#GadgetDarkPanelTopBorder, panelX, topY, panelW, lineSize)
+  EndIf
+  If IsGadget(#GadgetDarkPanelLeftBorder)
+    ResizeGadget(#GadgetDarkPanelLeftBorder, panelX, topY, lineSize, height)
+  EndIf
+  If IsGadget(#GadgetDarkPanelRightBorder)
+    ResizeGadget(#GadgetDarkPanelRightBorder, rightX, topY, lineSize, height)
+  EndIf
+  If IsGadget(#GadgetDarkPanelBottomBorder)
+    ResizeGadget(#GadgetDarkPanelBottomBorder, panelX, bottomY, panelW, lineSize)
+  EndIf
+EndProcedure
+
+Procedure DrawDarkPanelBorderLines()
+  Protected color.i
+
+  If gThemeDarkActive = #False
+    ProcedureReturn
+  EndIf
+  ResizeDarkPanelChrome()
+  color = gThemeBorderColor
+
+  If IsGadget(#GadgetDarkPanelTopBorder)
+    If StartDrawing(CanvasOutput(#GadgetDarkPanelTopBorder))
+      Box(0, 0, OutputWidth(), OutputHeight(), color)
+      StopDrawing()
+    EndIf
+  EndIf
+
+  If IsGadget(#GadgetDarkPanelLeftBorder)
+    If StartDrawing(CanvasOutput(#GadgetDarkPanelLeftBorder))
+      Box(0, 0, OutputWidth(), OutputHeight(), color)
+      StopDrawing()
+    EndIf
+  EndIf
+
+  If IsGadget(#GadgetDarkPanelRightBorder)
+    If StartDrawing(CanvasOutput(#GadgetDarkPanelRightBorder))
+      Box(0, 0, OutputWidth(), OutputHeight(), color)
+      StopDrawing()
+    EndIf
+  EndIf
+
+  If IsGadget(#GadgetDarkPanelBottomBorder)
+    If StartDrawing(CanvasOutput(#GadgetDarkPanelBottomBorder))
+      Box(0, 0, OutputWidth(), OutputHeight(), color)
+      StopDrawing()
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure SetDarkPanelChromeVisible(visible.i)
+  Protected hidden.i = Bool(visible = #False)
+  If IsGadget(#GadgetDarkTabBar)
+    ; Native owner-drawn tabs handle clicks more reliably than a canvas overlay.
+    HideGadget(#GadgetDarkTabBar, #True)
+  EndIf
+  If visible
+    ResizeDarkPanelChrome()
+  EndIf
+  If IsGadget(#GadgetDarkPanelTopBorder)
+    HideGadget(#GadgetDarkPanelTopBorder, hidden)
+  EndIf
+  If IsGadget(#GadgetDarkPanelLeftBorder)
+    HideGadget(#GadgetDarkPanelLeftBorder, hidden)
+  EndIf
+  If IsGadget(#GadgetDarkPanelRightBorder)
+    HideGadget(#GadgetDarkPanelRightBorder, hidden)
+  EndIf
+  If IsGadget(#GadgetDarkPanelBottomBorder)
+    HideGadget(#GadgetDarkPanelBottomBorder, hidden)
+  EndIf
+EndProcedure
+
+Procedure.i DarkTabIndexAt(mouseX.i)
+  Protected x.i
+  Protected width.i
+  Protected i.i
+  Protected tabWidth.i
+  Protected title$
+  Protected padX.i
+  Protected gap.i
+  If gThemeDarkActive = #False
+    ProcedureReturn -1
+  EndIf
+  If IsGadget(#GadgetDarkTabBar) = #False
+    ProcedureReturn -1
+  EndIf
+  If StartDrawing(CanvasOutput(#GadgetDarkTabBar)) = 0
+    ProcedureReturn -1
+  EndIf
+  width = OutputWidth()
+  padX = UiScaledCoord(4, gUiScale)
+  gap = UiScaledCoord(1, gUiScale)
+  If gap < 1 : gap = 1 : EndIf
+  If padX < 2 : padX = 2 : EndIf
+  UseTabDrawingFont()
+  For i = 0 To 8
+    title$ = PanelTabTitle(i)
+    tabWidth = TextWidth(title$) + (padX * 2)
+    If mouseX >= x And mouseX < x + tabWidth
+      StopDrawing()
+      ProcedureReturn i
+    EndIf
+    x + tabWidth + gap
+  Next
+  StopDrawing()
+  ProcedureReturn -1
+EndProcedure
+
+Procedure DrawFrameLine(gadget.i, color.i)
+  If IsGadget(gadget)
+    If StartDrawing(CanvasOutput(gadget))
+      Box(0, 0, OutputWidth(), OutputHeight(), color)
+      StopDrawing()
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure DrawThemeFrame(*frame.ThemeFrameLayout)
+  Protected border.i
+  Protected textColor.i
+  Protected titleWidth.i
+  Protected titleHeight.i
+  Protected frameX.i
+  Protected frameRight.i
+  Protected titleX.i
+  Protected titleY.i
+  Protected maxTitleWidth.i
+  Protected topRightX.i
+  Protected topLeftWidth.i
+  Protected topRightWidth.i
+
+  If *frame = 0
+    ProcedureReturn
+  EndIf
+
+  If gThemeDarkActive
+    border = gThemeBorderColor
+    textColor = gThemeTextColor
+  Else
+    border = gThemeBorderColor
+    textColor = RGB(32, 32, 32)
+  EndIf
+
+  If IsGadget(*frame\Gadget)
+    If GetGadgetText(*frame\Gadget) <> *frame\Title
+      *frame\Title = GetGadgetText(*frame\Gadget)
+    EndIf
+  EndIf
+
+  If IsGadget(*frame\TitleGadget)
+    HideGadget(*frame\TitleGadget, #False)
+  EndIf
+  If IsGadget(*frame\TopLeft) : HideGadget(*frame\TopLeft, #False) : EndIf
+  If IsGadget(*frame\TopRight) : HideGadget(*frame\TopRight, #False) : EndIf
+  If IsGadget(*frame\Left) : HideGadget(*frame\Left, #False) : EndIf
+  If IsGadget(*frame\Right) : HideGadget(*frame\Right, #False) : EndIf
+  If IsGadget(*frame\Bottom) : HideGadget(*frame\Bottom, #False) : EndIf
+
+  If IsGadget(*frame\TitleGadget) And IsGadget(*frame\Left) And IsGadget(*frame\Right)
+    If gFontBold
+      SetGadgetFont(*frame\TitleGadget, FontID(gFontBold))
+    ElseIf gFontUi
+      SetGadgetFont(*frame\TitleGadget, FontID(gFontUi))
+    EndIf
+    SetGadgetText(*frame\TitleGadget, *frame\Title)
+    SetGadgetColor(*frame\TitleGadget, #PB_Gadget_FrontColor, textColor)
+    SetGadgetColor(*frame\TitleGadget, #PB_Gadget_BackColor, gThemeBackColor)
+
+    titleWidth = UiScaledCoord(16 + (Len(*frame\Title) * 9), gUiScale)
+    titleHeight = UiScaledCoord(24, gUiScale)
+
+    frameX = GadgetX(*frame\Left)
+    frameRight = GadgetX(*frame\Right)
+    titleX = frameX + UiScaledCoord(8, gUiScale)
+    titleY = GadgetY(*frame\Gadget)
+    maxTitleWidth = frameRight - titleX - UiScaledCoord(4, gUiScale)
+    If maxTitleWidth < UiScaledCoord(40, gUiScale)
+      maxTitleWidth = UiScaledCoord(40, gUiScale)
+    EndIf
+    If titleWidth > maxTitleWidth
+      titleWidth = maxTitleWidth
+    EndIf
+    If titleHeight < UiScaledCoord(20, gUiScale)
+      titleHeight = UiScaledCoord(20, gUiScale)
+    EndIf
+    ResizeGadget(*frame\TitleGadget, titleX, titleY, titleWidth, titleHeight)
+
+    topLeftWidth = titleX - frameX - UiScaledCoord(2, gUiScale)
+    If topLeftWidth < 1 : topLeftWidth = 1 : EndIf
+    ResizeGadget(*frame\TopLeft, frameX, GadgetY(*frame\TopLeft), topLeftWidth, GadgetHeight(*frame\TopLeft))
+    topRightX = titleX + titleWidth
+    topRightWidth = frameRight - topRightX + 1
+    If topRightWidth < 1 : topRightWidth = 1 : EndIf
+    ResizeGadget(*frame\TopRight, topRightX, GadgetY(*frame\TopRight), topRightWidth, GadgetHeight(*frame\TopRight))
+  EndIf
+
+  DrawFrameLine(*frame\TopLeft, border)
+  DrawFrameLine(*frame\TopRight, border)
+  DrawFrameLine(*frame\Left, border)
+  DrawFrameLine(*frame\Right, border)
+  DrawFrameLine(*frame\Bottom, border)
+EndProcedure
+
+Procedure DrawThemeFrames()
+  ForEach gThemeFrames()
+    DrawThemeFrame(@gThemeFrames())
+  Next
+EndProcedure
+
+Procedure SendThemeFramesToBack()
+  ForEach gThemeFrames()
+    ; Line-only frames live outside the active controls. Keeping their natural
+    ; creation order avoids native FrameGadget z-order problems in panels.
+  Next
+EndProcedure
+
+Procedure DrawThemeSurfaces(drawGraph.i = #True)
+  If drawGraph And IsGadget(#GadgetBatteryGraph)
+    DrawBatteryGraph()
+  EndIf
+  DrawThemeFrames()
+  SendThemeFramesToBack()
+  DrawDarkTabBar()
+  DrawDarkPanelBorderLines()
+EndProcedure
+
+Procedure SetThemeFrameTitle(gadget.i, title$)
+  ForEach gThemeFrames()
+    If gThemeFrames()\Gadget = gadget
+      If gThemeFrames()\Title <> title$
+        gThemeFrames()\Title = title$
+      EndIf
+      DrawThemeFrame(@gThemeFrames())
+      ProcedureReturn
+    EndIf
+  Next
+EndProcedure
+
+Procedure.i ThemedFrameGadget(x.i, y.i, width.i, height.i, title$)
+  Protected titleGadget.i
+  Protected lineY.i = y + 12
+  Protected titleWidth.i = 120
+  ; Native FrameGadget borders repaint inconsistently inside the themed tab
+  ; container, especially when switching Light/Dark. Use 1-pixel line gadgets
+  ; plus a title label instead of a full overlay canvas so controls stay active.
+  titleGadget = TextGadget(#PB_Any, x + 8, y, titleWidth, 22, title$)
+  If IsGadget(titleGadget)
+    AddElement(gThemeFrames())
+    gThemeFrames()\Gadget = titleGadget
+    gThemeFrames()\TitleGadget = titleGadget
+    gThemeFrames()\TopLeft = CanvasGadget(#PB_Any, x, lineY, 6, 1)
+    gThemeFrames()\TopRight = CanvasGadget(#PB_Any, x + 8 + titleWidth, lineY, width - titleWidth - 8, 1)
+    gThemeFrames()\Left = CanvasGadget(#PB_Any, x, lineY, 1, height - 13)
+    gThemeFrames()\Right = CanvasGadget(#PB_Any, x + width - 1, lineY, 1, height - 13)
+    gThemeFrames()\Bottom = CanvasGadget(#PB_Any, x, y + height - 2, width, 1)
+    gThemeFrames()\Title = title$
+    DrawThemeFrame(@gThemeFrames())
+    SendThemeFramesToBack()
+  EndIf
+  ProcedureReturn titleGadget
+EndProcedure
+
+Procedure.i WindowsAppsUseDarkTheme()
+  Protected key.i
+  Protected value.l = 1
+  Protected valueType.l
+  Protected valueSize.l = SizeOf(value)
+  Protected result.i = #False
+  If RegOpenKeyEx_(#HKEY_CURRENT_USER, "Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", 0, #KEY_QUERY_VALUE, @key) = #ERROR_SUCCESS
+    If RegQueryValueEx_(key, "AppsUseLightTheme", 0, @valueType, @value, @valueSize) = #ERROR_SUCCESS And valueType = #REG_DWORD
+      result = Bool(value = 0)
+    EndIf
+    RegCloseKey_(key)
+  EndIf
+  ProcedureReturn result
+EndProcedure
+
+Procedure.i ThemeUsesDarkMode()
+  Select ClampInt(gSettings\ThemeMode, #ThemeModeWindows, #ThemeModeDark)
+    Case #ThemeModeDark
+      ProcedureReturn #True
+    Case #ThemeModeLight
+      ProcedureReturn #False
+  EndSelect
+  ProcedureReturn WindowsAppsUseDarkTheme()
+EndProcedure
+
+Procedure.s ThemeModeName(mode.i)
+  Select ClampInt(mode, #ThemeModeWindows, #ThemeModeDark)
+    Case #ThemeModeLight
+      ProcedureReturn "Light"
+    Case #ThemeModeDark
+      ProcedureReturn "Dark"
+  EndSelect
+  ProcedureReturn "Windows"
+EndProcedure
+
+Procedure ApplyWindowTitleTheme(hwnd.i, dark.i)
+  Protected library.i
+  Protected value.l = Bool(dark)
+  Protected corner.l = 2
+  Protected backdrop.l = 2
+  Protected captionColor.l
+  Protected textColor.l
+  Protected borderColor.l
+  If hwnd = 0
+    ProcedureReturn
+  EndIf
+  library = OpenLibrary(#PB_Any, "dwmapi.dll")
+  If library
+    If CallFunction(library, "DwmSetWindowAttribute", hwnd, 20, @value, SizeOf(value)) <> 0
+      CallFunction(library, "DwmSetWindowAttribute", hwnd, 19, @value, SizeOf(value))
+    EndIf
+    captionColor = gThemeBackColor
+    textColor = gThemeTextColor
+    borderColor = gThemeBorderColor
+    ; Windows 11 honors these as rounded-corner/title/backdrop hints. Older
+    ; builds ignore them, leaving the normal native frame in place.
+    CallFunction(library, "DwmSetWindowAttribute", hwnd, 33, @corner, SizeOf(corner))
+    CallFunction(library, "DwmSetWindowAttribute", hwnd, 35, @borderColor, SizeOf(borderColor))
+    CallFunction(library, "DwmSetWindowAttribute", hwnd, 36, @captionColor, SizeOf(captionColor))
+    CallFunction(library, "DwmSetWindowAttribute", hwnd, 37, @textColor, SizeOf(textColor))
+    CallFunction(library, "DwmSetWindowAttribute", hwnd, 38, @backdrop, SizeOf(backdrop))
+    CloseLibrary(library)
+  EndIf
+EndProcedure
+
+Procedure ApplyThemeFieldGadget(gadget.i, dark.i)
+  If IsGadget(gadget) = #False
+    ProcedureReturn
+  EndIf
+  If dark
+    SetGadgetColor(gadget, #PB_Gadget_BackColor, gThemeFieldBackColor)
+    SetGadgetColor(gadget, #PB_Gadget_FrontColor, gThemeTextColor)
+  Else
+    SetGadgetColor(gadget, #PB_Gadget_BackColor, #PB_Default)
+    SetGadgetColor(gadget, #PB_Gadget_FrontColor, #PB_Default)
+  EndIf
+EndProcedure
+
+Procedure SetMainWindowRedrawEnabled(enabled.i)
+  Protected redraw.i = Bool(enabled)
+  If IsWindow(#WindowMain) = #False
+    ProcedureReturn
+  EndIf
+  ForEach gUiLayout()
+    If IsWindow_(gUiLayout()\Hwnd)
+      SendMessage_(gUiLayout()\Hwnd, #WM_SETREDRAW, redraw, 0)
+    EndIf
+  Next
+  ForEach gThemePageContainers()
+    If IsGadget(gThemePageContainers())
+      SendMessage_(GadgetID(gThemePageContainers()), #WM_SETREDRAW, redraw, 0)
+    EndIf
+  Next
+  If IsGadget(#GadgetPanel)
+    SendMessage_(GadgetID(#GadgetPanel), #WM_SETREDRAW, redraw, 0)
+  EndIf
+  SendMessage_(WindowID(#WindowMain), #WM_SETREDRAW, redraw, 0)
+EndProcedure
+
+Procedure SubclassThemePage(hwnd.i)
+  Protected key$ = Str(hwnd)
+  Protected oldProc.i
+  If hwnd = 0
+    ProcedureReturn
+  EndIf
+  If FindMapElement(gThemePageOldProc(), key$)
+    ProcedureReturn
+  EndIf
+  oldProc = SetWindowLongPtr_(hwnd, #GWL_WNDPROC, @ThemePageCallback())
+  If oldProc
+    gThemePageOldProc(key$) = oldProc
+  EndIf
+EndProcedure
+
+Procedure.i ThemePageCallback(hwnd.i, message.i, wParam.i, lParam.i)
+  Protected rc.RECT
+  Protected key$ = Str(hwnd)
+  Protected oldProc.i
+  Select message
+    Case #WM_ERASEBKGND
+      If gThemeDarkActive And gThemeBackBrush
+        GetClientRect_(hwnd, @rc)
+        FillRect_(wParam, @rc, gThemeBackBrush)
+        ProcedureReturn 1
+      EndIf
+
+    Case #WM_CTLCOLOREDIT, #WM_CTLCOLORLISTBOX
+      If gThemeDarkActive And gThemeFieldBackBrush
+        SetTextColor_(wParam, gThemeTextColor)
+        SetBkColor_(wParam, gThemeFieldBackColor)
+        ProcedureReturn gThemeFieldBackBrush
+      EndIf
+
+    Case #WM_CTLCOLORSTATIC, #WM_CTLCOLORBTN
+      If gThemeDarkActive And gThemeBackBrush
+        SetTextColor_(wParam, gThemeTextColor)
+        SetBkColor_(wParam, gThemeBackColor)
+        ProcedureReturn gThemeBackBrush
+      EndIf
+  EndSelect
+  If FindMapElement(gThemePageOldProc(), key$)
+    oldProc = gThemePageOldProc()
+    ProcedureReturn CallWindowProc_(oldProc, hwnd, message, wParam, lParam)
+  EndIf
+  ProcedureReturn DefWindowProc_(hwnd, message, wParam, lParam)
+EndProcedure
+
+Procedure ApplyAppTheme(redraw.i = #True, drawCustomSurfaces.i = #True)
+  Protected dark.i = ThemeUsesDarkMode()
+  Protected gadget.i
+  Protected themeLibrary.i
+  Protected darkTheme$ = "DarkMode_Explorer"
+  Protected emptyTheme$ = ""
+  If gThemeBackBrush
+    DeleteObject_(gThemeBackBrush)
+    gThemeBackBrush = 0
+  EndIf
+  If gThemeFieldBackBrush
+    DeleteObject_(gThemeFieldBackBrush)
+    gThemeFieldBackBrush = 0
+  EndIf
+
+  gThemeDarkActive = dark
+  If dark
+    gThemeBackColor = RGB(32, 32, 32)
+    gThemeFieldBackColor = RGB(43, 43, 43)
+    gThemeTextColor = RGB(245, 245, 245)
+    gThemeSubtleTextColor = RGB(200, 200, 200)
+    gThemeBorderColor = RGB(74, 74, 74)
+    gThemeAccentColor = RGB(96, 205, 255)
+    gThemeTabSelectedColor = RGB(45, 45, 45)
+    gThemeTabRestColor = RGB(35, 35, 35)
+    gThemeBackBrush = CreateSolidBrush_(gThemeBackColor)
+    gThemeFieldBackBrush = CreateSolidBrush_(gThemeFieldBackColor)
+  Else
+    gThemeBackColor = RGB(243, 243, 243)
+    gThemeFieldBackColor = RGB(255, 255, 255)
+    gThemeTextColor = RGB(32, 32, 32)
+    gThemeSubtleTextColor = RGB(90, 90, 90)
+    gThemeBorderColor = RGB(210, 210, 210)
+    gThemeAccentColor = RGB(0, 95, 184)
+    gThemeTabSelectedColor = RGB(255, 255, 255)
+    gThemeTabRestColor = RGB(245, 245, 245)
+  EndIf
+
+  If IsWindow(#WindowMain)
+    SetWindowColor(#WindowMain, gThemeBackColor)
+    ApplyWindowTitleTheme(WindowID(#WindowMain), dark)
+  EndIf
+  SetDarkPanelChromeVisible(dark)
+  If IsGadget(#GadgetPanel)
+    SetPanelOwnerDraw(dark)
+    SubclassThemePage(GadgetID(#GadgetPanel))
+  EndIf
+  ForEach gThemePageContainers()
+    If IsGadget(gThemePageContainers())
+      SubclassThemePage(GadgetID(gThemePageContainers()))
+    EndIf
+  Next
+
+  themeLibrary = OpenLibrary(#PB_Any, "uxtheme.dll")
+  ForEach gUiLayout()
+    If IsWindow_(gUiLayout()\Hwnd)
+      If IsGadget(#GadgetPanel) And gUiLayout()\Parent = GadgetID(#GadgetPanel) And gUiLayout()\Gadget = 0
+        SubclassThemePage(gUiLayout()\Hwnd)
+      EndIf
+      gadget = gUiLayout()\Gadget
+      If themeLibrary
+        If dark
+          If gadget = #GadgetPanel Or (IsGadget(gadget) And GadgetType(gadget) = #PB_GadgetType_Frame)
+            CallFunction(themeLibrary, "SetWindowTheme", gUiLayout()\Hwnd, @emptyTheme$, @emptyTheme$)
+          Else
+            CallFunction(themeLibrary, "SetWindowTheme", gUiLayout()\Hwnd, @darkTheme$, 0)
+          EndIf
+        Else
+          CallFunction(themeLibrary, "SetWindowTheme", gUiLayout()\Hwnd, 0, 0)
+        EndIf
+      EndIf
+      If IsGadget(gadget)
+        If dark
+          SetGadgetColor(gadget, #PB_Gadget_FrontColor, gThemeTextColor)
+          SetGadgetColor(gadget, #PB_Gadget_BackColor, gThemeBackColor)
+        Else
+          SetGadgetColor(gadget, #PB_Gadget_FrontColor, #PB_Default)
+          SetGadgetColor(gadget, #PB_Gadget_BackColor, #PB_Default)
+        EndIf
+      EndIf
+    EndIf
+  Next
+  If themeLibrary
+    CloseLibrary(themeLibrary)
+  EndIf
+
+  ForEach gThemePageContainers()
+    If IsGadget(gThemePageContainers())
+      If dark
+        SetGadgetColor(gThemePageContainers(), #PB_Gadget_BackColor, gThemeBackColor)
+        SetGadgetColor(gThemePageContainers(), #PB_Gadget_FrontColor, gThemeTextColor)
+      Else
+        SetGadgetColor(gThemePageContainers(), #PB_Gadget_BackColor, #PB_Default)
+        SetGadgetColor(gThemePageContainers(), #PB_Gadget_FrontColor, #PB_Default)
+      EndIf
+    EndIf
+  Next
+  ApplyThemeFieldGadget(#GadgetThemeMode, dark)
+  ApplyThemeFieldGadget(#GadgetPlanList, dark)
+  ApplyThemeFieldGadget(#GadgetPlanSummary, dark)
+  ApplyThemeFieldGadget(#GadgetPlanAcEpp, dark)
+  ApplyThemeFieldGadget(#GadgetPlanDcEpp, dark)
+  ApplyThemeFieldGadget(#GadgetPlanAcBoost, dark)
+  ApplyThemeFieldGadget(#GadgetPlanDcBoost, dark)
+  ApplyThemeFieldGadget(#GadgetPlanAcState, dark)
+  ApplyThemeFieldGadget(#GadgetPlanDcState, dark)
+  ApplyThemeFieldGadget(#GadgetPlanAcFreq, dark)
+  ApplyThemeFieldGadget(#GadgetPlanDcFreq, dark)
+  ApplyThemeFieldGadget(#GadgetPlanAcCooling, dark)
+  ApplyThemeFieldGadget(#GadgetPlanDcCooling, dark)
+  ApplyThemeFieldGadget(#GadgetEnergySaverMode, dark)
+  ApplyThemeFieldGadget(#GadgetEnergySaverThreshold, dark)
+  ApplyThemeFieldGadget(#GadgetEnergySaverBrightness, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryLowWarningPercent, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryReservePercent, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryLowAction, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryCriticalPercent, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryCriticalAction, dark)
+  ApplyThemeFieldGadget(#GadgetPowerPilotAverageMinutes, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryGraphHours, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryLogMinutes, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryRefreshSeconds, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryMinPercent, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryMaxPercent, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryLimiterMaxPercent, dark)
+  ApplyThemeFieldGadget(#GadgetBatterySmoothingMinutes, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryStartupDrain, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryLogPreview, dark)
+  ApplyThemeFieldGadget(#GadgetBatteryLoadMinutes, dark)
+
+  If redraw And IsWindow(#WindowMain)
+    If IsGadget(#GadgetPanel)
+      RedrawWindow_(GadgetID(#GadgetPanel), 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN)
+    EndIf
+    ForEach gThemePageContainers()
+      If IsGadget(gThemePageContainers())
+        RedrawWindow_(GadgetID(gThemePageContainers()), 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN)
+      EndIf
+    Next
+    ForEach gUiLayout()
+      If IsGadget(#GadgetPanel) And gUiLayout()\Parent = GadgetID(#GadgetPanel) And gUiLayout()\Gadget = 0
+        RedrawWindow_(gUiLayout()\Hwnd, 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN)
+      EndIf
+    Next
+    If drawCustomSurfaces
+      DrawThemeSurfaces(#True)
+    EndIf
+    InvalidateRect_(WindowID(#WindowMain), 0, #True)
+    RedrawWindow_(WindowID(#WindowMain), 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN | #RDW_UPDATENOW)
+  ElseIf drawCustomSurfaces
+    DrawThemeSurfaces(#True)
+  EndIf
+EndProcedure
+
+Procedure RedrawNativeThemeChildren()
+  If IsWindow(#WindowMain) = #False
+    ProcedureReturn
+  EndIf
+  If IsGadget(#GadgetPanel)
+    RedrawWindow_(GadgetID(#GadgetPanel), 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN | #RDW_UPDATENOW)
+  EndIf
+  ForEach gThemePageContainers()
+    If IsGadget(gThemePageContainers())
+      RedrawWindow_(GadgetID(gThemePageContainers()), 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN | #RDW_UPDATENOW)
+    EndIf
+  Next
+  ForEach gUiLayout()
+    If IsWindow_(gUiLayout()\Hwnd)
+      RedrawWindow_(gUiLayout()\Hwnd, 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN | #RDW_UPDATENOW)
+    EndIf
+  Next
+EndProcedure
+
+Procedure ApplyAppThemeVisibleRefresh()
+  Protected hwnd.i
+  Protected locked.i
+  If IsWindow(#WindowMain) = #False
+    ApplyAppTheme(#True)
+    ProcedureReturn
+  EndIf
+  hwnd = WindowID(#WindowMain)
+  If IsWindowVisible_(hwnd)
+    locked = LockWindowUpdate_(hwnd)
+  EndIf
+  ApplyAppTheme(#True, #False)
+  If locked
+    LockWindowUpdate_(0)
+  EndIf
+  RedrawNativeThemeChildren()
+  DrawThemeSurfaces(#True)
+  InvalidateRect_(hwnd, 0, #True)
+  RedrawWindow_(hwnd, 0, 0, #RDW_INVALIDATE | #RDW_ERASE | #RDW_ALLCHILDREN | #RDW_UPDATENOW)
+EndProcedure
+
 Procedure ApplyMainWindowLayoutScale()
   Protected rc.RECT
   Protected width.i
   Protected height.i
-  Protected scaleX.d
-  Protected scaleY.d
+  Protected shellScaleX.d
+  Protected shellScaleY.d
+  Protected contentScaleX.d
+  Protected contentScaleY.d
+  Protected gadgetScaleX.d
+  Protected gadgetScaleY.d
   Protected fontScale.d
   Protected fontSize.i
   If IsWindow(#WindowMain) = #False Or ListSize(gUiLayout()) = 0
@@ -7267,19 +8502,34 @@ Procedure ApplyMainWindowLayoutScale()
   EndIf
   If gUiBaseClientWidth <= 0 : gUiBaseClientWidth = DesktopScaledX(#MainWindowBaseWidth) : EndIf
   If gUiBaseClientHeight <= 0 : gUiBaseClientHeight = DesktopScaledY(#MainWindowBaseHeight) : EndIf
-  scaleX = ClampUiScale(width / gUiBaseClientWidth)
-  scaleY = ClampUiScale(height / gUiBaseClientHeight)
-  fontScale = scaleX
-  If scaleY < fontScale : fontScale = scaleY : EndIf
+  shellScaleX = width / gUiBaseClientWidth
+  shellScaleY = height / gUiBaseClientHeight
+  If shellScaleX < #MainWindowMinScale : shellScaleX = #MainWindowMinScale : EndIf
+  If shellScaleY < #MainWindowMinScale : shellScaleY = #MainWindowMinScale : EndIf
+  contentScaleX = shellScaleX
+  contentScaleY = shellScaleY
+  fontScale = contentScaleX
+  If contentScaleY < fontScale : fontScale = contentScaleY : EndIf
   gUiScale = fontScale
   fontSize = ClampInt(Round(#UiFontBaseSize * fontScale, #PB_Round_Nearest), #UiFontMinSize, #UiFontMaxSize)
   EnsureUiFonts(fontSize)
   ForEach gUiLayout()
     If IsWindow_(gUiLayout()\Hwnd)
-      SetWindowPos_(gUiLayout()\Hwnd, 0, UiScaledCoord(gUiLayout()\X, scaleX), UiScaledCoord(gUiLayout()\Y, scaleY), UiScaledCoord(gUiLayout()\Width, scaleX), UiScaledCoord(gUiLayout()\Height, scaleY), #SWP_NOZORDER | #SWP_NOACTIVATE)
+      gadgetScaleX = contentScaleX
+      gadgetScaleY = contentScaleY
+      If gUiLayout()\Parent = WindowID(#WindowMain)
+        gadgetScaleX = shellScaleX
+        gadgetScaleY = shellScaleY
+      EndIf
+      SetWindowPos_(gUiLayout()\Hwnd, 0, UiScaledCoord(gUiLayout()\X, gadgetScaleX), UiScaledCoord(gUiLayout()\Y, gadgetScaleY), UiScaledCoord(gUiLayout()\Width, gadgetScaleX), UiScaledCoord(gUiLayout()\Height, gadgetScaleY), #SWP_NOZORDER | #SWP_NOACTIVATE)
     EndIf
   Next
   ApplyUiFontsToLayout()
+  SetDarkPanelChromeVisible(gThemeDarkActive)
+  DrawThemeFrames()
+  SendThemeFramesToBack()
+  DrawDarkTabBar()
+  DrawDarkPanelBorderLines()
   ApplyPlanListColumnWidths()
   If IsGadget(#GadgetBatteryGraph)
     DrawBatteryGraph()
@@ -8005,7 +9255,7 @@ EndProcedure
 Procedure.i SetStartupRegistry(enabled.i)
   Protected ps$
   If enabled
-    ps$ = "$q=[char]34; $cmd=$q + " + PowerShellLiteral(ProgramFilename()) + " + $q + ' /tray'; New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name " + PowerShellLiteral(#AppRunKey$) + " -Value $cmd"
+    ps$ = "$q=[char]34; $cmd=$q + " + PowerShellLiteral(ProgramFilename()) + " + $q + ' /startup'; New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name " + PowerShellLiteral(#AppRunKey$) + " -Value $cmd"
   Else
     ps$ = "Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name " + PowerShellLiteral(#AppRunKey$) + " -ErrorAction SilentlyContinue"
   EndIf
@@ -8090,7 +9340,7 @@ Procedure RefreshBatterySaverSummary()
     normalName$ = "Windows Balanced"
   EndIf
   text$ = "Energy Saver: " + EnergySaverModeName(gSettings\EnergySaverMode)
-  text$ + ", " + Str(ClampInt(gSettings\EnergySaverThreshold, 0, 100)) + "%; brightness " + Str(ClampInt(gSettings\EnergySaverBrightness, 0, 100)) + "%." + #CRLF$
+  text$ + ", " + Str(ClampInt(gSettings\EnergySaverThreshold, 0, 100)) + "%; " + EnergySaverBrightnessText() + "." + #CRLF$
   text$ + "Guard: low " + Str(ClampInt(gSettings\BatteryLowWarningPercent, gSettings\BatteryCriticalPercent + 1, 100)) + "% -> " + BatteryActionName(gSettings\BatteryLowAction)
   text$ + "; reserve " + Str(ClampInt(gSettings\BatteryReservePercent, gSettings\BatteryCriticalPercent, 100)) + "% warning only." + #CRLF$
   text$ + "Critical " + Str(ClampInt(gSettings\BatteryCriticalPercent, 1, 99)) + "% -> " + BatteryActionName(gSettings\BatteryCriticalAction) + ". "
@@ -8148,6 +9398,31 @@ Procedure ResetSelectedPlan()
   RefreshPlanList(#True)
 EndProcedure
 
+Procedure UpdateDependentSettingControls()
+  Protected energySaverMode.i = gSettings\EnergySaverMode
+  Protected energySaverBrightnessEnabled.i = gSettings\EnergySaverBrightnessEnabled
+  Protected batteryLogEnabled.i = gSettings\BatteryLogEnabled
+  Protected batteryLimiterEnabled.i = gSettings\BatteryLimiterEnabled
+
+  If IsGadget(#GadgetEnergySaverMode)
+    energySaverMode = GetGadgetState(#GadgetEnergySaverMode)
+  EndIf
+  If IsGadget(#GadgetEnergySaverBrightnessEnabled)
+    energySaverBrightnessEnabled = GetGadgetState(#GadgetEnergySaverBrightnessEnabled)
+  EndIf
+  If IsGadget(#GadgetBatteryLogEnabled)
+    batteryLogEnabled = GetGadgetState(#GadgetBatteryLogEnabled)
+  EndIf
+  If IsGadget(#GadgetBatteryLimiterEnabled)
+    batteryLimiterEnabled = GetGadgetState(#GadgetBatteryLimiterEnabled)
+  EndIf
+
+  If IsGadget(#GadgetEnergySaverThreshold) : DisableGadget(#GadgetEnergySaverThreshold, Bool(energySaverMode = #EnergySaverPowerPilotControlled)) : EndIf
+  If IsGadget(#GadgetEnergySaverBrightness) : DisableGadget(#GadgetEnergySaverBrightness, Bool(energySaverBrightnessEnabled = #False)) : EndIf
+  If IsGadget(#GadgetBatteryLogMinutes) : DisableGadget(#GadgetBatteryLogMinutes, Bool(batteryLogEnabled = #False)) : EndIf
+  If IsGadget(#GadgetBatteryLimiterMaxPercent) : DisableGadget(#GadgetBatteryLimiterMaxPercent, Bool(batteryLimiterEnabled = #False)) : EndIf
+EndProcedure
+
 ; Push loaded settings into the tab controls. Most gadgets are created before
 ; this runs, but several checks stay defensive because installer command-line
 ; modes reuse settings code without ever opening the window.
@@ -8158,6 +9433,7 @@ Procedure ApplySettingsToGui()
   SetGadgetState(#GadgetDeepIdleSaver, Bool(gSettings\DeepIdleSaver))
   If IsGadget(#GadgetEnergySaverMode) : SetGadgetState(#GadgetEnergySaverMode, ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled)) : EndIf
   If IsGadget(#GadgetEnergySaverThreshold) : SetGadgetState(#GadgetEnergySaverThreshold, ClampInt(gSettings\EnergySaverThreshold, 0, 100)) : EndIf
+  If IsGadget(#GadgetEnergySaverBrightnessEnabled) : SetGadgetState(#GadgetEnergySaverBrightnessEnabled, Bool(gSettings\EnergySaverBrightnessEnabled)) : EndIf
   If IsGadget(#GadgetEnergySaverBrightness) : SetGadgetState(#GadgetEnergySaverBrightness, ClampInt(gSettings\EnergySaverBrightness, 0, 100)) : EndIf
   If IsGadget(#GadgetBatteryLowWarningPercent) : SetGadgetState(#GadgetBatteryLowWarningPercent, ClampInt(gSettings\BatteryLowWarningPercent, gSettings\BatteryCriticalPercent + 1, 100)) : EndIf
   If IsGadget(#GadgetBatteryReservePercent) : SetGadgetState(#GadgetBatteryReservePercent, ClampInt(gSettings\BatteryReservePercent, gSettings\BatteryCriticalPercent, 100)) : EndIf
@@ -8175,10 +9451,11 @@ Procedure ApplySettingsToGui()
   If IsGadget(#GadgetBatteryLimiterMaxPercent) : SetGadgetState(#GadgetBatteryLimiterMaxPercent, ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100)) : EndIf
   If IsGadget(#GadgetBatterySmoothingMinutes) : SetGadgetState(#GadgetBatterySmoothingMinutes, ClampInt(gSettings\BatterySmoothingMinutes, 5, 240)) : EndIf
   If IsGadget(#GadgetBatteryStartupDrain) : SetGadgetState(#GadgetBatteryStartupDrain, ClampInt(gSettings\BatteryStartupDrainPctPerHour, 1, 100)) : EndIf
+  If IsGadget(#GadgetPowerPilotAverageMinutes) : SetGadgetState(#GadgetPowerPilotAverageMinutes, ClampInt(gSettings\PowerPilotUseAverageMinutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes)) : EndIf
   If IsGadget(#GadgetBatteryLoadMinutes) : SetGadgetState(#GadgetBatteryLoadMinutes, ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)) : EndIf
   If IsGadget(#GadgetBatteryGraphHours) : SetGadgetState(#GadgetBatteryGraphHours, BatteryGraphHoursIndex(gSettings\BatteryGraphHours)) : EndIf
   If IsGadget(#GadgetBatteryGraphShowMarkers) : SetGadgetState(#GadgetBatteryGraphShowMarkers, Bool(gSettings\BatteryGraphShowMarkers)) : EndIf
-  If IsGadget(gFrameBatteryGraph) : SetGadgetTextIfChanged(gFrameBatteryGraph, BatteryGraphWindowTitle()) : EndIf
+  If IsGadget(gFrameBatteryGraph) : SetThemeFrameTitle(gFrameBatteryGraph, BatteryGraphWindowTitle()) : EndIf
   If IsGadget(#GadgetLogShowAverage) : SetGadgetState(#GadgetLogShowAverage, Bool(gSettings\BatteryLogShowAverage)) : EndIf
   If IsGadget(#GadgetLogShowInstant) : SetGadgetState(#GadgetLogShowInstant, Bool(gSettings\BatteryLogShowInstant)) : EndIf
   If IsGadget(#GadgetLogShowWindows) : SetGadgetState(#GadgetLogShowWindows, Bool(gSettings\BatteryLogShowWindows)) : EndIf
@@ -8187,8 +9464,66 @@ Procedure ApplySettingsToGui()
   If IsGadget(#GadgetLogShowScreen) : SetGadgetState(#GadgetLogShowScreen, Bool(gSettings\BatteryLogShowScreen)) : EndIf
   If IsGadget(#GadgetLogShowBrightness) : SetGadgetState(#GadgetLogShowBrightness, Bool(gSettings\BatteryLogShowBrightness)) : EndIf
   If IsGadget(#GadgetLogShowEvents) : SetGadgetState(#GadgetLogShowEvents, Bool(gSettings\BatteryLogShowEvents)) : EndIf
+  If IsGadget(#GadgetThemeMode) : SetGadgetState(#GadgetThemeMode, ClampInt(gSettings\ThemeMode, #ThemeModeWindows, #ThemeModeDark)) : EndIf
+  UpdateDependentSettingControls()
   RefreshBatterySaverSummary()
+  ApplyAppTheme(#False)
   ApplyToolTips()
+EndProcedure
+
+Procedure.i PowerPilotUseAverageMinutesFromGui(updateGui.i = #True)
+  Protected minutes.i = ClampInt(gSettings\PowerPilotUseAverageMinutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes)
+  Protected text$
+  If IsGadget(#GadgetPowerPilotAverageMinutes)
+    text$ = Trim(GetGadgetText(#GadgetPowerPilotAverageMinutes))
+    If text$ <> ""
+      minutes = Val(text$)
+    Else
+      minutes = GetGadgetState(#GadgetPowerPilotAverageMinutes)
+    EndIf
+  EndIf
+  minutes = ClampInt(minutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes)
+  gSettings\PowerPilotUseAverageMinutes = minutes
+  If updateGui And IsGadget(#GadgetPowerPilotAverageMinutes)
+    SetGadgetState(#GadgetPowerPilotAverageMinutes, minutes)
+  EndIf
+  ProcedureReturn minutes
+EndProcedure
+
+Procedure.i BatteryCalibrationTargetMinutesFromGui(updateGui.i = #True)
+  Protected minutes.i = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
+  Protected text$
+  If IsGadget(#GadgetBatteryLoadMinutes)
+    text$ = Trim(GetGadgetText(#GadgetBatteryLoadMinutes))
+    If text$ <> ""
+      minutes = Val(text$)
+    Else
+      minutes = GetGadgetState(#GadgetBatteryLoadMinutes)
+    EndIf
+  EndIf
+  minutes = ClampInt(minutes, 15, 720)
+  gSettings\BatteryCalibrationDrainMinutes = minutes
+  If updateGui And IsGadget(#GadgetBatteryLoadMinutes)
+    SetGadgetState(#GadgetBatteryLoadMinutes, minutes)
+  EndIf
+  ProcedureReturn minutes
+EndProcedure
+
+Procedure ApplyBatteryCalibrationTargetMinutes(updateActive.i = #True)
+  Protected minutes.i = BatteryCalibrationTargetMinutesFromGui(#True)
+  SaveSettings()
+  If updateActive And gBatteryAutoDrainActive
+    gBatteryAutoDrainMinutes = minutes
+    gBatteryAutoDrainEndTime = Date() + (minutes * 60)
+    gBatteryAutoDrainLastAdjust = 0
+    gBatteryAutoDrainIntegral = 0.0
+    gBatteryAutoDrainFilteredW = 0.0
+    gBatteryAutoDrainReason$ = "Target updated"
+    WriteBatteryTestRow("auto drain target updated " + Str(minutes) + " min, end " + FormatDate("%hh:%ii", gBatteryAutoDrainEndTime), #True)
+    UpdateAutoDrainTarget(#True)
+  Else
+    RefreshBatteryCpuLoadDisplay()
+  EndIf
 EndProcedure
 
 ; Read and persist Battery Saver, PowerPilot Log, graph, and Battery Stats
@@ -8197,6 +9532,7 @@ EndProcedure
 Procedure SaveBatterySettingsFromGui()
   Protected oldEnergySaverMode.i = gSettings\EnergySaverMode
   Protected oldEnergySaverThreshold.i = gSettings\EnergySaverThreshold
+  Protected oldEnergySaverBrightnessEnabled.i = gSettings\EnergySaverBrightnessEnabled
   Protected oldEnergySaverBrightness.i = gSettings\EnergySaverBrightness
   Protected oldBatteryLowWarningPercent.i = gSettings\BatteryLowWarningPercent
   Protected oldBatteryReservePercent.i = gSettings\BatteryReservePercent
@@ -8210,6 +9546,7 @@ Procedure SaveBatterySettingsFromGui()
   CaptureBatteryLogColumnWidths(#False)
   If IsGadget(#GadgetEnergySaverMode) : gSettings\EnergySaverMode = GetGadgetState(#GadgetEnergySaverMode) : EndIf
   If IsGadget(#GadgetEnergySaverThreshold) : gSettings\EnergySaverThreshold = GetGadgetState(#GadgetEnergySaverThreshold) : EndIf
+  If IsGadget(#GadgetEnergySaverBrightnessEnabled) : gSettings\EnergySaverBrightnessEnabled = GetGadgetState(#GadgetEnergySaverBrightnessEnabled) : EndIf
   If IsGadget(#GadgetEnergySaverBrightness) : gSettings\EnergySaverBrightness = GetGadgetState(#GadgetEnergySaverBrightness) : EndIf
   If IsGadget(#GadgetBatteryLowWarningPercent) : gSettings\BatteryLowWarningPercent = GetGadgetState(#GadgetBatteryLowWarningPercent) : EndIf
   If IsGadget(#GadgetBatteryReservePercent) : gSettings\BatteryReservePercent = GetGadgetState(#GadgetBatteryReservePercent) : EndIf
@@ -8226,7 +9563,8 @@ Procedure SaveBatterySettingsFromGui()
   If IsGadget(#GadgetBatteryLimiterMaxPercent) : gSettings\BatteryLimiterMaxPercent = GetGadgetState(#GadgetBatteryLimiterMaxPercent) : EndIf
   If IsGadget(#GadgetBatterySmoothingMinutes) : gSettings\BatterySmoothingMinutes = GetGadgetState(#GadgetBatterySmoothingMinutes) : EndIf
   If IsGadget(#GadgetBatteryStartupDrain) : gSettings\BatteryStartupDrainPctPerHour = GetGadgetState(#GadgetBatteryStartupDrain) : EndIf
-  If IsGadget(#GadgetBatteryLoadMinutes) : gSettings\BatteryCalibrationDrainMinutes = GetGadgetState(#GadgetBatteryLoadMinutes) : EndIf
+  If IsGadget(#GadgetPowerPilotAverageMinutes) : gSettings\PowerPilotUseAverageMinutes = PowerPilotUseAverageMinutesFromGui(#True) : EndIf
+  If IsGadget(#GadgetBatteryLoadMinutes) : gSettings\BatteryCalibrationDrainMinutes = BatteryCalibrationTargetMinutesFromGui(#True) : EndIf
   If IsGadget(#GadgetBatteryGraphHours) : gSettings\BatteryGraphHours = BatteryGraphHoursFromIndex(GetGadgetState(#GadgetBatteryGraphHours)) : EndIf
   If IsGadget(#GadgetBatteryGraphShowMarkers) : gSettings\BatteryGraphShowMarkers = GetGadgetState(#GadgetBatteryGraphShowMarkers) : EndIf
   If IsGadget(#GadgetLogShowAverage) : gSettings\BatteryLogShowAverage = GetGadgetState(#GadgetLogShowAverage) : EndIf
@@ -8239,6 +9577,7 @@ Procedure SaveBatterySettingsFromGui()
   If IsGadget(#GadgetLogShowEvents) : gSettings\BatteryLogShowEvents = GetGadgetState(#GadgetLogShowEvents) : EndIf
   gSettings\EnergySaverMode = ClampInt(gSettings\EnergySaverMode, #EnergySaverFollowWindows, #EnergySaverPowerPilotControlled)
   gSettings\EnergySaverThreshold = ClampInt(gSettings\EnergySaverThreshold, 0, 100)
+  gSettings\EnergySaverBrightnessEnabled = Bool(gSettings\EnergySaverBrightnessEnabled)
   gSettings\EnergySaverBrightness = ClampInt(gSettings\EnergySaverBrightness, 0, 100)
   gSettings\BatteryCriticalPercent = ClampInt(gSettings\BatteryCriticalPercent, 1, 99)
   gSettings\BatteryLowWarningPercent = ClampInt(gSettings\BatteryLowWarningPercent, gSettings\BatteryCriticalPercent + 1, 100)
@@ -8252,6 +9591,7 @@ Procedure SaveBatterySettingsFromGui()
   gSettings\BatteryMaxPercent = ClampInt(gSettings\BatteryMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatteryLimiterMaxPercent = ClampInt(gSettings\BatteryLimiterMaxPercent, gSettings\BatteryMinPercent + 1, 100)
   gSettings\BatterySmoothingMinutes = ClampInt(gSettings\BatterySmoothingMinutes, 5, 240)
+  gSettings\PowerPilotUseAverageMinutes = ClampInt(gSettings\PowerPilotUseAverageMinutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes)
   gSettings\BatteryCalibrationDrainMinutes = ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720)
   gSettings\BatteryGraphHours = NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)
   gSettings\BatteryGraphShowMarkers = Bool(gSettings\BatteryGraphShowMarkers)
@@ -8262,7 +9602,7 @@ Procedure SaveBatterySettingsFromGui()
   If oldBatteryLowWarningPercent <> gSettings\BatteryLowWarningPercent Or oldBatteryReservePercent <> gSettings\BatteryReservePercent Or oldBatteryLowAction <> gSettings\BatteryLowAction Or oldBatteryCriticalPercent <> gSettings\BatteryCriticalPercent Or oldBatteryCriticalAction <> gSettings\BatteryCriticalAction
     ApplyBatterySleepFloorToManagedPlans()
   EndIf
-  If oldEnergySaverMode <> gSettings\EnergySaverMode Or oldEnergySaverThreshold <> gSettings\EnergySaverThreshold Or oldEnergySaverBrightness <> gSettings\EnergySaverBrightness
+  If oldEnergySaverMode <> gSettings\EnergySaverMode Or oldEnergySaverThreshold <> gSettings\EnergySaverThreshold Or oldEnergySaverBrightnessEnabled <> gSettings\EnergySaverBrightnessEnabled Or oldEnergySaverBrightness <> gSettings\EnergySaverBrightness
     ApplyEnergySaverPolicyToManagedPlans()
   EndIf
   ApplySettingsToGui()
@@ -8276,7 +9616,7 @@ Procedure SaveBatteryGraphDisplaySettingsFromGui()
   If IsGadget(#GadgetBatteryGraphShowMarkers) : gSettings\BatteryGraphShowMarkers = GetGadgetState(#GadgetBatteryGraphShowMarkers) : EndIf
   gSettings\BatteryGraphHours = NormalizeBatteryGraphHours(gSettings\BatteryGraphHours)
   gSettings\BatteryGraphShowMarkers = Bool(gSettings\BatteryGraphShowMarkers)
-  If IsGadget(gFrameBatteryGraph) : SetGadgetTextIfChanged(gFrameBatteryGraph, BatteryGraphWindowTitle()) : EndIf
+  If IsGadget(gFrameBatteryGraph) : SetThemeFrameTitle(gFrameBatteryGraph, BatteryGraphWindowTitle()) : EndIf
   SaveSettings()
 EndProcedure
 
@@ -8479,6 +9819,7 @@ Procedure ImportSettings()
     gSelectedPlan = PlanIndexByName(gSettings\LastPlan)
     If gSelectedPlan < 0 : gSelectedPlan = 1 : EndIf
     ApplySettingsToGui()
+    ApplyMainWindowLayoutScale()
     RefreshPlanList(#True)
     RefreshPlanEditor()
     RefreshBatteryLogPreview()
@@ -8507,6 +9848,20 @@ Procedure OpenReadmeDocument()
   Else
     LogAction("README was not found beside PowerPilot.")
     MessageRequester(#AppName$, "README was not found beside PowerPilot.", #PB_MessageRequester_Warning)
+  EndIf
+EndProcedure
+
+Procedure OpenManualDocument()
+  Protected path$ = GetPathPart(ProgramFilename()) + "USER_MANUAL.txt"
+  If FileSize(path$) < 0
+    path$ = GetCurrentDirectory() + "USER_MANUAL.txt"
+  EndIf
+  If FileSize(path$) >= 0
+    RunProgram("explorer.exe", QuoteArgument(path$), "")
+    LogAction("User manual opened.")
+  Else
+    LogAction("User manual was not found beside PowerPilot.")
+    MessageRequester(#AppName$, "User manual was not found beside PowerPilot.", #PB_MessageRequester_Warning)
   EndIf
 EndProcedure
 
@@ -8556,6 +9911,37 @@ Procedure SaveSettingsFromGui()
   RefreshActiveTimer()
   ApplyToolTips()
   LogAction("Settings saved.")
+EndProcedure
+
+Procedure SaveThemeModeFromGui()
+  If IsGadget(#GadgetThemeMode) = #False
+    ProcedureReturn
+  EndIf
+  If GetGadgetState(#GadgetThemeMode) = ClampInt(gSettings\ThemeMode, #ThemeModeWindows, #ThemeModeDark)
+    ProcedureReturn
+  EndIf
+  gSettings\ThemeMode = ClampInt(GetGadgetState(#GadgetThemeMode), #ThemeModeWindows, #ThemeModeDark)
+  SaveSettings()
+  If IsWindow(#WindowMain)
+    If gThemeApplyPending
+      RemoveWindowTimer(#WindowMain, #TimerThemeApply)
+    EndIf
+    gThemeApplyPending = #False
+    ApplyAppThemeVisibleRefresh()
+    LogAction("Theme set to " + ThemeModeName(gSettings\ThemeMode) + ".")
+  Else
+    ApplyAppTheme(#True)
+    LogAction("Theme set to " + ThemeModeName(gSettings\ThemeMode) + ".")
+  EndIf
+EndProcedure
+
+Procedure ApplyPendingThemeMode()
+  If IsWindow(#WindowMain)
+    RemoveWindowTimer(#WindowMain, #TimerThemeApply)
+  EndIf
+  gThemeApplyPending = #False
+  ApplyAppThemeVisibleRefresh()
+  LogAction("Theme set to " + ThemeModeName(gSettings\ThemeMode) + ".")
 EndProcedure
 
 ; Fill the PowerPilot Log tab from the retained CSV. The list intentionally
@@ -8756,6 +10142,7 @@ EndProcedure
 Procedure.s OverviewRuntimeText()
   Protected text$
   Protected fullRuntime$
+  Protected fullRuntimeMinutes.d
   Protected timeText$
   Protected capacity$
   If gBattery\Valid = #False
@@ -8766,9 +10153,17 @@ Procedure.s OverviewRuntimeText()
   If gBattery\Charging And gBattery\EstimateValid
     timeText$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + " to target"
   ElseIf gBattery\DisconnectedBattery And gBattery\InstantEstimateValid
-    timeText$ = FormatBatteryMinutes(gBattery\InstantEstimateMinutes) + " now"
+    If BatteryRuntimeEstimateDisplayable(gBattery\InstantEstimateMinutes, gBattery\InstantDrainPctPerHour)
+      timeText$ = FormatBatteryMinutes(gBattery\InstantEstimateMinutes) + " now"
+    Else
+      timeText$ = "needs real drain"
+    EndIf
   ElseIf gBattery\EstimateValid
-    timeText$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + " average"
+    If BatteryRuntimeEstimateDisplayable(gBattery\EstimateMinutes, gBattery\SmoothedDrainPctPerHour)
+      timeText$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + " average"
+    Else
+      timeText$ = "needs real drain"
+    EndIf
   ElseIf gBattery\RuntimeValid
     timeText$ = FormatBatteryMinutes(gBattery\RuntimeMinutes) + " Windows"
   ElseIf gBattery\Connected And gBattery\Charging = #False And gBattery\DisconnectedBattery = #False
@@ -8776,8 +10171,15 @@ Procedure.s OverviewRuntimeText()
   Else
     timeText$ = "calculating"
   EndIf
-  If gBattery\SmoothedDrainPctPerHour > 0.0 And BatteryEffectiveMaxPercent() > gSettings\BatteryMinPercent
-    fullRuntime$ = FormatBatteryMinutes(((BatteryEffectiveMaxPercent() - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0)
+  If gBattery\Connected And gBattery\DisconnectedBattery = #False
+    fullRuntime$ = "paused on AC"
+  ElseIf gBattery\SmoothedDrainPctPerHour > 0.0 And BatteryEffectiveMaxPercent() > gSettings\BatteryMinPercent
+    fullRuntimeMinutes = ((BatteryEffectiveMaxPercent() - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0
+    If BatteryRuntimeEstimateDisplayable(fullRuntimeMinutes, gBattery\SmoothedDrainPctPerHour)
+      fullRuntime$ = FormatBatteryMinutes(fullRuntimeMinutes)
+    Else
+      fullRuntime$ = "needs real drain"
+    EndIf
   Else
     fullRuntime$ = "calculating"
   EndIf
@@ -8802,14 +10204,32 @@ EndProcedure
 Procedure.s OverviewPowerPilotText()
   Protected text$
   Protected appUse$
-  If gPowerPilotCpuWindowSeconds > 0.0 Or gPowerPilotCpuWindowTotalPercent > 0.0
-    appUse$ = StrD(gPowerPilotCpuWindowMw, 2) + " mW, " + Str(gPowerPilotCpuWindowSecondsCost) + " sec"
+  If gPowerPilotCpuWindowValid
+    appUse$ = "1m " + StrD(gPowerPilotCpuWindowMw, 2) + " mW"
+    If gPowerPilotCpuAverageValid
+      appUse$ + ", avg " + StrD(gPowerPilotCpuAverageMw, 2) + " mW"
+    EndIf
   Else
     appUse$ = "sampling"
   EndIf
   text$ = "Read " + Str(ClampInt(gSettings\BatteryRefreshSeconds, 5, 3600)) + "s, log " + Str(ClampInt(gSettings\BatteryLogIntervalMinutes, 1, 1440)) + "m; app " + appUse$
-  text$ + #CRLF$ + "Energy Saver: " + OverviewShortModeName() + ", dim " + Str(ClampInt(gSettings\EnergySaverBrightness, 0, 100)) + "%"
+  text$ + #CRLF$ + "Energy Saver: " + OverviewShortModeName() + ", " + EnergySaverBrightnessText()
   ProcedureReturn text$
+EndProcedure
+
+Procedure.s OverviewDisplayText()
+  Protected screen$
+  Protected brightness$
+  screen$ = Trim(gLastScreenEvent$)
+  If screen$ = ""
+    screen$ = "waiting"
+  EndIf
+  If gLastScreenBrightnessPercent >= 0 And gLastScreenBrightnessPercent <= 100
+    brightness$ = Str(gLastScreenBrightnessPercent) + "%"
+  Else
+    brightness$ = "unknown"
+  EndIf
+  ProcedureReturn "Screen: " + screen$ + #CRLF$ + "Brightness: " + brightness$ + #CRLF$ + "Saver policy: " + EnergySaverBrightnessText()
 EndProcedure
 
 Procedure RefreshOverviewPanels()
@@ -8828,6 +10248,9 @@ Procedure RefreshOverviewPanels()
   If IsGadget(#GadgetOverviewPowerPilot)
     SetGadgetTextIfChanged(#GadgetOverviewPowerPilot, OverviewPowerPilotText())
   EndIf
+  If IsGadget(#GadgetOverviewDisplay)
+    SetGadgetTextIfChanged(#GadgetOverviewDisplay, OverviewDisplayText())
+  EndIf
 EndProcedure
 
 ; Update the Battery Graph tab and redraw graph/stats after every battery
@@ -8835,26 +10258,13 @@ EndProcedure
 Procedure RefreshPowerPilotDrawDisplay()
   Protected now.q = Date()
   Protected nowCpu.q = CurrentProcessCpuTime100Ns()
-  Protected cpuSeconds.d
-  Protected cpuStart.d
-  Protected normalizedCpuSeconds.d
-  Protected elapsedSeconds.d
-  Protected totalLogicalCpuSeconds.d
-  Protected totalCpuPercent.d
-  Protected processCpuShare.d
-  Protected estimatedMw.d
   Protected drainBasisMW.d
   Protected drainBasisEstimated.i
   Protected drainBasisPctPerHour.d
-  Protected windowMinutes.d
-  Protected ppSeconds.q
-  Protected windowStart.q
   Protected runtimeFullMWh.d = BatteryRuntimeFullMWh()
-  Protected startIndex.i = -1
-  Protected endIndex.i = -1
-  Protected spanSeconds.d
-  Protected interpolation.d
-  Protected i.i
+  Protected live.PowerPilotUseWindowResult
+  Protected average.PowerPilotUseWindowResult
+  Protected averageMinutes.i = ClampInt(gSettings\PowerPilotUseAverageMinutes, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes)
   Protected suffix$
   If gBatteryNativeFallbackUsed
     suffix$ = " fallback"
@@ -8863,42 +10273,23 @@ Procedure RefreshPowerPilotDrawDisplay()
     ProcedureReturn
   EndIf
   If nowCpu <= 0
+    gPowerPilotCpuWindowValid = #False
+    gPowerPilotCpuAverageValid = #False
     SetGadgetTextIfChanged(#GadgetPowerPilotDraw, "Unavailable" + suffix$)
+    If IsGadget(#GadgetPowerPilotDrawAverage)
+      SetGadgetTextIfChanged(#GadgetPowerPilotDrawAverage, "Unavailable")
+    EndIf
     ProcedureReturn
   EndIf
   AddPowerPilotUsePoint(now, nowCpu)
   If gPowerPilotUsePointCount < 2
+    gPowerPilotCpuWindowValid = #False
+    gPowerPilotCpuAverageValid = #False
     SetGadgetTextIfChanged(#GadgetPowerPilotDraw, "Sampling 60s" + suffix$)
+    If IsGadget(#GadgetPowerPilotDrawAverage)
+      SetGadgetTextIfChanged(#GadgetPowerPilotDrawAverage, "Sampling")
+    EndIf
     ProcedureReturn
-  EndIf
-  windowStart = now - #PowerPilotUseWindowSeconds
-  For i = gPowerPilotUsePointCount - 1 To 0 Step -1
-    If gPowerPilotUsePoints(i)\Timestamp <= windowStart
-      startIndex = i
-      Break
-    EndIf
-  Next
-  If startIndex < 0
-    startIndex = 0
-  EndIf
-  If gPowerPilotUsePoints(startIndex)\Timestamp < windowStart And startIndex + 1 < gPowerPilotUsePointCount
-    endIndex = startIndex + 1
-    spanSeconds = gPowerPilotUsePoints(endIndex)\Timestamp - gPowerPilotUsePoints(startIndex)\Timestamp
-    If spanSeconds > 0.0
-      interpolation = (windowStart - gPowerPilotUsePoints(startIndex)\Timestamp) / spanSeconds
-      If interpolation < 0.0 : interpolation = 0.0 : EndIf
-      If interpolation > 1.0 : interpolation = 1.0 : EndIf
-      cpuStart = gPowerPilotUsePoints(startIndex)\CpuTime100Ns + ((gPowerPilotUsePoints(endIndex)\CpuTime100Ns - gPowerPilotUsePoints(startIndex)\CpuTime100Ns) * interpolation)
-      elapsedSeconds = now - windowStart
-    EndIf
-  EndIf
-  If elapsedSeconds <= 0.0
-    cpuStart = gPowerPilotUsePoints(startIndex)\CpuTime100Ns
-    elapsedSeconds = now - gPowerPilotUsePoints(startIndex)\Timestamp
-  EndIf
-  cpuSeconds = (nowCpu - cpuStart) / 10000000.0
-  If cpuSeconds < 0.0
-    cpuSeconds = 0.0
   EndIf
   drainBasisMW = gBattery\DischargeRateMW
   If drainBasisMW <= 0.0 And runtimeFullMWh > 0.0
@@ -8914,35 +10305,32 @@ Procedure RefreshPowerPilotDrawDisplay()
       drainBasisEstimated = #True
     EndIf
   EndIf
-  totalLogicalCpuSeconds = elapsedSeconds * CountCPUs()
-  If totalLogicalCpuSeconds > 0.0
-    processCpuShare = cpuSeconds / totalLogicalCpuSeconds
-    If processCpuShare < 0.0 : processCpuShare = 0.0 : EndIf
-    If processCpuShare > 1.0 : processCpuShare = 1.0 : EndIf
-    totalCpuPercent = processCpuShare * 100.0
-    normalizedCpuSeconds = elapsedSeconds * processCpuShare
-    If normalizedCpuSeconds > #PowerPilotUseWindowSeconds
-      normalizedCpuSeconds = #PowerPilotUseWindowSeconds
-    EndIf
-  EndIf
-  If drainBasisMW > 0.0
-    estimatedMw = drainBasisMW * processCpuShare
-  EndIf
-  gPowerPilotCpuWindowSeconds = normalizedCpuSeconds
-  gPowerPilotCpuWindowTotalPercent = totalCpuPercent
-  gPowerPilotCpuWindowMw = estimatedMw
+  CalculatePowerPilotUseWindow(#PowerPilotUseWindowSeconds, now, nowCpu, drainBasisMW, runtimeFullMWh, @live)
+  CalculatePowerPilotUseWindow(averageMinutes * 60, now, nowCpu, drainBasisMW, runtimeFullMWh, @average)
+  gPowerPilotCpuWindowValid = live\Valid
+  gPowerPilotCpuWindowSeconds = live\CpuWindowSeconds
+  gPowerPilotCpuWindowTotalPercent = live\CpuTotalPercent
+  gPowerPilotCpuWindowMw = live\Milliwatts
+  gPowerPilotCpuWindowSecondsCost = live\SecondsCost
   gPowerPilotCpuWindowDrainBasisMW = drainBasisMW
   gPowerPilotCpuWindowDrainBasisEstimated = drainBasisEstimated
   gPowerPilotCpuWindowDrainBasisPctPerHour = drainBasisPctPerHour
-  If gPowerPilotCpuWindowSeconds > 0.0 Or gPowerPilotCpuWindowTotalPercent > 0.0
-    If drainBasisMW > 0.0 And gPowerPilotCpuWindowMw > 0.0 And runtimeFullMWh > 0.0
-      windowMinutes = (((BatteryEffectiveMaxPercent() - gSettings\BatteryMinPercent) / 100.0) * runtimeFullMWh / drainBasisMW) * 60.0
-      ppSeconds = Round(windowMinutes * 60.0 * (gPowerPilotCpuWindowMw / drainBasisMW), #PB_Round_Nearest)
-    EndIf
-    gPowerPilotCpuWindowSecondsCost = ppSeconds
-    SetGadgetTextIfChanged(#GadgetPowerPilotDraw, StrD(gPowerPilotCpuWindowMw, 2) + " mW, " + Str(ppSeconds) + " sec" + suffix$)
+  gPowerPilotCpuAverageValid = average\Valid
+  gPowerPilotCpuAverageSeconds = average\CpuWindowSeconds
+  gPowerPilotCpuAverageTotalPercent = average\CpuTotalPercent
+  gPowerPilotCpuAverageMw = average\Milliwatts
+  gPowerPilotCpuAverageSecondsCost = average\SecondsCost
+  If gPowerPilotCpuWindowValid
+    SetGadgetTextIfChanged(#GadgetPowerPilotDraw, FormatPowerPilotUseEstimate(gPowerPilotCpuWindowMw, gPowerPilotCpuWindowSecondsCost) + suffix$)
   Else
     SetGadgetTextIfChanged(#GadgetPowerPilotDraw, "Sampling 60s" + suffix$)
+  EndIf
+  If IsGadget(#GadgetPowerPilotDrawAverage)
+    If gPowerPilotCpuAverageValid
+      SetGadgetTextIfChanged(#GadgetPowerPilotDrawAverage, FormatPowerPilotUseEstimate(gPowerPilotCpuAverageMw, gPowerPilotCpuAverageSecondsCost))
+    Else
+      SetGadgetTextIfChanged(#GadgetPowerPilotDrawAverage, "Sampling")
+    EndIf
   EndIf
   RefreshOverviewPanels()
   RefreshPowerUseDetails()
@@ -8954,10 +10342,13 @@ Procedure RefreshPowerUseDetails()
   If IsGadget(#GadgetPowerUseSummary) = #False
     ProcedureReturn
   EndIf
-  If gPowerPilotCpuWindowSeconds > 0.0 Or gPowerPilotCpuWindowTotalPercent > 0.0
+  If gPowerPilotCpuWindowValid
     summary$ = "CPU time: " + StrD(gPowerPilotCpuWindowSeconds, 2) + " sec / 60 sec" + #CRLF$
     summary$ + "CPU load: " + StrD(gPowerPilotCpuWindowTotalPercent, 3) + "% total CPU" + #CRLF$
     summary$ + "App power draw: " + StrD(gPowerPilotCpuWindowMw, 2) + " mW" + #CRLF$
+    If gPowerPilotCpuAverageValid
+      summary$ + "Average (" + Str(gSettings\PowerPilotUseAverageMinutes) + "m): " + StrD(gPowerPilotCpuAverageMw, 2) + " mW" + #CRLF$
+    EndIf
     summary$ + "Full-to-empty cost: about " + Str(gPowerPilotCpuWindowSecondsCost) + " sec"
   Else
     summary$ = "Waiting for 60 seconds of app CPU samples."
@@ -8988,7 +10379,9 @@ Procedure RefreshBatteryDisplay()
   Protected instantEstimate$
   Protected runtime$
   Protected fullEstimate$
+  Protected fullEstimateMinutes.d
   Protected nominalEstimate$
+  Protected nominalEstimateMinutes.d
   Protected wear$
   Protected maxCapacity$
   Protected pluggedIdleText$
@@ -9063,7 +10456,7 @@ Procedure RefreshBatteryDisplay()
   EndIf
   If gBattery\Connected And gBattery\Charging = #False And gBattery\DisconnectedBattery = #False
     If gBattery\Percent >= ceilingPercent - 0.5
-      pluggedIdleText$ = "At " + StrD(ceilingPercent, 0) + "% target"
+      pluggedIdleText$ = "At charge target"
     Else
       pluggedIdleText$ = "Plugged in, idle"
     EndIf
@@ -9072,12 +10465,16 @@ Procedure RefreshBatteryDisplay()
   EndIf
   If gBattery\EstimateValid
     If gBattery\Charging And gBattery\EstimateMinutes <= 0
-      estimate$ = "At " + StrD(ceilingPercent, 0) + "% target"
-    Else
+      estimate$ = "At charge target"
+    ElseIf gBattery\Charging Or BatteryRuntimeEstimateDisplayable(gBattery\EstimateMinutes, estimateRate)
       estimate$ = FormatBatteryMinutes(gBattery\EstimateMinutes) + targetText$ + " at " + StrD(estimateRate, 1) + "%/h"
       If gBattery\EstimateLowConfidence
         estimate$ + " low confidence"
       EndIf
+    ElseIf gBattery\Connected And gBattery\DisconnectedBattery = #False
+      estimate$ = pluggedIdleText$
+    Else
+      estimate$ = "Needs real drain"
     EndIf
   ElseIf gBattery\Connected
     If gBattery\Phase = #BatteryPhasePluggedDischargingCalibration
@@ -9090,16 +10487,20 @@ Procedure RefreshBatteryDisplay()
   EndIf
   If gBattery\Charging
     If gBattery\EstimateValid And gBattery\EstimateMinutes <= 0
-      instantEstimate$ = "At " + StrD(ceilingPercent, 0) + "% target"
+      instantEstimate$ = "At charge target"
     ElseIf gBattery\EstimateValid
       instantEstimate$ = "Using average"
     Else
       instantEstimate$ = "Calculating"
     EndIf
   ElseIf gBattery\InstantEstimateValid
-    instantEstimate$ = FormatBatteryMinutes(gBattery\InstantEstimateMinutes) + targetText$
-    If gBattery\EstimateLowConfidence
-      instantEstimate$ + " low confidence"
+    If BatteryRuntimeEstimateDisplayable(gBattery\InstantEstimateMinutes, gBattery\InstantDrainPctPerHour)
+      instantEstimate$ = FormatBatteryMinutes(gBattery\InstantEstimateMinutes) + targetText$
+      If gBattery\EstimateLowConfidence
+        instantEstimate$ + " low confidence"
+      EndIf
+    Else
+      instantEstimate$ = "Needs real drain"
     EndIf
   ElseIf gBattery\Connected
     If gBattery\Phase = #BatteryPhasePluggedDischargingCalibration
@@ -9121,18 +10522,35 @@ Procedure RefreshBatteryDisplay()
   Else
     runtime$ = "Unknown"
   EndIf
-  If gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
-    fullEstimate$ = FormatBatteryMinutes(((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) + " (" + StrD(ceilingPercent, 0) + "->" + Str(gSettings\BatteryMinPercent) + "%)"
+  If gBattery\Connected And gBattery\DisconnectedBattery = #False
+    fullEstimate$ = "Paused on AC"
+  ElseIf gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
+    fullEstimateMinutes = ((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0
+    If BatteryRuntimeEstimateDisplayable(fullEstimateMinutes, gBattery\SmoothedDrainPctPerHour)
+      fullEstimate$ = FormatBatteryMinutes(fullEstimateMinutes) + " (" + StrD(ceilingPercent, 0) + "->" + Str(gSettings\BatteryMinPercent) + "%)"
+    Else
+      fullEstimate$ = "Needs real drain"
+    EndIf
   Else
     fullEstimate$ = "Calculating"
   EndIf
   nominalEstimate$ = "Unknown"
-  If gBatteryStableDesignMWh > 0.0 And BatteryRuntimeFullMWh() > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
-    nominalEstimate$ = FormatBatteryMinutes((((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) * (gBatteryStableDesignMWh / BatteryRuntimeFullMWh()))
+  If gBattery\Connected And gBattery\DisconnectedBattery = #False
+    nominalEstimate$ = "Paused on AC"
+  ElseIf gBatteryStableDesignMWh > 0.0 And BatteryRuntimeFullMWh() > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
+    nominalEstimateMinutes = (((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) * (gBatteryStableDesignMWh / BatteryRuntimeFullMWh())
+    If BatteryRuntimeEstimateDisplayable(nominalEstimateMinutes, gBattery\SmoothedDrainPctPerHour)
+      nominalEstimate$ = FormatBatteryMinutes(nominalEstimateMinutes)
+    Else
+      nominalEstimate$ = "Needs real drain"
+    EndIf
   ElseIf gBattery\DesignMWh > 0.0 And gBattery\FullMWh > 0.0 And gBattery\SmoothedDrainPctPerHour > 0.0 And ceilingPercent > gSettings\BatteryMinPercent
-    nominalEstimate$ = FormatBatteryMinutes((((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) * (gBattery\DesignMWh / gBattery\FullMWh))
-  ElseIf gBattery\Connected
-    nominalEstimate$ = "Plugged in"
+    nominalEstimateMinutes = (((ceilingPercent - gSettings\BatteryMinPercent) / gBattery\SmoothedDrainPctPerHour) * 60.0) * (gBattery\DesignMWh / gBattery\FullMWh)
+    If BatteryRuntimeEstimateDisplayable(nominalEstimateMinutes, gBattery\SmoothedDrainPctPerHour)
+      nominalEstimate$ = FormatBatteryMinutes(nominalEstimateMinutes)
+    Else
+      nominalEstimate$ = "Needs real drain"
+    EndIf
   ElseIf gBattery\SmoothedDrainPctPerHour <= 0.0
     nominalEstimate$ = "Calculating"
   EndIf
@@ -9302,6 +10720,15 @@ Procedure DrawBatteryGraph()
   Protected labelStackStep.i
   Protected labelOffsetX.i
   Protected labelOffsetY.i
+  Protected graphBackColor.i
+  Protected graphGridMajorColor.i
+  Protected graphGridMinorColor.i
+  Protected graphGridColor.i
+  Protected graphBorderLightColor.i
+  Protected graphBorderDarkColor.i
+  Protected graphAxisColor.i
+  Protected graphTextColor.i
+  Protected graphSubtleTextColor.i
   Dim labelColumnX.i(127)
   Dim labelColumnNextSlot.i(127)
   If IsGadget(#GadgetBatteryGraph) = #False
@@ -9314,7 +10741,28 @@ Procedure DrawBatteryGraph()
   If width <= 0 Or height <= 0
     ProcedureReturn
   EndIf
-  buffer = CreateImage(#PB_Any, width, height, 32, RGB(250, 250, 248))
+  If gThemeDarkActive
+    graphBackColor = RGB(28, 28, 28)
+    graphGridMajorColor = RGB(88, 88, 84)
+    graphGridMinorColor = RGB(56, 56, 54)
+    graphGridColor = RGB(72, 72, 68)
+    graphBorderLightColor = RGB(76, 76, 74)
+    graphBorderDarkColor = RGB(112, 112, 108)
+    graphAxisColor = RGB(178, 178, 174)
+    graphTextColor = RGB(236, 236, 232)
+    graphSubtleTextColor = RGB(192, 192, 188)
+  Else
+    graphBackColor = RGB(250, 250, 248)
+    graphGridMajorColor = RGB(154, 154, 148)
+    graphGridMinorColor = RGB(218, 218, 214)
+    graphGridColor = RGB(188, 188, 184)
+    graphBorderLightColor = RGB(214, 214, 210)
+    graphBorderDarkColor = RGB(142, 142, 138)
+    graphAxisColor = RGB(48, 48, 48)
+    graphTextColor = RGB(24, 24, 24)
+    graphSubtleTextColor = RGB(70, 70, 70)
+  EndIf
+  buffer = CreateImage(#PB_Any, width, height, 32, graphBackColor)
   If buffer = 0
     ProcedureReturn
   EndIf
@@ -9337,7 +10785,7 @@ Procedure DrawBatteryGraph()
   If span <= 0.0 : span = 1.0 : EndIf
   If StartDrawing(ImageOutput(buffer))
     If gFontUi : DrawingFont(FontID(gFontUi)) : EndIf
-    Box(0, 0, width, height, RGB(250, 250, 248))
+    Box(0, 0, width, height, graphBackColor)
     labelHeight = TextHeight("100%")
     labelStackStep = labelHeight + UiDpiScaleY(6)
     legendY = UiDpiScaleY(8)
@@ -9354,30 +10802,30 @@ Procedure DrawBatteryGraph()
       x = left + ((tick - startTime) * xScale)
       If x >= left And x <= right
         If FormatDate("%hh", tick) = "00"
-          FrontColor(RGB(154, 154, 148))
+          FrontColor(graphGridMajorColor)
         Else
-          FrontColor(RGB(218, 218, 214))
+          FrontColor(graphGridMinorColor)
         EndIf
         LineXY(x, top, x, bottom)
       EndIf
       tick = AddDate(tick, #PB_Date_Hour, 1)
     Wend
-    FrontColor(RGB(188, 188, 184))
+    FrontColor(graphGridColor)
     For i = 0 To 4
       y1 = top + ((bottom - top) * i / 4)
       LineXY(left, y1, right, y1)
     Next
-    Box(0, 0, width, 1, RGB(214, 214, 210))
-    Box(0, height - 1, width, 1, RGB(142, 142, 138))
-    Box(0, 0, 1, height, RGB(214, 214, 210))
-    Box(width - 1, 0, 1, height, RGB(214, 214, 210))
-    FrontColor(RGB(48, 48, 48))
-    Box(left, top, right - left + 1, 1, RGB(48, 48, 48))
-    Box(left, top, 1, bottom - top + 1, RGB(48, 48, 48))
-    Box(right, top, 1, bottom - top + 1, RGB(48, 48, 48))
-    Box(left, bottom, right - left + 1, 1, RGB(48, 48, 48))
+    Box(0, 0, width, 1, graphBorderLightColor)
+    Box(0, height - 1, width, 1, graphBorderDarkColor)
+    Box(0, 0, 1, height, graphBorderLightColor)
+    Box(width - 1, 0, 1, height, graphBorderLightColor)
+    FrontColor(graphAxisColor)
+    Box(left, top, right - left + 1, 1, graphAxisColor)
+    Box(left, top, 1, bottom - top + 1, graphAxisColor)
+    Box(right, top, 1, bottom - top + 1, graphAxisColor)
+    Box(left, bottom, right - left + 1, 1, graphAxisColor)
     DrawingMode(#PB_2DDrawing_Transparent)
-    FrontColor(RGB(24, 24, 24))
+    FrontColor(graphTextColor)
     DrawText(UiDpiScaleX(6), top - (labelHeight / 2), StrD(maxPercent, 0) + "%")
     DrawText(UiDpiScaleX(8), bottom - (labelHeight / 2), StrD(minPercent, 0) + "%")
     FrontColor(RGB(0, 96, 190))
@@ -9456,9 +10904,9 @@ Procedure DrawBatteryGraph()
         If graphWindowSeconds <= 86400 Or Val(FormatDate("%hh", tick)) % 4 = 0
           label$ = FormatDate("%hh", tick)
           If FormatDate("%hh", tick) = "00"
-            FrontColor(RGB(32, 32, 32))
+            FrontColor(graphTextColor)
           Else
-            FrontColor(RGB(74, 74, 70))
+            FrontColor(graphSubtleTextColor)
           EndIf
           DrawText(x - (TextWidth(label$) / 2), bottom + UiDpiScaleY(6), label$)
         EndIf
@@ -9620,11 +11068,11 @@ Procedure DrawBatteryGraph()
   EndIf
   If visibleCount > 0
     If StartDrawing(ImageOutput(buffer))
-      FrontColor(RGB(48, 48, 48))
-      Box(left, top, right - left + 1, 1, RGB(48, 48, 48))
-      Box(left, top, 1, bottom - top + 1, RGB(48, 48, 48))
-      Box(right, top, 1, bottom - top + 1, RGB(48, 48, 48))
-      Box(left, bottom, right - left + 1, 1, RGB(48, 48, 48))
+      FrontColor(graphAxisColor)
+      Box(left, top, right - left + 1, 1, graphAxisColor)
+      Box(left, top, 1, bottom - top + 1, graphAxisColor)
+      Box(right, top, 1, bottom - top + 1, graphAxisColor)
+      Box(left, bottom, right - left + 1, 1, graphAxisColor)
       StopDrawing()
     EndIf
   EndIf
@@ -9765,7 +11213,7 @@ Procedure DrawBatteryGraph()
     If StartDrawing(ImageOutput(buffer))
       If gFontUi : DrawingFont(FontID(gFontUi)) : EndIf
       DrawingMode(#PB_2DDrawing_Transparent)
-      FrontColor(RGB(70, 70, 70))
+      FrontColor(graphSubtleTextColor)
       DrawText(left + UiDpiScaleX(12), top + UiDpiScaleY(46), "Waiting for battery samples")
       StopDrawing()
     EndIf
@@ -9843,10 +11291,12 @@ Procedure ApplyToolTips()
   Protected text$
 
   If enabled
-    SetTip(#GadgetPanel, "Overview shows status. Plans edits CPU behavior. Battery tabs show history, estimates, and logs.")
+    SetTip(#GadgetPanel, "Switch between Overview, Plans, Battery Saver, Log, Graph, Stats, Power Use, Battery Test, and About.")
+    SetTip(#GadgetDarkTabBar, "Switch between Overview, Plans, Battery Saver, Log, Graph, Stats, Power Use, Battery Test, and About.")
     SetTip(gIntroOverview, "Use the Windows power mode slider. PowerPilot follows it with Maximum, Balanced, or Battery.")
-    SetTip(gFrameProcessor, "Concise CPU and graphics summary.")
+    SetTip(gFrameProcessor, "Concise CPU, graphics, and display summary.")
     SetTip(#GadgetCpuInfo, "Local CPU identity, core count, and memory.")
+    SetTip(#GadgetOverviewDisplay, "Current screen state, laptop brightness when known, and Energy Saver brightness policy.")
     SetTip(gFrameState, "Current plan follow, battery state, Energy Saver state, and latest action.")
     SetTip(#GadgetActivePlan, "The Windows power plan currently active.")
     SetTip(#GadgetPowerSource, "Windows power mode: Best performance, Balanced, or Best power efficiency.")
@@ -9860,11 +11310,13 @@ Procedure ApplyToolTips()
     SetTip(#GadgetOverviewPowerPilot, "Read/log cadence, estimated app use, and Energy Saver policy.")
     SetTip(#GadgetAutoStart, "Start PowerPilot with Windows in the tray.")
     SetTip(#GadgetKeepSettings, "Keep PowerPilot settings and edited plans during reinstall or update.")
+    SetTip(#GadgetThemeMode, "Use the Windows app theme, or force PowerPilot light or dark.")
     SetTip(#GadgetThrottleMaintenance, "In efficiency mode, ask Windows to slow safe background maintenance.")
     SetTip(#GadgetDeepIdleSaver, "In tray mode, reduce hidden refresh work and tune the Battery plan for deeper idle.")
     SetTip(#GadgetEnergySaverMode, "How Energy Saver is set on PowerPilot plans.")
-    SetTip(#GadgetEnergySaverThreshold, "Battery percent where Windows Energy Saver turns on in automatic mode.")
-    SetTip(#GadgetEnergySaverBrightness, "Brightness scale Windows applies while Energy Saver is active.")
+    SetTip(#GadgetEnergySaverThreshold, "Battery percent where Windows Energy Saver turns on in Automatic threshold mode.")
+    SetTip(#GadgetEnergySaverBrightnessEnabled, "When checked, PowerPilot writes the Windows Energy Saver brightness scale. When unchecked, brightness is untouched.")
+    SetTip(#GadgetEnergySaverBrightness, "Brightness scale Windows applies while Energy Saver is active when Brightness is checked.")
     SetTip(#GadgetBatteryLowWarningPercent, "Windows low-battery warning level for PowerPilot plans.")
     SetTip(#GadgetBatteryReservePercent, "Windows reserve-battery warning level for PowerPilot plans. Windows does not expose a separate reserve action.")
     SetTip(#GadgetBatteryLowAction, "Windows action at the low-battery level for PowerPilot plans.")
@@ -9899,26 +11351,28 @@ Procedure ApplyToolTips()
     SetTip(#GadgetBatteryCapacity, "Remaining battery capacity in mWh.")
     SetTip(#GadgetBatteryRates, "Live battery draw from Windows battery status, shown as charging, discharging, or idle.")
     SetTip(#GadgetBatteryVoltage, "Live battery voltage in volts when the Windows battery driver exposes it.")
-    SetTip(#GadgetPowerPilotDraw, "PowerPilot's estimated battery cost from recent CPU time.")
+    SetTip(#GadgetPowerPilotDraw, "PowerPilot's estimated battery cost from the last 60 seconds of CPU time.")
+    SetTip(#GadgetPowerPilotDrawAverage, "PowerPilot's estimated battery cost averaged over the selected number of minutes.")
+    SetTip(#GadgetPowerPilotAverageMinutes, "Minutes used for the App use average. Saved in settings.")
     SetTip(#GadgetBatteryEstimate, "Average time based on recent battery movement: down to Empty at, or up to Full at while charging.")
     SetTip(#GadgetBatteryInstantEstimate, "Now-based time while discharging. Charging uses the average estimate because charge rate tapers near the target.")
     SetTip(#GadgetBatteryRuntime, "Windows' own remaining-time estimate. Windows usually reports it only while discharging.")
-    SetTip(#GadgetBatteryFullEstimate, "Learned on-battery runtime from Full at down to Empty at. It can remain visible while plugged in.")
+    SetTip(#GadgetBatteryFullEstimate, "Learned on-battery runtime from Full at down to Empty at. Paused on AC and hidden when the drain rate is too small to trust.")
     SetTip(#GadgetBatteryWear, "Battery wear calculated from full-charge capacity versus design capacity.")
-    SetTip(#GadgetBatteryNominalEstimate, "Estimated Full at to Empty at runtime if this battery still had its original design capacity.")
+    SetTip(#GadgetBatteryNominalEstimate, "Same runtime scaled to original design capacity. Paused on AC and hidden when the drain rate is too small to trust.")
     SetTip(#GadgetBatteryMaxCapacity, "Current full-charge capacity and design capacity in mWh when Windows exposes both.")
     SetTip(#GadgetBatteryCycle, "Battery cycle count from root\\wmi:BatteryCycleCount.")
-    SetTip(#GadgetBatteryGraphHours, "Choose how many hours of retained battery history the graph shows.")
+    SetTip(#GadgetBatteryGraphHours, "Choose a fixed history window, or Max for the retained 168-hour window.")
     SetTip(#GadgetBatteryGraphShowMarkers, "Show or hide marker letters and the marker-letter legend on the battery graph.")
     SetTip(#GadgetBatteryGraph, "Battery history. Blue is normal, green Energy Saver, orange offline, red power events.")
     SetTip(gFrameBatterySettings, "Battery read cadence, log cadence, and estimate settings.")
     SetTip(#GadgetBatteryLogEnabled, "Turn retained battery sample logging on or off.")
-    SetTip(#GadgetBatteryLogMinutes, "Minutes between saved log rows. Shorter intervals give more detail and more disk writes.")
+    SetTip(#GadgetBatteryLogMinutes, "Minutes between saved log rows when Log samples is checked.")
     SetTip(#GadgetBatteryRefreshSeconds, "Seconds between live battery reads while the window is open. Tray mode slows down to reduce background wakeups.")
     SetTip(#GadgetBatteryMinPercent, "Percent treated as empty for PowerPilot time estimates.")
-    SetTip(#GadgetBatteryMaxPercent, "Percent treated as full for graph range, charging target, and full-to-min runtime estimates.")
-    SetTip(#GadgetBatteryLimiterEnabled, "Use the laptop charge limit as the full point.")
-    SetTip(#GadgetBatteryLimiterMaxPercent, "Your laptop's charge-limit target, for example 80 if charging normally stops near 80%.")
+    SetTip(#GadgetBatteryMaxPercent, "Percent treated as full for graph range, charging target, and full-run runtime estimates.")
+    SetTip(#GadgetBatteryLimiterEnabled, "When checked, use the laptop charge limit as the full point.")
+    SetTip(#GadgetBatteryLimiterMaxPercent, "Charge-limit target used when Use charge limit is checked.")
     SetTip(#GadgetBatterySmoothingMinutes, "How much recent battery history is averaged. Longer is calmer; shorter reacts faster.")
     SetTip(#GadgetBatteryStartupDrain, "Temporary percent-per-hour estimate used right after startup until fresh samples are available.")
     SetTip(#GadgetBatteryStatsReset, "Clear retained battery log rows, graph history, and current estimate learning.")
@@ -9934,11 +11388,11 @@ Procedure ApplyToolTips()
     SetTip(#GadgetPowerUseStatus, "Shows which Windows battery data path is being used.")
     SetTip(#GadgetPowerUseInterpretation, "How to read estimated mW and full-to-empty seconds.")
     SetTip(#GadgetPowerUseIdleChecklist, "Checks for unexpected idle battery use.")
-    SetTip(#GadgetBatteryTestMode, "Current workflow mode: manual discharge test, vendor calibration detected, charge recovery, monitor, or complete.")
+    SetTip(#GadgetBatteryTestMode, "What Battery Test is doing now: monitor, manual test, calibration, vendor calibration, charge recovery, or complete.")
     SetTip(#GadgetBatteryTestPhase, "Current live phase from Windows battery state.")
     SetTip(#GadgetBatteryTestElapsed, "Elapsed time since the current test log started.")
-    SetTip(#GadgetBatteryTestStart, "Start a manual discharge test, then track charge recovery.")
-    SetTip(#GadgetBatteryTestLenovo, "Start Lenovo reset monitoring with automatic drain load.")
+    SetTip(#GadgetBatteryTestStart, "Start a report for an unplug discharge test, then track charge recovery when you plug in again.")
+    SetTip(#GadgetBatteryTestLenovo, "Watch a laptop calibration workflow. PowerPilot cannot command firmware; it verifies the phases Windows reports.")
     SetTip(#GadgetBatteryTestEnd, "End the current battery test log and freeze the summary.")
     SetTip(#GadgetBatteryTestCopy, "Copy the current battery test report to the clipboard.")
     SetTip(#GadgetBatteryTestOpenReport, "Open the latest saved battery test report in the default Windows text editor.")
@@ -9946,14 +11400,14 @@ Procedure ApplyToolTips()
     SetTip(#GadgetBatteryTestRemaining, "Remaining battery capacity in mWh during the test.")
     SetTip(#GadgetBatteryTestWatts, "Live charging or discharging watts from Windows battery status.")
     SetTip(#GadgetBatteryTestEstimate, "Current estimated time to empty or configured full target.")
-    SetTip(#GadgetBatteryTestGuide, "Short next step for manual testing or vendor calibration monitoring.")
-    SetTip(#GadgetBatteryTestSummary, "Copyable summary with start/end percent, mWh moved, average watts, runtime, and capacity notes.")
+    SetTip(#GadgetBatteryTestGuide, "The next action PowerPilot expects for the current workflow.")
+    SetTip(#GadgetBatteryTestSummary, "Short on-screen summary. Copy report includes the full detailed report.")
     SetTip(#GadgetBatteryLoadStatus, "Current CPU load target used to drain the battery faster during a test.")
     SetTip(#GadgetBatteryLoadStep, "Increase PowerPilot's CPU load target by 25%, up to 100%.")
     SetTip(#GadgetBatteryLoadStop, "Stop the CPU load helper immediately.")
-    SetTip(#GadgetBatteryLoadMinutes, "Target time from now to Empty at.")
+    SetTip(#GadgetBatteryLoadMinutes, "Target minutes from now to Empty at. Typed values are saved when you leave the field or start Auto.")
     SetTip(#GadgetBatteryLoadAuto, "Start or stop automatic CPU load control for the chosen drain time.")
-    SetTip(#GadgetBatteryLoadAutoStatus, "Auto drain end time and remaining target time.")
+    SetTip(#GadgetBatteryLoadAutoStatus, "Auto drain end time and remaining target time when the optional drain helper is active.")
     SetTip(#GadgetBatteryLoadTestMode, "Log detailed drain-helper control ticks while testing normal unplug discharge.")
     SetTip(#GadgetBatteryLoadNote, "CPU load is local and automatic. Stop when done.")
     SetTip(#GadgetAboutPurpose, "Short description of what PowerPilot is for.")
@@ -9961,6 +11415,7 @@ Procedure ApplyToolTips()
     SetTip(#GadgetAboutData, "Lists the events and battery fields PowerPilot can log.")
     SetTip(#GadgetAboutVersion, "Summarizes the local data PowerPilot reads and writes.")
     SetTip(#GadgetAboutLicense, "License, bundled documents, and uninstall reference.")
+    SetTip(#GadgetAboutOpenManual, "Open the bundled USER_MANUAL.txt.")
     SetTip(#GadgetAboutOpenReadme, "Open the bundled README.txt.")
     SetTip(#GadgetAboutOpenLicense, "Open the bundled MIT license text.")
     SetTip(#GadgetAboutBoundaries, "What PowerPilot cannot measure directly and how to read the Power Use estimate.")
@@ -9978,9 +11433,11 @@ Procedure ApplyToolTips()
     SetTip(#GadgetExit, "Exit PowerPilot and remove the tray icon.")
   Else
     SetTip(#GadgetPanel, "")
+    SetTip(#GadgetDarkTabBar, "")
     SetTip(gIntroOverview, "")
     SetTip(gFrameProcessor, "")
     SetTip(#GadgetCpuInfo, "")
+    SetTip(#GadgetOverviewDisplay, "")
     SetTip(gFrameState, "")
     SetTip(#GadgetActivePlan, "")
     SetTip(#GadgetPowerSource, "")
@@ -9998,6 +11455,7 @@ Procedure ApplyToolTips()
     SetTip(#GadgetDeepIdleSaver, "")
     SetTip(#GadgetEnergySaverMode, "")
     SetTip(#GadgetEnergySaverThreshold, "")
+    SetTip(#GadgetEnergySaverBrightnessEnabled, "")
     SetTip(#GadgetEnergySaverBrightness, "")
     SetTip(#GadgetBatteryLowWarningPercent, "")
     SetTip(#GadgetBatteryReservePercent, "")
@@ -10006,6 +11464,7 @@ Procedure ApplyToolTips()
     SetTip(#GadgetBatteryCriticalAction, "")
     SetTip(#GadgetRestoreNormalPlanOnExit, "")
     SetTip(#GadgetBatterySaverSummary, "")
+    SetTip(#GadgetThemeMode, "")
     SetTip(gIntroPlans, "")
     SetTip(gFrameManagedPlans, "")
     SetTip(#GadgetPlanList, "")
@@ -10032,6 +11491,8 @@ Procedure ApplyToolTips()
     SetTip(#GadgetBatteryRates, "")
     SetTip(#GadgetBatteryVoltage, "")
     SetTip(#GadgetPowerPilotDraw, "")
+    SetTip(#GadgetPowerPilotDrawAverage, "")
+    SetTip(#GadgetPowerPilotAverageMinutes, "")
     SetTip(#GadgetBatteryEstimate, "")
     SetTip(#GadgetBatteryInstantEstimate, "")
     SetTip(#GadgetBatteryRuntime, "")
@@ -10093,6 +11554,7 @@ Procedure ApplyToolTips()
     SetTip(#GadgetAboutData, "")
     SetTip(#GadgetAboutVersion, "")
     SetTip(#GadgetAboutLicense, "")
+    SetTip(#GadgetAboutOpenManual, "")
     SetTip(#GadgetAboutOpenReadme, "")
     SetTip(#GadgetAboutOpenLicense, "")
     SetTip(#GadgetAboutBoundaries, "")
@@ -10406,14 +11868,25 @@ Procedure.i EnergySaverStateFromPowerSetting(lParam.i)
   ProcedureReturn Bool(PeekL(lParam + SizeOf(GuidValue) + 4) <> 0)
 EndProcedure
 
-; Hide to tray when the tray icon exists. If the tray icon could not be created,
-; keep the window visible so the user is not left with an invisible app.
+; Hide to tray when the tray icon exists. Hidden startup stays invisible while
+; retrying tray registration because Explorer may still be coming up at sign-in.
 Procedure HideToTray()
   ApplyPendingBatterySettings()
   CaptureBatteryLogColumnWidths(#True)
+  If gDeferredShowRefreshActive And IsWindow(#WindowMain)
+    RemoveWindowTimer(#WindowMain, #TimerDeferredShowRefresh)
+    gDeferredShowRefreshActive = #False
+  EndIf
+  If gTrayReady = #False
+    SetupTray()
+  EndIf
   If gTrayReady Or gStartedInTrayMode
     HideWindow(#WindowMain, #True)
-    StartRefreshTimer()
+    If gTrayReady = #False
+      StartRefreshTimer(#RefreshStartupTrayRetryMs)
+    Else
+      StartRefreshTimer()
+    EndIf
   Else
     HideWindow(#WindowMain, #False)
     StartRefreshTimer(#RefreshVisibleMs)
@@ -10450,15 +11923,58 @@ Procedure PrepareWindowForDisplay()
   InvalidateRect_(hwnd, 0, #True)
   UpdateWindow_(hwnd)
   gWindowPreparingForDisplay = previousPreparing
+  gLastWindowDisplayPrepareTick = ElapsedMilliseconds()
 EndProcedure
 
-; Showing the window performs all layout and data refreshes while hidden, then
-; reveals the already-populated window in one paint.
-Procedure ShowFromTray()
-  PrepareWindowForDisplay()
+Procedure ScheduleDeferredShowRefresh()
+  Protected now.q = ElapsedMilliseconds()
+  If IsWindow(#WindowMain) = #False
+    ProcedureReturn
+  EndIf
+  If gLastWindowDisplayPrepareTick > 0 And now - gLastWindowDisplayPrepareTick < #ShowFromTrayFreshDisplayMs
+    ProcedureReturn
+  EndIf
+  If gDeferredShowRefreshActive
+    RemoveWindowTimer(#WindowMain, #TimerDeferredShowRefresh)
+  EndIf
+  AddWindowTimer(#WindowMain, #TimerDeferredShowRefresh, #ShowFromTrayRefreshDelayMs)
+  gDeferredShowRefreshActive = #True
+EndProcedure
+
+Procedure RunDeferredShowRefresh()
+  If IsWindow(#WindowMain)
+    RemoveWindowTimer(#WindowMain, #TimerDeferredShowRefresh)
+  EndIf
+  gDeferredShowRefreshActive = #False
+  If MainWindowVisible()
+    PrepareWindowForDisplay()
+    RefreshActiveTimer()
+  EndIf
+EndProcedure
+
+Procedure RevealMainWindow()
+  Protected hwnd.i
+  If IsWindow(#WindowMain) = #False
+    ProcedureReturn
+  EndIf
+  hwnd = WindowID(#WindowMain)
   HideWindow(#WindowMain, #False)
+  If IsIconic_(hwnd)
+    ShowWindow_(hwnd, #SW_RESTORE)
+  EndIf
+  SetForegroundWindow_(hwnd)
+  UpdateWindow_(hwnd)
+EndProcedure
+
+; The hidden window is prepared during startup. Tray activation should reveal it
+; immediately, then refresh stale data after the first paint if needed.
+Procedure ShowFromTray()
+  If IsWindow(#WindowMain) = #False
+    ProcedureReturn
+  EndIf
+  RevealMainWindow()
   StartRefreshTimer(#RefreshVisibleMs)
-  SetForegroundWindow_(WindowID(#WindowMain))
+  ScheduleDeferredShowRefresh()
 EndProcedure
 
 ; Normal explicit app exit writes an app row, not a PC shutdown event.
@@ -10501,13 +12017,30 @@ EndProcedure
 ; Central gadget event dispatcher.
 Procedure HandleAction(gadget.i)
   Protected row.i
+  Protected tabIndex.i
   Select gadget
     Case #GadgetPanel
+      DrawDarkTabBar()
       RefreshActiveTimer()
       If BatteryTestTabVisible()
         RefreshBattery(#True)
       ElseIf BatteryGraphTabVisible()
         DrawBatteryGraph()
+      EndIf
+
+    Case #GadgetDarkTabBar
+      If EventType() = #PB_EventType_LeftButtonDown
+        tabIndex = DarkTabIndexAt(GetGadgetAttribute(#GadgetDarkTabBar, #PB_Canvas_MouseX))
+        If tabIndex >= 0
+          SetGadgetState(#GadgetPanel, tabIndex)
+          DrawDarkTabBar()
+          RefreshActiveTimer()
+          If BatteryTestTabVisible()
+            RefreshBattery(#True)
+          ElseIf BatteryGraphTabVisible()
+            DrawBatteryGraph()
+          EndIf
+        EndIf
       EndIf
 
     Case #GadgetPlanList
@@ -10523,18 +12056,36 @@ Procedure HandleAction(gadget.i)
     Case #GadgetPlanReset
       ResetSelectedPlan()
 
+    Case #GadgetThemeMode
+      If GetGadgetState(#GadgetThemeMode) <> ClampInt(gSettings\ThemeMode, #ThemeModeWindows, #ThemeModeDark)
+        SaveThemeModeFromGui()
+      EndIf
+
     Case #GadgetAutoStart, #GadgetKeepSettings, #GadgetThrottleMaintenance, #GadgetDeepIdleSaver, #GadgetShowToolTips
       SaveSettingsFromGui()
 
-    Case #GadgetEnergySaverMode, #GadgetEnergySaverThreshold, #GadgetEnergySaverBrightness, #GadgetBatteryLowWarningPercent, #GadgetBatteryReservePercent, #GadgetBatteryLowAction, #GadgetBatteryCriticalPercent, #GadgetBatteryCriticalAction, #GadgetRestoreNormalPlanOnExit
+    Case #GadgetEnergySaverMode, #GadgetEnergySaverBrightnessEnabled
+      UpdateDependentSettingControls()
       ScheduleBatterySettingsApply()
 
-    Case #GadgetBatteryLogEnabled, #GadgetBatteryLogMinutes, #GadgetBatteryRefreshSeconds, #GadgetBatteryMinPercent, #GadgetBatteryMaxPercent, #GadgetBatteryLimiterEnabled, #GadgetBatteryLimiterMaxPercent, #GadgetBatterySmoothingMinutes, #GadgetBatteryStartupDrain
+    Case #GadgetEnergySaverThreshold, #GadgetEnergySaverBrightness, #GadgetBatteryLowWarningPercent, #GadgetBatteryReservePercent, #GadgetBatteryLowAction, #GadgetBatteryCriticalPercent, #GadgetBatteryCriticalAction, #GadgetRestoreNormalPlanOnExit
+      ScheduleBatterySettingsApply()
+
+    Case #GadgetBatteryLogEnabled, #GadgetBatteryLimiterEnabled
+      UpdateDependentSettingControls()
+      ScheduleBatterySettingsApply()
+
+    Case #GadgetBatteryLogMinutes, #GadgetBatteryRefreshSeconds, #GadgetBatteryMinPercent, #GadgetBatteryMaxPercent, #GadgetBatteryLimiterMaxPercent, #GadgetBatterySmoothingMinutes, #GadgetBatteryStartupDrain
       ScheduleBatterySettingsApply()
 
     Case #GadgetBatteryGraphHours, #GadgetBatteryGraphShowMarkers
       SaveBatteryGraphDisplaySettingsFromGui()
       DrawBatteryGraph()
+
+    Case #GadgetPowerPilotAverageMinutes
+      PowerPilotUseAverageMinutesFromGui(#True)
+      SaveSettings()
+      RefreshPowerPilotDrawDisplay()
 
     Case #GadgetBatteryStatsReset
       ResetBatteryStats()
@@ -10550,6 +12101,9 @@ Procedure HandleAction(gadget.i)
 
     Case #GadgetSettingsImport
       ImportSettings()
+
+    Case #GadgetAboutOpenManual
+      OpenManualDocument()
 
     Case #GadgetAboutOpenReadme
       OpenReadmeDocument()
@@ -10579,7 +12133,9 @@ Procedure HandleAction(gadget.i)
       OpenLatestBatteryTestReport()
 
     Case #GadgetBatteryLoadMinutes
-      SaveBatterySettingsFromGui()
+      If EventType() = #PB_EventType_LostFocus
+        ApplyBatteryCalibrationTargetMinutes(#True)
+      EndIf
 
     Case #GadgetBatteryLoadStep
       StepBatteryCpuLoad()
@@ -10606,8 +12162,14 @@ Procedure HandleMenu(menu.i)
   Select menu
     Case #MenuOpen
       ShowFromTray()
+      ProcedureReturn
     Case #MenuExit
       ShutdownApp()
+    Case #MenuCommitBatteryLoadTarget
+      If GetActiveGadget() = #GadgetBatteryLoadMinutes
+        ApplyBatteryCalibrationTargetMinutes(#True)
+      EndIf
+      ProcedureReturn
   EndSelect
   RefreshPlanList()
   RefreshDisplay()
@@ -10620,10 +12182,42 @@ Procedure.i MainWindowCallback(hwnd.i, message.i, wParam.i, lParam.i)
   Protected screenEvent$
   Protected energySaverState.i
   Protected closeForAppRestart.i
+  Protected *draw.DrawItemStruct
   Select message
+    Case #WM_DRAWITEM
+      *draw = lParam
+      If *draw And IsGadget(#GadgetPanel) And *draw\hwndItem = GadgetID(#GadgetPanel)
+        If DrawThemePanelTab(*draw)
+          ProcedureReturn #True
+        EndIf
+      EndIf
+
+    Case #WM_CTLCOLOREDIT, #WM_CTLCOLORLISTBOX
+      If gThemeDarkActive And gThemeFieldBackBrush
+        SetTextColor_(wParam, gThemeTextColor)
+        SetBkColor_(wParam, gThemeFieldBackColor)
+        ProcedureReturn gThemeFieldBackBrush
+      EndIf
+
+    Case #WM_CTLCOLORSTATIC, #WM_CTLCOLORBTN
+      If gThemeDarkActive And gThemeBackBrush
+        SetTextColor_(wParam, gThemeTextColor)
+        SetBkColor_(wParam, gThemeBackColor)
+        ProcedureReturn gThemeBackBrush
+      EndIf
+
     Case #WM_POWERPILOT_UPDATE_CLOSE
       ShutdownForUpdate()
       ProcedureReturn #True
+
+    Case #WM_POWERPILOT_SHOW
+      ShowFromTray()
+      ProcedureReturn #True
+
+    Case #WM_SETTINGCHANGE
+      If gSettings\ThemeMode = #ThemeModeWindows
+        ApplyAppThemeVisibleRefresh()
+      EndIf
 
     Case #WM_POWERBROADCAST
       Select wParam
@@ -10696,6 +12290,9 @@ EndProcedure
 Procedure RunPeriodicRefresh()
   If gTrayReady = #False
     SetupTray()
+    If gTrayReady
+      RefreshActiveTimer()
+    EndIf
   EndIf
   CaptureBatteryLogColumnWidths(#True)
   MonitorAutomaticPlans()
@@ -10706,11 +12303,12 @@ EndProcedure
 
 ; Build all tabs in one place. The base size is dense on purpose; maximize
 ; scales the same tab layout for easier graph reading.
-Procedure CreateMainWindow(showWindow.i)
+Procedure CreateMainWindow(showWindow.i, applyHiddenStartupSettings.i = #False)
   Protected flags.i = #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered | #PB_Window_Invisible
   Protected activeLabel.i
   Protected modeLabel.i
   Protected lastActionLabel.i
+  Protected displayHeader.i
   Protected acHeader.i
   Protected dcHeader.i
   Protected acCoolingHeader.i
@@ -10731,6 +12329,7 @@ Procedure CreateMainWindow(showWindow.i)
   gUiScale = 1.0
   OpenWindow(#WindowMain, 0, 0, #MainWindowBaseWidth, #MainWindowBaseHeight, #AppFullName$, flags)
   WindowBounds(#WindowMain, #MainWindowMinWidth, #MainWindowMinHeight, #PB_Ignore, #PB_Ignore)
+  AddKeyboardShortcut(#WindowMain, #PB_Shortcut_Return, #MenuCommitBatteryLoadTarget)
   SetWindowCallback(@MainWindowCallback(), #WindowMain)
   RegisterDisplayPowerNotification(WindowID(#WindowMain))
   EnsureUiFonts()
@@ -10738,14 +12337,16 @@ Procedure CreateMainWindow(showWindow.i)
   SetupTray()
 
   PanelGadget(#GadgetPanel, 12, 12, 736, 486)
+  ApplyPanelTabSpacing()
 
   ; Overview tab: compact dashboard for the current plan, battery, hardware,
   ; PowerPilot cadence, and the latest full action message. Short action
   ; messages also go to the PowerPilot Log.
   AddGadgetItem(#GadgetPanel, -1, "Overview")
+  BeginThemeTab()
   gIntroOverview = TextGadget(#PB_Any, 18, 14, 700, 22, "PowerPilot follows Windows power mode, keeps battery policy aligned, and logs what changes.")
   UseBoldFont(gIntroOverview)
-  gFrameState = FrameGadget(#PB_Any, 18, 42, 700, 112, "Live State")
+  gFrameState = ThemedFrameGadget(18, 42, 700, 112, "Live State")
   activeLabel = TextGadget(#PB_Any, 34, 66, 92, 20, "Active plan:")
   TextGadget(#GadgetActivePlan, 132, 66, 210, 20, "")
   modeLabel = TextGadget(#PB_Any, 370, 66, 108, 20, "Windows mode:")
@@ -10763,28 +12364,35 @@ Procedure CreateMainWindow(showWindow.i)
   UseBoldFont(#GadgetOverviewBatteryState)
   UseBoldFont(#GadgetOverviewSaverState)
   UseBoldFont(lastActionLabel)
-  gFrameProcessor = FrameGadget(#PB_Any, 18, 166, 700, 104, "Hardware")
-  TextGadget(#GadgetCpuInfo, 34, 190, 328, 62, "Reading CPU...")
-  TextGadget(#GadgetGpuInfo, 386, 190, 316, 62, "Reading GPU...")
-  gFrameOverviewBattery = FrameGadget(#PB_Any, 18, 282, 342, 126, "Battery Runtime")
-  TextGadget(#GadgetOverviewRuntime, 34, 306, 310, 86, "Waiting for battery data.")
-  gFrameStartup = FrameGadget(#PB_Any, 376, 282, 342, 126, "PowerPilot")
-  TextGadget(#GadgetOverviewPowerPilot, 394, 306, 308, 42, "Waiting for app data.")
-  CheckBoxGadget(#GadgetAutoStart, 394, 356, 150, 20, "Start with Windows")
-  CheckBoxGadget(#GadgetKeepSettings, 552, 356, 140, 20, "Keep settings")
-  CheckBoxGadget(#GadgetShowToolTips, 394, 384, 130, 20, "Show tips")
+  gFrameProcessor = ThemedFrameGadget(18, 166, 700, 120, "Hardware")
+  TextGadget(#GadgetCpuInfo, 34, 188, 430, 54, "Reading CPU...")
+  TextGadget(#GadgetGpuInfo, 34, 246, 430, 34, "Reading GPU...")
+  displayHeader = TextGadget(#PB_Any, 492, 188, 210, 20, "Display")
+  TextGadget(#GadgetOverviewDisplay, 492, 214, 210, 58, "Waiting for display data.")
+  UseBoldFont(displayHeader)
+  gFrameOverviewBattery = ThemedFrameGadget(18, 298, 342, 126, "Battery Runtime")
+  TextGadget(#GadgetOverviewRuntime, 34, 322, 310, 86, "Waiting for battery data.")
+  gFrameStartup = ThemedFrameGadget(376, 298, 342, 126, "PowerPilot")
+  TextGadget(#GadgetOverviewPowerPilot, 394, 322, 308, 42, "Waiting for app data.")
+  CheckBoxGadget(#GadgetAutoStart, 394, 372, 150, 20, "Start with Windows")
+  CheckBoxGadget(#GadgetKeepSettings, 552, 372, 140, 20, "Keep settings")
+  CheckBoxGadget(#GadgetShowToolTips, 394, 400, 130, 20, "Show tips")
+  TextGadget(#PB_Any, 552, 402, 48, 20, "Theme:")
+  ComboBoxGadget(#GadgetThemeMode, 604, 398, 88, 24)
 
   ; Plans tab: fixed three-plan editor. Manual plan activation is intentionally
   ; not exposed; Windows power mode decides which plan is active.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "Plans")
+  BeginThemeTab()
   gIntroPlans = TextGadget(#PB_Any, 18, 14, 700, 22, "Edit plan behavior. Windows power mode still chooses the active plan.")
   UseBoldFont(gIntroPlans)
-  gFrameManagedPlans = FrameGadget(#PB_Any, 18, 40, 700, 134, "PowerPilot Plans")
+  gFrameManagedPlans = ThemedFrameGadget(18, 40, 700, 134, "PowerPilot Plans")
   ListIconGadget(#GadgetPlanList, 34, 62, 668, 96, "Plan", 176, #PB_ListIcon_FullRowSelect | #PB_ListIcon_AlwaysShowSelection)
   AddGadgetColumn(#GadgetPlanList, 1, "Installed", 70)
   AddGadgetColumn(#GadgetPlanList, 2, "Purpose", 395)
 
-  gFramePlanSettings = FrameGadget(#PB_Any, 18, 190, 700, 216, "Plan Tuning")
+  gFramePlanSettings = ThemedFrameGadget(18, 190, 700, 216, "Plan Tuning")
   TextGadget(#PB_Any, 34, 212, 64, 20, "Note:")
   StringGadget(#GadgetPlanSummary, 104, 208, 598, 22, "")
   acHeader = TextGadget(#PB_Any, 154, 238, 110, 20, "Plugged in")
@@ -10815,8 +12423,10 @@ Procedure CreateMainWindow(showWindow.i)
 
   ; Battery Saver tab: Windows battery/energy-saver policy plus PowerPilot's
   ; runtime saver behavior. Values are written to PowerPilot-owned plans.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "Battery Saver")
-  FrameGadget(#PB_Any, 18, 18, 340, 142, "Energy Saver")
+  BeginThemeTab()
+  ThemedFrameGadget(18, 18, 340, 142, "Energy Saver")
   sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 20, "Windows policy")
   UseBoldFont(sectionHeader)
   TextGadget(#PB_Any, 34, 70, 108, 20, "Mode:")
@@ -10824,18 +12434,18 @@ Procedure CreateMainWindow(showWindow.i)
   TextGadget(#PB_Any, 34, 102, 108, 20, "Turn on at:")
   SpinGadget(#GadgetEnergySaverThreshold, 154, 98, 70, 22, 0, 100, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 230, 102, 24, 20, "%")
-  TextGadget(#PB_Any, 34, 134, 108, 20, "Brightness:")
+  CheckBoxGadget(#GadgetEnergySaverBrightnessEnabled, 34, 134, 108, 20, "Brightness:")
   SpinGadget(#GadgetEnergySaverBrightness, 154, 130, 70, 22, 0, 100, #PB_Spin_Numeric)
   TextGadget(#PB_Any, 230, 134, 24, 20, "%")
 
-  FrameGadget(#PB_Any, 378, 18, 340, 142, "Runtime Saver")
+  ThemedFrameGadget(378, 18, 340, 142, "Runtime Saver")
   sectionHeader = TextGadget(#PB_Any, 394, 42, 308, 20, "While running")
   UseBoldFont(sectionHeader)
   CheckBoxGadget(#GadgetThrottleMaintenance, 394, 70, 150, 20, "Throttle background")
   CheckBoxGadget(#GadgetDeepIdleSaver, 552, 70, 140, 20, "Deep idle saver")
   CheckBoxGadget(#GadgetRestoreNormalPlanOnExit, 394, 102, 260, 20, "Restore normal plan on exit")
 
-  FrameGadget(#PB_Any, 18, 180, 700, 158, "Low Battery Guard")
+  ThemedFrameGadget(18, 180, 700, 158, "Low Battery Guard")
   sectionHeader = TextGadget(#PB_Any, 34, 204, 668, 20, "Windows thresholds")
   UseBoldFont(sectionHeader)
   TextGadget(#PB_Any, 34, 236, 92, 20, "Low warning:")
@@ -10852,39 +12462,44 @@ Procedure CreateMainWindow(showWindow.i)
   TextGadget(#PB_Any, 264, 270, 190, 20, "Critical action:")
   ComboBoxGadget(#GadgetBatteryCriticalAction, 264, 292, 190, 22)
   TextGadget(#PB_Any, 494, 292, 190, 22, "Warning only")
-  TextGadget(#PB_Any, 34, 322, 668, 20, "Reserve has no separate action; Low and Critical handle Windows actions.")
+  TextGadget(#PB_Any, 34, 314, 668, 20, "Reserve has no separate action; Low and Critical handle Windows actions.")
 
-  FrameGadget(#PB_Any, 18, 356, 700, 92, "Summary")
+  ThemedFrameGadget(18, 356, 700, 92, "Summary")
   TextGadget(#GadgetBatterySaverSummary, 34, 380, 668, 54, "Battery Saver summary appears here.")
 
   ; PowerPilot Log tab: settings plus retained CSV rows. The visible list shows
   ; the full retained 168-hour log window and supports multi-row copy.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "PowerPilot Log")
-  gFrameBatterySettings = FrameGadget(#PB_Any, 18, 18, 700, 130, "Sampling and Estimates")
+  BeginThemeTab()
+  gFrameBatterySettings = ThemedFrameGadget(18, 18, 700, 130, "Sampling and Estimates")
   CheckBoxGadget(#GadgetBatteryLogEnabled, 34, 44, 128, 20, "Log samples")
-  TextGadget(#PB_Any, 184, 46, 82, 20, "Log every:")
-  SpinGadget(#GadgetBatteryLogMinutes, 272, 42, 70, 22, 1, 1440, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 348, 46, 48, 20, "min")
-  TextGadget(#PB_Any, 420, 46, 82, 20, "Read every:")
-  SpinGadget(#GadgetBatteryRefreshSeconds, 508, 42, 70, 22, 5, 3600, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 584, 46, 48, 20, "sec")
+  TextGadget(#PB_Any, 272, 46, 116, 20, "Log every:", #PB_Text_Right)
+  SpinGadget(#GadgetBatteryLogMinutes, 394, 42, 70, 22, 1, 1440, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 470, 46, 48, 20, "min")
+  TextGadget(#PB_Any, 492, 46, 122, 20, "Read every:", #PB_Text_Right)
+  SpinGadget(#GadgetBatteryRefreshSeconds, 620, 42, 70, 22, 5, 3600, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 694, 46, 24, 20, "sec")
 
-  TextGadget(#PB_Any, 34, 80, 92, 20, "Empty at:")
-  SpinGadget(#GadgetBatteryMinPercent, 132, 76, 70, 22, 0, 99, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 224, 80, 92, 20, "Full at:")
-  SpinGadget(#GadgetBatteryMaxPercent, 322, 76, 70, 22, 2, 100, #PB_Spin_Numeric)
-  CheckBoxGadget(#GadgetBatteryLimiterEnabled, 420, 78, 124, 20, "Use charge limit")
-  SpinGadget(#GadgetBatteryLimiterMaxPercent, 568, 76, 70, 22, 2, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 34, 80, 112, 20, "Empty at:", #PB_Text_Right)
+  SpinGadget(#GadgetBatteryMinPercent, 154, 76, 70, 22, 0, 99, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 230, 80, 24, 20, "%")
+  TextGadget(#PB_Any, 272, 80, 116, 20, "Full at:", #PB_Text_Right)
+  SpinGadget(#GadgetBatteryMaxPercent, 394, 76, 70, 22, 2, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 470, 80, 24, 20, "%")
+  CheckBoxGadget(#GadgetBatteryLimiterEnabled, 492, 78, 122, 20, "Use charge limit")
+  SpinGadget(#GadgetBatteryLimiterMaxPercent, 620, 76, 70, 22, 2, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 694, 80, 24, 20, "%")
 
-  TextGadget(#PB_Any, 34, 116, 92, 20, "Average window:")
-  SpinGadget(#GadgetBatterySmoothingMinutes, 132, 112, 70, 22, 5, 240, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 208, 116, 42, 20, "min")
-  TextGadget(#PB_Any, 272, 116, 126, 20, "Startup drain:")
-  SpinGadget(#GadgetBatteryStartupDrain, 404, 112, 70, 22, 1, 100, #PB_Spin_Numeric)
-  TextGadget(#PB_Any, 480, 116, 48, 20, "%/h")
+  TextGadget(#PB_Any, 34, 116, 112, 20, "Average window:", #PB_Text_Right)
+  SpinGadget(#GadgetBatterySmoothingMinutes, 154, 112, 70, 22, 5, 240, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 230, 116, 42, 20, "min")
+  TextGadget(#PB_Any, 272, 116, 116, 20, "Startup drain:", #PB_Text_Right)
+  SpinGadget(#GadgetBatteryStartupDrain, 394, 112, 70, 22, 1, 100, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 470, 116, 48, 20, "%/h")
   ButtonGadget(#GadgetBatteryStatsReset, 584, 110, 104, 26, "Reset log")
 
-  FrameGadget(#PB_Any, 18, 160, 700, 292, "Retained Log")
+  ThemedFrameGadget(18, 160, 700, 292, "Retained Log")
   ListIconGadget(#GadgetBatteryLogPreview, 34, 184, 668, 226, "Timestamp", BatteryLogColumnWidth(0), #PB_ListIcon_FullRowSelect | #PB_ListIcon_MultiSelect)
   AddGadgetColumn(#GadgetBatteryLogPreview, 1, "Battery %", BatteryLogColumnWidth(1))
   AddGadgetColumn(#GadgetBatteryLogPreview, 2, "Avg time", BatteryLogColumnWidth(2))
@@ -10899,8 +12514,10 @@ Procedure CreateMainWindow(showWindow.i)
   ButtonGadget(#GadgetBatteryLogCopyAll, 608, 420, 94, 24, "Copy CSV")
 
   ; Battery Graph tab: live telemetry and the large gliding percent graph.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "Battery Graph")
-  gFrameBatteryStatus = FrameGadget(#PB_Any, 18, 18, 328, 180, "Live Status")
+  BeginThemeTab()
+  gFrameBatteryStatus = ThemedFrameGadget(18, 18, 328, 180, "Live Status")
   batteryLabel = TextGadget(#PB_Any, 34, 40, 140, 17, "Battery:")
   TextGadget(#GadgetBatteryPercent, 178, 40, 138, 17, "Reading...")
   TextGadget(#PB_Any, 34, 59, 140, 17, "State:")
@@ -10915,31 +12532,37 @@ Procedure CreateMainWindow(showWindow.i)
   TextGadget(#GadgetBatteryVoltage, 178, 116, 154, 17, "")
   TextGadget(#PB_Any, 34, 143, 140, 17, "App use:")
   TextGadget(#GadgetPowerPilotDraw, 178, 143, 154, 17, "Sampling 60s")
+  TextGadget(#PB_Any, 34, 162, 66, 17, "Avg use:")
+  SpinGadget(#GadgetPowerPilotAverageMinutes, 104, 160, 42, 22, #PowerPilotUseAverageMinMinutes, #PowerPilotUseAverageMaxMinutes, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 150, 162, 24, 17, "min")
+  TextGadget(#GadgetPowerPilotDrawAverage, 178, 162, 154, 17, "Sampling")
   UseBoldFont(batteryLabel)
   UseBoldFont(#GadgetBatteryPercent)
 
-  gFrameBatteryEstimate = FrameGadget(#PB_Any, 368, 18, 350, 180, "Time Estimates")
+  gFrameBatteryEstimate = ThemedFrameGadget(368, 18, 350, 180, "Time Estimates")
   TextGadget(#PB_Any, 384, 40, 112, 17, "Average:")
   TextGadget(#GadgetBatteryEstimate, 502, 40, 186, 17, "")
   TextGadget(#PB_Any, 384, 59, 112, 17, "Now:")
   TextGadget(#GadgetBatteryInstantEstimate, 502, 59, 186, 17, "")
   TextGadget(#PB_Any, 384, 78, 112, 17, "Windows:")
   TextGadget(#GadgetBatteryRuntime, 502, 78, 186, 17, "")
-  TextGadget(#PB_Any, 384, 97, 112, 17, "Full-to-min:")
+  TextGadget(#PB_Any, 384, 97, 112, 17, "Full run:")
   TextGadget(#GadgetBatteryFullEstimate, 502, 97, 186, 17, "")
   TextGadget(#PB_Any, 384, 116, 112, 17, "Wear:")
   TextGadget(#GadgetBatteryWear, 502, 116, 186, 17, "")
-  TextGadget(#PB_Any, 384, 135, 112, 17, "As new:")
+  TextGadget(#PB_Any, 384, 135, 112, 17, "As-new run:")
   TextGadget(#GadgetBatteryNominalEstimate, 502, 135, 186, 17, "")
   TextGadget(#PB_Any, 384, 154, 112, 17, "Capacity:")
   TextGadget(#GadgetBatteryMaxCapacity, 502, 154, 186, 17, "")
   TextGadget(#PB_Any, 384, 173, 112, 17, "Cycle count:")
   TextGadget(#GadgetBatteryCycle, 502, 173, 186, 17, "")
 
-  gFrameBatteryGraph = FrameGadget(#PB_Any, 18, 204, 700, 255, BatteryGraphWindowTitle())
-  CheckBoxGadget(#GadgetBatteryGraphShowMarkers, 34, 430, 150, 20, "Markers")
-  TextGadget(#PB_Any, 478, 430, 112, 20, "History:", #PB_Text_Right)
+  gFrameBatteryGraph = ThemedFrameGadget(18, 204, 700, 250, BatteryGraphWindowTitle())
+  CheckBoxGadget(#GadgetBatteryGraphShowMarkers, 34, 428, 150, 20, "Markers")
+  TextGadget(#PB_Any, 478, 428, 112, 20, "History:", #PB_Text_Right)
   ComboBoxGadget(#GadgetBatteryGraphHours, 598, 426, 88, 24)
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "1 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "3 h")
   AddGadgetItem(#GadgetBatteryGraphHours, -1, "6 h")
   AddGadgetItem(#GadgetBatteryGraphHours, -1, "12 h")
   AddGadgetItem(#GadgetBatteryGraphHours, -1, "18 h")
@@ -10948,17 +12571,20 @@ Procedure CreateMainWindow(showWindow.i)
   AddGadgetItem(#GadgetBatteryGraphHours, -1, "48 h")
   AddGadgetItem(#GadgetBatteryGraphHours, -1, "60 h")
   AddGadgetItem(#GadgetBatteryGraphHours, -1, "72 h")
+  AddGadgetItem(#GadgetBatteryGraphHours, -1, "Max")
   CanvasGadget(#GadgetBatteryGraph, 34, 226, 668, 196)
 
   ; Battery Stats tab: derived summaries and display/export controls.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "Battery Stats")
-  FrameGadget(#PB_Any, 18, 18, 340, 92, "Latest Event")
+  BeginThemeTab()
+  ThemedFrameGadget(18, 18, 340, 92, "Latest Event")
   TextGadget(#GadgetBatterySessionSummary, 34, 42, 308, 54, "No sleep, wake, shutdown, or startup event yet.")
-  FrameGadget(#PB_Any, 378, 18, 340, 92, "Sleep/Off Loss")
+  ThemedFrameGadget(378, 18, 340, 92, "Sleep/Off Loss")
   TextGadget(#GadgetBatteryOffLossSummary, 394, 42, 308, 54, "No sleep, hibernate, shutdown, or missing-sample battery loss yet.")
-  FrameGadget(#PB_Any, 18, 124, 700, 112, "Today")
+  ThemedFrameGadget(18, 124, 700, 112, "Today")
   TextGadget(#GadgetBatteryDailySummary, 34, 148, 668, 74, "Waiting for battery samples.")
-  FrameGadget(#PB_Any, 18, 254, 340, 194, "Visible Log Columns")
+  ThemedFrameGadget(18, 254, 340, 194, "Visible Log Columns")
   CheckBoxGadget(#GadgetLogShowAverage, 40, 286, 84, 20, "Avg time")
   CheckBoxGadget(#GadgetLogShowInstant, 154, 286, 96, 20, "Now/rate")
   CheckBoxGadget(#GadgetLogShowWindows, 268, 286, 84, 20, "Win time")
@@ -10972,18 +12598,20 @@ Procedure CreateMainWindow(showWindow.i)
   TextGadget(#PB_Any, 34, 396, 308, 16, "Copy CSV includes all columns.")
   ButtonGadget(#GadgetSettingsExport, 40, 418, 126, 24, "Export settings")
   ButtonGadget(#GadgetSettingsImport, 190, 418, 126, 24, "Import settings")
-  FrameGadget(#PB_Any, 378, 254, 340, 194, "Battery Analysis")
+  ThemedFrameGadget(378, 254, 340, 194, "Battery Analysis")
   TextGadget(#GadgetBatteryAnalysisSummary, 394, 278, 308, 132, "Waiting for retained battery rows.")
   ButtonGadget(#GadgetBatteryAnalysisRefresh, 476, 418, 144, 24, "Refresh analysis")
 
   ; Power Use tab: show the compact PP Power Use row without crowding the live
   ; battery panel. Method details live in README/FUNCTION_MAP.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "Power Use")
-  FrameGadget(#PB_Any, 18, 18, 340, 174, "App Battery Cost")
-  sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 20, "Last 60 seconds")
+  BeginThemeTab()
+  ThemedFrameGadget(18, 18, 340, 174, "App Battery Cost")
+  sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 20, "Last 60s + Average")
   UseBoldFont(sectionHeader)
   TextGadget(#GadgetPowerUseSummary, 34, 68, 308, 96, "Waiting for 60 seconds of app CPU samples.")
-  FrameGadget(#PB_Any, 378, 18, 340, 174, "Battery Source")
+  ThemedFrameGadget(378, 18, 340, 174, "Battery Source")
   sectionHeader = TextGadget(#PB_Any, 394, 42, 308, 20, "Current read path")
   UseBoldFont(sectionHeader)
   TextGadget(#GadgetPowerUseStatus, 394, 68, 308, 96, "Battery source appears after the first read.")
@@ -10995,65 +12623,75 @@ Procedure CreateMainWindow(showWindow.i)
   idleText$ + "- Check the log for screen, wake, and update rows." + #CRLF$
   idleText$ + "- Keep Read every and Log every modest." + #CRLF$
   idleText$ + "- Use Task Manager or Energy report for other causes."
-  FrameGadget(#PB_Any, 18, 210, 340, 238, "Reading the Estimate")
+  ThemedFrameGadget(18, 210, 340, 238, "Reading the Estimate")
   sectionHeader = TextGadget(#PB_Any, 34, 234, 308, 20, "Meaning")
   UseBoldFont(sectionHeader)
   TextGadget(#GadgetPowerUseInterpretation, 34, 262, 308, 154, powerUseText$)
-  FrameGadget(#PB_Any, 378, 210, 340, 238, "Idle Checks")
+  ThemedFrameGadget(378, 210, 340, 238, "Idle Checks")
   sectionHeader = TextGadget(#PB_Any, 394, 234, 308, 20, "What to compare")
   UseBoldFont(sectionHeader)
   TextGadget(#GadgetPowerUseIdleChecklist, 394, 262, 308, 154, idleText$)
 
   ; Battery Test tab: live calibration/test observer. It records what Windows
   ; reports, including plugged-in discharging states used by vendor calibration.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "Battery Test")
-  FrameGadget(#PB_Any, 18, 18, 340, 174, "Test Status")
-  sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 20, "Guided test")
+  BeginThemeTab()
+  ThemedFrameGadget(18, 18, 340, 174, "Workflow")
+  sectionHeader = TextGadget(#PB_Any, 34, 42, 308, 18, "Choose what to record")
   UseBoldFont(sectionHeader)
-  TextGadget(#PB_Any, 34, 66, 92, 18, "Mode:")
-  TextGadget(#GadgetBatteryTestMode, 132, 66, 196, 18, "Monitor")
-  TextGadget(#PB_Any, 34, 90, 92, 18, "Phase:")
-  TextGadget(#GadgetBatteryTestPhase, 132, 90, 196, 18, "Idle")
-  TextGadget(#PB_Any, 34, 114, 92, 18, "Elapsed:")
-  TextGadget(#GadgetBatteryTestElapsed, 132, 114, 196, 18, "0h 00m")
-  ButtonGadget(#GadgetBatteryTestStart, 34, 146, 92, 26, "Manual")
-  ButtonGadget(#GadgetBatteryTestLenovo, 136, 146, 112, 26, "Lenovo reset")
-  ButtonGadget(#GadgetBatteryTestEnd, 258, 146, 70, 26, "End")
+  TextGadget(#PB_Any, 34, 64, 308, 34, "Monitor only watches. Manual records an unplug run. Calibration watches plugged-in discharge.")
+  TextGadget(#PB_Any, 34, 104, 58, 18, "Mode:")
+  TextGadget(#GadgetBatteryTestMode, 98, 104, 230, 18, "Monitor")
+  TextGadget(#PB_Any, 34, 128, 58, 18, "Phase:")
+  TextGadget(#GadgetBatteryTestPhase, 98, 128, 104, 18, "Idle")
+  TextGadget(#PB_Any, 214, 128, 64, 18, "Elapsed:")
+  TextGadget(#GadgetBatteryTestElapsed, 282, 128, 60, 18, "0h 00m")
+  ButtonGadget(#GadgetBatteryTestStart, 34, 156, 100, 26, "Manual test")
+  ButtonGadget(#GadgetBatteryTestLenovo, 144, 156, 112, 26, "Calibration")
+  ButtonGadget(#GadgetBatteryTestEnd, 266, 156, 62, 26, "End")
 
-  FrameGadget(#PB_Any, 378, 18, 340, 174, "Live Stats")
-  TextGadget(#PB_Any, 394, 42, 128, 18, "Battery:")
-  TextGadget(#GadgetBatteryTestPercent, 528, 42, 174, 18, "Unknown")
-  TextGadget(#PB_Any, 394, 68, 128, 18, "Remaining:")
-  TextGadget(#GadgetBatteryTestRemaining, 528, 68, 174, 18, "Unknown")
-  TextGadget(#PB_Any, 394, 94, 128, 18, "Watts:")
-  TextGadget(#GadgetBatteryTestWatts, 528, 94, 174, 18, "Unknown")
-  TextGadget(#PB_Any, 394, 120, 128, 18, "Estimate:")
-  TextGadget(#GadgetBatteryTestEstimate, 528, 120, 174, 18, "Unknown")
-  TextGadget(#GadgetBatteryTestGuide, 394, 146, 308, 34, "Start a manual test or leave this open during vendor calibration.")
-
-  FrameGadget(#PB_Any, 18, 210, 340, 238, "Report")
-  ButtonGadget(#GadgetBatteryTestOpenReport, 102, 228, 104, 24, "Open report")
-  ButtonGadget(#GadgetBatteryTestCopy, 224, 228, 104, 24, "Copy report")
-  TextGadget(#GadgetBatteryTestSummary, 34, 260, 308, 170, "No test log has been started yet.")
-
-  FrameGadget(#PB_Any, 378, 210, 340, 238, "Drain Load")
-  sectionHeader = TextGadget(#PB_Any, 394, 234, 308, 20, "Automatic drain")
+  ThemedFrameGadget(378, 18, 340, 174, "Live Windows Readings")
+  sectionHeader = TextGadget(#PB_Any, 394, 42, 308, 18, "Updates every second on this tab")
   UseBoldFont(sectionHeader)
-  TextGadget(#PB_Any, 394, 264, 78, 18, "Target:")
-  SpinGadget(#GadgetBatteryLoadMinutes, 482, 260, 72, 22, 15, 720, #PB_Spin_Numeric)
+  TextGadget(#PB_Any, 394, 66, 128, 18, "Battery:")
+  TextGadget(#GadgetBatteryTestPercent, 528, 66, 174, 18, "Unknown")
+  TextGadget(#PB_Any, 394, 90, 128, 18, "Remaining:")
+  TextGadget(#GadgetBatteryTestRemaining, 528, 90, 174, 18, "Unknown")
+  TextGadget(#PB_Any, 394, 114, 128, 18, "Watts:")
+  TextGadget(#GadgetBatteryTestWatts, 528, 114, 174, 18, "Unknown")
+  TextGadget(#PB_Any, 394, 138, 128, 18, "Estimate:")
+  TextGadget(#GadgetBatteryTestEstimate, 528, 138, 174, 18, "Unknown")
+  TextGadget(#GadgetBatteryTestGuide, 394, 162, 308, 20, "Next: click Manual test, Calibration, or just monitor.")
+
+  ThemedFrameGadget(18, 210, 340, 238, "Report and Log")
+  sectionHeader = TextGadget(#PB_Any, 34, 234, 308, 18, "What gets saved")
+  UseBoldFont(sectionHeader)
+  TextGadget(#PB_Any, 34, 256, 308, 42, "PowerPilot writes BATTERY TEST log rows while this runs. End freezes a report; Open report uses the latest saved file.")
+  ButtonGadget(#GadgetBatteryTestOpenReport, 102, 306, 104, 24, "Open report")
+  ButtonGadget(#GadgetBatteryTestCopy, 224, 306, 104, 24, "Copy report")
+  TextGadget(#GadgetBatteryTestSummary, 34, 342, 308, 88, "Monitor mode: no test is running.")
+
+  ThemedFrameGadget(378, 210, 340, 238, "Calibration Drain Helper")
+  sectionHeader = TextGadget(#PB_Any, 394, 234, 308, 18, "Auto uses CPU load during calibration")
+  UseBoldFont(sectionHeader)
+  TextGadget(#PB_Any, 394, 256, 308, 34, "Auto adjusts local CPU load to aim for the target time, then stops when charging starts.")
+  TextGadget(#PB_Any, 394, 306, 86, 18, "Target min:")
+  SpinGadget(#GadgetBatteryLoadMinutes, 492, 302, 82, 22, 15, 720, #PB_Spin_Numeric)
   SetGadgetState(#GadgetBatteryLoadMinutes, ClampInt(gSettings\BatteryCalibrationDrainMinutes, 15, 720))
-  TextGadget(#PB_Any, 560, 264, 34, 18, "min")
-  ButtonGadget(#GadgetBatteryLoadAuto, 602, 258, 100, 26, "Auto")
-  TextGadget(#GadgetBatteryLoadAutoStatus, 394, 294, 308, 18, "Auto off")
-  TextGadget(#PB_Any, 394, 322, 78, 18, "Load:")
-  TextGadget(#GadgetBatteryLoadStatus, 482, 322, 220, 18, "Off")
-  CheckBoxGadget(#GadgetBatteryLoadTestMode, 394, 350, 140, 22, "Test mode")
-  TextGadget(#GadgetBatteryLoadNote, 394, 382, 308, 42, "Auto drain stops when charging starts.")
+  ButtonGadget(#GadgetBatteryLoadAuto, 602, 300, 100, 26, "Auto")
+  TextGadget(#GadgetBatteryLoadAutoStatus, 394, 336, 308, 18, "Auto off")
+  TextGadget(#PB_Any, 394, 362, 78, 18, "Load:")
+  TextGadget(#GadgetBatteryLoadStatus, 482, 362, 220, 18, "Off")
+  CheckBoxGadget(#GadgetBatteryLoadTestMode, 394, 390, 140, 22, "Test mode")
+  TextGadget(#GadgetBatteryLoadNote, 394, 418, 308, 24, "Test mode writes extra controller rows for tuning.")
 
   ; About tab: concise in-app identity, license, privacy, and operating model.
+  CloseGadgetList()
   AddGadgetItem(#GadgetPanel, -1, "About")
+  BeginThemeTab()
   aboutPurpose$ = "Local tray app for power plans, battery history, screen events, and CSV export."
-  FrameGadget(#PB_Any, 18, 18, 700, 84, "PowerPilot")
+  ThemedFrameGadget(18, 18, 700, 84, "PowerPilot")
   aboutTitle = TextGadget(#PB_Any, 34, 42, 668, 20, #AppFullName$, #PB_Text_Center)
   aboutSubtitle = TextGadget(#GadgetAboutPurpose, 34, 66, 668, 28, aboutPurpose$, #PB_Text_Center)
   UseBoldFont(aboutTitle)
@@ -11063,34 +12701,41 @@ Procedure CreateMainWindow(showWindow.i)
   aboutOperation$ + "- Balanced -> PowerPilot Balanced" + #CRLF$
   aboutOperation$ + "- Best power efficiency -> PowerPilot Battery" + #CRLF$
   aboutOperation$ + "- Edit values on Plans; choose mode in Windows."
-  FrameGadget(#PB_Any, 18, 118, 340, 120, "Plan Follow")
+  ThemedFrameGadget(18, 118, 340, 120, "Plan Follow")
   TextGadget(#GadgetAboutOperation, 34, 142, 308, 78, aboutOperation$)
 
   aboutData$ = "- Battery percent, time, watts, and plug state." + #CRLF$
   aboutData$ + "- Screen state, brightness, Energy Saver, power events, and app rows."
-  FrameGadget(#PB_Any, 378, 118, 340, 120, "Logged Data")
+  ThemedFrameGadget(378, 118, 340, 120, "Logged Data")
   TextGadget(#GadgetAboutData, 394, 142, 308, 78, aboutData$)
 
   aboutVersion$ = "- Reads local Windows power, battery, display, CPU, and brightness data." + #CRLF$
   aboutVersion$ + "- Writes local settings, retained log rows, and owned plan values." + #CRLF$
   aboutVersion$ + "- Sends nothing by itself."
-  FrameGadget(#PB_Any, 18, 252, 340, 120, "Local Data")
+  ThemedFrameGadget(18, 252, 340, 120, "Local Data")
   TextGadget(#GadgetAboutVersion, 34, 276, 308, 78, aboutVersion$)
 
-  aboutBoundaries$ = "- Author: John Torset." + #CRLF$
-  aboutBoundaries$ + "- MIT License in LICENSE.txt." + #CRLF$
-  aboutBoundaries$ + "- Guide and uninstall notes in README.txt."
-  FrameGadget(#PB_Any, 378, 252, 340, 120, "Files")
+  aboutBoundaries$ = "- Store developer: Dofta." + #CRLF$
+  aboutBoundaries$ + "- Copyright: Dofta. MIT License." + #CRLF$
+  aboutBoundaries$ + "- Manual, README, and LICENSE bundled."
+  ThemedFrameGadget(378, 252, 340, 120, "Files")
   TextGadget(#GadgetAboutLicense, 394, 276, 308, 50, aboutBoundaries$)
-  ButtonGadget(#GadgetAboutOpenReadme, 452, 334, 120, 26, "Open README")
-  ButtonGadget(#GadgetAboutOpenLicense, 582, 334, 120, 26, "Open LICENSE")
+  ButtonGadget(#GadgetAboutOpenManual, 394, 334, 98, 26, "USER MANUAL")
+  ButtonGadget(#GadgetAboutOpenReadme, 502, 334, 92, 26, "README")
+  ButtonGadget(#GadgetAboutOpenLicense, 604, 334, 98, 26, "LICENSE")
 
   aboutBoundaries$ = "PowerPilot does not measure CPU package watts, display watts, fan power, temperature, Wi-Fi, storage, GPU load, or other apps." + #CRLF$
   aboutBoundaries$ + "Power Use estimates only this app's battery cost; it is not a hardware meter."
-  FrameGadget(#PB_Any, 18, 386, 700, 62, "Important Boundaries")
-  TextGadget(#GadgetAboutBoundaries, 34, 410, 668, 28, aboutBoundaries$, #PB_Text_Center)
+  ThemedFrameGadget(18, 380, 700, 72, "Important Boundaries")
+  TextGadget(#GadgetAboutBoundaries, 34, 406, 668, 40, aboutBoundaries$, #PB_Text_Center)
+  CloseGadgetList()
   CloseGadgetList()
 
+  CanvasGadget(#GadgetDarkTabBar, 12, 12, 736, 28)
+  CanvasGadget(#GadgetDarkPanelTopBorder, 12, 39, 736, 1)
+  CanvasGadget(#GadgetDarkPanelLeftBorder, 12, 39, 1, 459)
+  CanvasGadget(#GadgetDarkPanelRightBorder, 747, 39, 1, 459)
+  CanvasGadget(#GadgetDarkPanelBottomBorder, 12, 497, 736, 1)
   ButtonGadget(#GadgetHideToTray, 14, 512, 96, 28, "Hide")
   ButtonGadget(#GadgetExit, 650, 512, 96, 28, "Exit")
   StoreUiBaseLayout()
@@ -11108,6 +12753,9 @@ Procedure CreateMainWindow(showWindow.i)
   AddGadgetItem(#GadgetPlanDcCooling, -1, "Active")
   AddGadgetItem(#GadgetEnergySaverMode, -1, "Automatic threshold")
   AddGadgetItem(#GadgetEnergySaverMode, -1, "Battery plan always")
+  AddGadgetItem(#GadgetThemeMode, -1, "Windows")
+  AddGadgetItem(#GadgetThemeMode, -1, "Light")
+  AddGadgetItem(#GadgetThemeMode, -1, "Dark")
   AddGadgetItem(#GadgetBatteryLowAction, -1, "Do nothing")
   AddGadgetItem(#GadgetBatteryLowAction, -1, "Sleep")
   AddGadgetItem(#GadgetBatteryLowAction, -1, "Hibernate")
@@ -11120,29 +12768,37 @@ Procedure CreateMainWindow(showWindow.i)
   ; Startup order matters: settings first, then power-event cleanup/logging,
   ; learned drain, retained graph reload, live battery refresh, and plan follow.
   ApplySettingsToGui()
+  ApplyMainWindowLayoutScale()
   LogStartupPowerEvents()
   AutoSetInitialBatteryDrainFromLog()
   ApplySettingsToGui()
   WriteBatteryAppEvent("PowerPilot start")
   CleanupOldPowerPilotVersions(#False, #True)
   LoadBatteryGraphFromLog()
+  If applyHiddenStartupSettings
+    If ApplyHiddenStartupSettings()
+      LogAction("Hidden startup settings applied.")
+    Else
+      LogAction("Hidden startup settings refresh failed.")
+    EndIf
+  EndIf
   MonitorAutomaticPlans()
 
   If showWindow
     PrepareWindowForDisplay()
-    HideWindow(#WindowMain, #False)
-    SetForegroundWindow_(WindowID(#WindowMain))
+    RevealMainWindow()
     StartRefreshTimer()
   Else
+    PrepareWindowForDisplay()
     HideToTray()
   EndIf
 EndProcedure
 
 ; Main GUI event loop. Closing/minimizing hides to tray; explicit Exit ends.
-Procedure RunGui(showWindow.i)
+Procedure RunGui(showWindow.i, applyHiddenStartupSettings.i = #False)
   Protected event.i
   gStartedInTrayMode = Bool(showWindow = #False)
-  CreateMainWindow(showWindow)
+  CreateMainWindow(showWindow, applyHiddenStartupSettings)
   Repeat
     event = WaitWindowEvent()
     Select event
@@ -11165,6 +12821,12 @@ Procedure RunGui(showWindow.i)
 
           Case #TimerBatterySettingsApply
             ApplyPendingBatterySettings()
+
+          Case #TimerDeferredShowRefresh
+            RunDeferredShowRefresh()
+
+          Case #TimerThemeApply
+            ApplyPendingThemeMode()
         EndSelect
       Case #PB_Event_SizeWindow
         ApplyMainWindowLayoutScale()
@@ -11176,6 +12838,7 @@ EndProcedure
 
 ; Program entry point. Maintenance commands are used by the installer and should
 ; exit with conventional success/failure codes. No command opens the GUI.
+OnErrorCall(@RuntimeErrorHandler())
 LoadSettings()
 gSelectedPlan = PlanIndexByName(gSettings\LastPlan)
 If gSelectedPlan < 0 : gSelectedPlan = 1 : EndIf
@@ -11208,19 +12871,25 @@ If CountProgramParameters() > 0
       If gSettings\KeepSettingsOnReinstall : End 1 : Else : End 0 : EndIf
     Case "/follow-once"
       If ApplyWindowsPowerFollow(#True) : End 0 : Else : End 1 : EndIf
-    Case "/tray"
+    Case "/tray", "/startup"
       If EnsureSingleInstance() = #False : End 0 : EndIf
-      RunGui(#False)
+      RunGui(#False, #True)
     Case "/show"
-      If EnsureSingleInstance() = #False : End 0 : EndIf
+      If EnsureSingleInstance() = #False
+        SignalRunningInstanceToShow()
+        End 0
+      EndIf
       RunGui(#True)
   EndSelect
 EndIf
 
-If EnsureSingleInstance() = #False : End 0 : EndIf
+If EnsureSingleInstance() = #False
+  SignalRunningInstanceToShow()
+  End 0
+EndIf
 RunGui(#True)
 
 ; IDE Options = PureBasic 6.40 (Windows - x64)
-; CursorPosition = 1
+; CursorPosition = 31
 ; EnableThread
 ; DPIAware

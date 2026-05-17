@@ -1,15 +1,13 @@
 # Current Context
 
-Last updated: 2026-05-03
+Last updated: 2026-05-11
 
 ## Active summary
 
-- PowerPilot v1.1 is the current released version.
-- Release commit: `33968a2 Release PowerPilot v1.1`.
-- Release tag: `v1.1`.
-- GitHub release: https://github.com/JTorset66/PowerPilot/releases/tag/v1.1
-- The source snapshot for this released tag is saved at `SNAPSHOTS\powerpilot-release-v1.1-2026-05-03_03-43-06.zip`.
-- The latest verified build artifacts remain `build\PowerPilot_V1.1.2605.03093.exe` and `build\PowerPilot_V1.1.2605.03093_Setup.exe`.
+- PowerPilot v1.2 is the active development/release line.
+- Main source file: `PowerPilot_V1.2.pb`.
+- Build artifacts use the `PowerPilot_V1.2.YYMM.minute-of-month` filename line.
+- v1.1 remains the prior public release line and historical release notes are kept in `RELEASE_NOTES_v1.1.md`.
 
 ## v1.1 battery work summary
 
@@ -44,7 +42,7 @@ Last updated: 2026-05-03
 
 ## documentation and map
 
-- `README.md`, `RELEASE_NOTES_v1.1.md`, and `FUNCTION_MAP.md` describe the current v1.1 application.
+- `README.md`, `RELEASE_NOTES_v1.2.md`, and `FUNCTION_MAP.md` describe the current v1.2 application.
 - `FUNCTION_MAP.md` maps the PureBasic source areas and helps future stale-code checks.
 - `STARTUP_CONTEXT.md`, `CHAT_MEMORY\LATEST_BUILD.md`, `CHAT_MEMORY\LATEST_INSTALL.md`, and `CHAT_MEMORY\INDEX.md` are the first files to check when resuming.
 

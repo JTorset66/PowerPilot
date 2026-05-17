@@ -1,13 +1,16 @@
-# SignPath Foundation Application Draft
+# SignPath Foundation Application Notes
 
-This document collects the information needed to apply for a free SignPath.io subscription through SignPath Foundation.
+This document keeps the SignPath Foundation application material and current status for PowerPilot.
+
+Current status: SignPath Foundation onboarding is not active for this release state. The project can still use these notes if the free signing path is reopened, but public release documentation should not claim SignPath signing is available until it is approved and integrated.
 
 ## Project summary
 
 - Project name: PowerPilot
 - Project handle: powerpilot
+- Public publisher / Microsoft Store developer name: Dofta
 - Repository: <https://github.com/JTorset66/PowerPilot>
-- Latest public release: v1.1.2605.14550
+- Current release target: v1.2
 - License: MIT
 - Maintainer: John Torset
 - Primary platform: Windows x64
@@ -27,13 +30,14 @@ This document collects the information needed to apply for a free SignPath.io su
 
 - Repository home: <https://github.com/JTorset66/PowerPilot>
 - Code signing policy: <https://github.com/JTorset66/PowerPilot/blob/main/CODE_SIGNING_POLICY.md>
+- Privacy policy: <https://github.com/JTorset66/PowerPilot/blob/main/PRIVACY_POLICY.md>
 - Release checklist: <https://github.com/JTorset66/PowerPilot/blob/main/RELEASE_CHECKLIST.md>
 - Release workflow: <https://github.com/JTorset66/PowerPilot/blob/main/.github/workflows/release-self-hosted.yml>
 
 ## Expected release artifacts
 
-- `PowerPilot_V1.1.YYMM.minute-of-month.exe`
-- `PowerPilot_V1.1.YYMM.minute-of-month_Setup.exe`
+- `PowerPilot_V1.2.YYMM.minute-of-month.exe`
+- `PowerPilot_V1.2.YYMM.minute-of-month_Setup.exe`
 - SHA-256 checksum files for published executables
 
 ## Compliance notes against SignPath Foundation terms
@@ -70,12 +74,12 @@ This document collects the information needed to apply for a free SignPath.io su
 - The build scripts support signing with a certificate installed in the Windows certificate store.
 - The release process is documented in `RELEASE_CHECKLIST.md`.
 - The installer creates a desktop shortcut and includes buttons for reading the bundled README, license, and third-party notices before installation.
-- The repository includes a code signing policy that uses the required SignPath Foundation wording.
+- The repository includes a code signing policy and public privacy policy. SignPath-specific wording should be restored only if the SignPath Foundation path is approved.
 
 ## Honest caveats to mention if asked
 
 - The project is newly public and currently has limited external reputation.
-- The first public release is being published as `v1.1.2605.14550`.
+- The current release line is `v1.2`, with stamped builds published as `v1.2.YYMM.minute-of-month`.
 - Current binaries may be unsigned because SignPath onboarding is not yet complete.
 - The self-hosted Windows build workflow is present in the repository, but actual SignPath integration still depends on onboarding and runner setup.
 
